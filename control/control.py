@@ -5,7 +5,7 @@ from firedrake import *
 
 import ufl
 
-from preconditioner import *
+from preconditioner.preconditioner import *
 
 import petsc4py.PETSc as PETSc
 
