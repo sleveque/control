@@ -5,9 +5,9 @@ from firedrake import *
 
 from tlm_adjoint.firedrake import *
 
-from preconditioner import *
+from preconditioner.preconditioner import *
 
-from control import *
+from control.control import *
 
 import mpi4py.MPI as MPI
 import numpy as np
