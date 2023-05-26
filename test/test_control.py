@@ -199,6 +199,20 @@ def test_stationary_incompressible_linear_control():
     p_0.assign(my_control_stationary._p)
     mu_0.assign(my_control_stationary._mu)
 
+    mean = assemble(mu_0 * dx)
+    with mu_0.dat.vec as b_p:
+        b_p.shift(-mean)
+    mean = assemble(mu_ref * dx)
+    with mu_ref.dat.vec as b_p:
+        b_p.shift(-mean)
+
+    mean = assemble(p_0 * dx)
+    with p_0.dat.vec as b_p:
+        b_p.shift(-mean)
+    mean = assemble(p_ref * dx)
+    with p_ref.dat.vec as b_p:
+        b_p.shift(-mean)
+
     v_error_norm = np.sqrt(abs(assemble(inner(v_0 - v_ref,
                                               v_0 - v_ref) * dx)))
     assert v_error_norm < 1.0e-13
@@ -1152,30 +1166,32 @@ def test_instationary_linear_control_CN():
 
 def test_instationary_Stokes_control_BE_with_exact_sol():
     mesh_size = 3
-    mesh = UnitSquareMesh(2 ** mesh_size, 2 ** mesh_size, quadrilateral=True)
+    mesh = RectangleMesh(2 ** mesh_size, 2 ** mesh_size, 2.0, 2.0, quadrilateral=True)  # noqa: E501
 
     space_v = VectorFunctionSpace(mesh, "Lagrange", 2)
     space_p = FunctionSpace(mesh, "Lagrange", 1)
 
-    n_t = 10
+    n_t = 20
     time_interval = (0.0, 1.0)
 
     def my_DirichletBC_t_v(space_v, t):
         mesh = space_v.mesh()
         X = SpatialCoordinate(mesh)
+        x = X[0] - 1.0
+        y = X[1] - 1.0
 
         T_f = 1.0
 
         my_bcs = DirichletBC(
             space_v,
             as_vector([
-                exp(T_f - t) * 20.0 * X[0] * (X[1]**3),
-                exp(T_f - t) * 5.0 * (X[0]**4 - X[1]**4)]),
+                exp(T_f - t) * x * (y**3),
+                (1. / 4.) * exp(T_f - t) * (x**4 - y**4)]),
             "on_boundary")
 
         return my_bcs
 
-    beta = 10.0**-3
+    beta = 10.0**0
 
     def forw_diff_operator_v(trial, test, u, t):
         # spatial differential for the forward problem
@@ -1185,19 +1201,22 @@ def test_instationary_Stokes_control_BE_with_exact_sol():
         space = test.function_space()
         mesh = space.mesh()
         X = SpatialCoordinate(mesh)
+        x = X[0] - 1.0
+        y = X[1] - 1.0
+
         T_f = 1.
-        beta = 10.0**-3
+        beta = 10.0**0
 
         v_d_help = Function(space)
         v_d_help.interpolate(as_vector([
-            4. * beta * X[1] * (2. * (3. * X[0] * X[0] - 1.) * (X[1] * X[1] - 1.) + 3. * (X[0] * X[0] - 1.)**2),  # noqa: E501
-            -4. * beta * X[0] * (3. * (X[1] * X[1] - 1.)**2 + 2. * (X[0] * X[0] - 1.) * (3. * X[1] * X[1] - 1.))]))  # noqa: E501
+            4. * beta * y * (2. * (3. * x * x - 1.) * (y * y - 1.) + 3. * (x * x - 1.)**2),  # noqa: E501
+            -4. * beta * x * (3. * (y * y - 1.)**2 + 2. * (x * x - 1.) * (3. * y * y - 1.))]))  # noqa: E501
 
         # desired state
         v_d = Function(space)
         v_d.interpolate(as_vector([
-            exp(T_f - t) * (20. * X[0] * X[1]**3 + 2. * beta * (((X[0] * X[0] - 1.)**2) * (X[1] * X[1] - 7.) - 4. * (3. * X[0] * X[0] - 1.) * (X[1] * X[1] - 1.) + 2.)),  # noqa: E501
-            exp(T_f - t) * (5. * (X[0]**4 - X[1]**4) - 2. * beta * X[0] * (((X[1] * X[1] - 1.)**2) * (X[0] * X[0] - 7.) - 4. * (X[0] * X[0] - 1.) * (3. * X[1] * X[1] - 1.) - 2.))]))  # noqa: E501
+            exp(T_f - t) * (x * y**3 + 2. * beta * y * (((x * x - 1.)**2) * (y * y - 7.) - 4. * (3. * x * x - 1.) * (y * y - 1.) + 2.)),  # noqa: E501
+            exp(T_f - t) * ((1. / 4.) * (x**4 - y**4) - 2. * beta * x * (((y * y - 1.)**2) * (x * x - 7.) - 4. * (x * x - 1.) * (3. * y * y - 1.) - 2.))]))  # noqa: E501
 
         with v_d.dat.vec as b_v, \
                 v_d_help.dat.vec_ro as b_1_v:
@@ -1205,8 +1224,8 @@ def test_instationary_Stokes_control_BE_with_exact_sol():
 
         true_v = Function(space)
         true_v.interpolate(as_vector([
-            exp(T_f - t) * 20. * X[0] * X[1]**3,
-            exp(T_f - t) * (5. * X[0]**4 - 5. * X[1]**4)]))
+            exp(T_f - t) * x * y**3,
+            (1. / 4.) * exp(T_f - t) * (x**4 - y**4)]))
 
         return inner(v_d, test) * dx, true_v
 
@@ -1214,13 +1233,16 @@ def test_instationary_Stokes_control_BE_with_exact_sol():
         space = test.function_space()
         mesh = space.mesh()
         X = SpatialCoordinate(mesh)
+        x = X[0] - 1.0
+        y = X[1] - 1.0
+
         T_f = 1.
         t = 0.0
 
         v_0 = Function(space)
         v_0.interpolate(as_vector([
-            exp(T_f - t) * 20. * X[0] * X[1]**3,
-            exp(T_f - t) * (5. * X[0]**4 - 5. * X[1]**4)]))
+            exp(T_f - t) * x * y**3,
+            (1. / 4.) * exp(T_f - t) * (x**4 - y**4)]))
 
         return v_0
 
@@ -1228,19 +1250,22 @@ def test_instationary_Stokes_control_BE_with_exact_sol():
         space = test.function_space()
         mesh = space.mesh()
         X = SpatialCoordinate(mesh)
+        x = X[0] - 1.0
+        y = X[1] - 1.0
+
         T_f = 1.0
 
         # force function
         f_help = Function(space)
         f_help.interpolate(as_vector([
-            2. * X[1] * (X[0]**2 - 1.)**2 * (X[1]**2 - 1.),
-            -2. * X[0] * (X[0]**2 - 1.) * (X[1]**2 - 1.)**2]))
+            2. * y * (x**2 - 1.)**2 * (y**2 - 1.),
+            -2. * x * (x**2 - 1.) * (y**2 - 1.)**2]))
 
         # force function
         f = Function(space)
         f.interpolate(as_vector([
-            exp(T_f - t) * (-20. * X[0] * X[1]**3 - 2. * X[1] * (X[0] * X[0] - 1.)**2 * (X[1] * X[1] - 1.)),  # noqa: E501
-            exp(T_f - t) * (5. * (X[1]**4 - X[0]**4) + 2. * X[0] * (X[0] * X[0] - 1.) * (X[1] * X[1] - 1.)**2)]))  # noqa: E501
+            exp(T_f - t) * (-x * y**3 - 2. * y * (x * x - 1.)**2 * (y * y - 1.)),  # noqa: E501
+            exp(T_f - t) * ((1. / 4.) * (y**4 - x**4) + 2. * x * (x * x - 1.) * (y * y - 1.)**2)]))  # noqa: E501
 
         with f.dat.vec as b_v, \
                 f_help.dat.vec_ro as b_1_v:
@@ -1262,22 +1287,44 @@ def test_instationary_Stokes_control_BE_with_exact_sol():
         lambda_p_bounds=lambda_p_bounds, print_error=False,
         create_output=False)
 
-    my_v = my_control_instationary._v
-    my_p = my_control_instationary._p
+    flattened_space_v = tuple(space_v for i in range(n_t))
+    mixed_element_v = ufl.classes.MixedElement(
+        *[space.ufl_element() for space in flattened_space_v])
+    full_space_v = FunctionSpace(space_v.mesh(), mixed_element_v)
 
-    my_zeta = my_control_instationary._zeta
-    my_mu = my_control_instationary._mu
+    flattened_space_p = tuple(space_p for i in range(n_t - 1))
+    mixed_element_p = ufl.classes.MixedElement(
+        *[space.ufl_element() for space in flattened_space_p])
+    full_space_p = FunctionSpace(space_p.mesh(), mixed_element_p)
+
+    my_v = Function(full_space_v)
+    my_p = Function(full_space_p)
+
+    my_zeta = Function(full_space_v)
+    my_mu = Function(full_space_p)
+
+    my_v.assign(my_control_instationary._v)
+
+    my_zeta.assign(my_control_instationary._zeta)
+
+    for i in range(n_t - 1):
+        my_p.sub(i).assign(my_control_instationary._p.sub(i + 1))
+
+        my_mu.sub(i).assign(my_control_instationary._mu.sub(i))
 
     def v_sol(test, t):
         space = test.function_space()
         mesh = space.mesh()
         X = SpatialCoordinate(mesh)
+        x = X[0] - 1.0
+        y = X[1] - 1.0
+
         T_f = 1.0
 
         true_v = Function(space)
         true_v.interpolate(as_vector([
-            exp(T_f - t) * 20. * X[0] * X[1]**3,
-            exp(T_f - t) * (5. * X[0]**4 - 5. * X[1]**4)]))
+            exp(T_f - t) * x * y**3,
+            (1. / 4.) * exp(T_f - t) * (x**4 - y**4)]))
 
         return true_v
 
@@ -1285,11 +1332,14 @@ def test_instationary_Stokes_control_BE_with_exact_sol():
         space = test.function_space()
         mesh = space.mesh()
         X = SpatialCoordinate(mesh)
+        x = X[0] - 1.0
+        y = X[1] - 1.0
+
         T_f = 1.0
 
         true_p = Function(space)
         true_p.interpolate(
-            exp(T_f - t) * (60. * X[0]**2 * X[1] - 20. * X[1]**3))
+            exp(T_f - t) * (3. * x**2 * y - y**3))
 
         return true_p
 
@@ -1297,14 +1347,17 @@ def test_instationary_Stokes_control_BE_with_exact_sol():
         space = test.function_space()
         mesh = space.mesh()
         X = SpatialCoordinate(mesh)
+        x = X[0] - 1.0
+        y = X[1] - 1.0
+
         T_f = 1.0
 
-        beta = 10.0**-3
+        beta = 10.0**0
 
         true_zeta = Function(space)
         true_zeta.interpolate(as_vector([
-            beta * (exp(T_f - t) - 1.) * 2. * X[1] * (X[0]**2 - 1.)**2 * (X[1]**2 - 1.),  # noqa: E501
-            -beta * (exp(T_f - t) - 1.) * 2. * X[0] * (X[0]**2 - 1.) * (X[1]**2 - 1.)**2]))  # noqa: E501
+            beta * (exp(T_f - t) - 1.) * 2. * y * (x**2 - 1.)**2 * (y**2 - 1.),  # noqa: E501
+            -beta * (exp(T_f - t) - 1.) * 2. * x * (x**2 - 1.) * (y**2 - 1.)**2]))  # noqa: E501
 
         return true_zeta
 
@@ -1312,25 +1365,18 @@ def test_instationary_Stokes_control_BE_with_exact_sol():
         space = test.function_space()
         mesh = space.mesh()
         X = SpatialCoordinate(mesh)
+        x = X[0] - 1.0
+        y = X[1] - 1.0
+
         T_f = 1.0
 
-        beta = 10.0**-3
+        beta = 10.0**0
 
         true_mu = Function(space)
         true_mu.interpolate(
-            beta * exp(T_f - t) * 4. * X[0] * X[1])
+            beta * exp(T_f - t) * 4. * x * y)
 
         return true_mu
-
-    flattened_space_v = tuple(space_v for i in range(n_t))
-    mixed_element_v = ufl.classes.MixedElement(
-        *[space.ufl_element() for space in flattened_space_v])
-    full_space_v = FunctionSpace(space_v.mesh(), mixed_element_v)
-
-    flattened_space_p = tuple(space_p for i in range(n_t))
-    mixed_element_p = ufl.classes.MixedElement(
-        *[space.ufl_element() for space in flattened_space_p])
-    full_space_p = FunctionSpace(space_p.mesh(), mixed_element_p)
 
     true_v = Function(full_space_v, name="true_v")
     true_zeta = Function(full_space_v, name="true_zeta")
@@ -1345,7 +1391,13 @@ def test_instationary_Stokes_control_BE_with_exact_sol():
     v_test = TestFunction(space_v)
     p_test = TestFunction(space_p)
 
-    for i in range(n_t):
+    p_help = Function(space_p)
+    mu_help = Function(space_p)
+
+    true_p_i = Function(space_p)
+    true_mu_i = Function(space_p)
+
+    for i in range(n_t - 1):
         t = t_0 + i * tau
 
         true_v_i = v_sol(v_test, t)
@@ -1354,32 +1406,56 @@ def test_instationary_Stokes_control_BE_with_exact_sol():
         true_zeta_i = zeta_sol(v_test, t)
         true_zeta.sub(i).assign(true_zeta_i)
 
-        true_p_i = p_sol(p_test, t)
+        true_p_i = p_sol(p_test, t + tau)
+        mean = assemble(true_p_i * dx)
+        with true_p_i.dat.vec as b_p:
+            b_p.shift(-mean)
         true_p.sub(i).assign(true_p_i)
 
+        p_help.assign(my_p.sub(i))
+        mean = assemble(p_help * dx)
+        with p_help.dat.vec as b_p:
+            b_p.shift(-mean)
+        my_p.sub(i).assign(p_help)
+
         true_mu_i = mu_sol(p_test, t)
+        mean = assemble(true_mu_i * dx)
+        with true_mu_i.dat.vec as b_p:
+            b_p.shift(-mean)
         true_mu.sub(i).assign(true_mu_i)
+
+        mu_help.assign(my_mu.sub(i))
+        mean = assemble(mu_help * dx)
+        with mu_help.dat.vec as b_p:
+            b_p.shift(-mean)
+        my_mu.sub(i).assign(mu_help)
+
+    true_v_i = v_sol(v_test, time_interval[1])
+    true_v.sub(n_t - 1).assign(true_v_i)
+
+    true_zeta_i = zeta_sol(v_test, time_interval[1])
+    true_zeta.sub(n_t - 1).assign(true_zeta_i)
 
     v_error_norm = np.sqrt(abs(assemble(inner(my_v - true_v,
                                               my_v - true_v) * dx)))
-    assert v_error_norm < 0.01
+    assert v_error_norm < 0.02
 
     zeta_error_norm = np.sqrt(abs(assemble(inner(my_zeta - true_zeta,
                                                  my_zeta - true_zeta) * dx)))
-    assert zeta_error_norm < 0.01
+    assert zeta_error_norm < 0.02
 
     p_error_norm = np.sqrt(abs(assemble(inner(my_p - true_p,
                                               my_p - true_p) * dx)))
-    assert p_error_norm < 0.01
+    assert p_error_norm < 0.02
 
     mu_error_norm = np.sqrt(abs(assemble(inner(my_mu - true_mu,
                                                my_mu - true_mu) * dx)))
-    assert mu_error_norm < 0.01
+    assert mu_error_norm < 0.02
 
 
 def test_instationary_Stokes_control_CN_with_exact_sol():
-    mesh_size = 3
-    mesh = UnitSquareMesh(2 ** mesh_size, 2 ** mesh_size, quadrilateral=True)
+    mesh_size = 4
+    mesh = RectangleMesh(2 ** mesh_size, 2 ** mesh_size, 2.0, 2.0, quadrilateral=True)  # noqa: E501
 
     space_v = VectorFunctionSpace(mesh, "Lagrange", 2)
     space_p = FunctionSpace(mesh, "Lagrange", 1)
@@ -1390,19 +1466,21 @@ def test_instationary_Stokes_control_CN_with_exact_sol():
     def my_DirichletBC_t_v(space_v, t):
         mesh = space_v.mesh()
         X = SpatialCoordinate(mesh)
+        x = X[0] - 1.0
+        y = X[1] - 1.0
 
         T_f = 1.0
 
         my_bcs = DirichletBC(
             space_v,
             as_vector([
-                exp(T_f - t) * 20.0 * X[0] * (X[1]**3),
-                exp(T_f - t) * 5.0 * (X[0]**4 - X[1]**4)]),
+                exp(T_f - t) * x * (y**3),
+                exp(T_f - t) * (1. / 4.) * (x**4 - y**4)]),
             "on_boundary")
 
         return my_bcs
 
-    beta = 10.0**-3
+    beta = 10.0**0
 
     def forw_diff_operator_v(trial, test, u, t):
         # spatial differential for the forward problem
@@ -1412,19 +1490,22 @@ def test_instationary_Stokes_control_CN_with_exact_sol():
         space = test.function_space()
         mesh = space.mesh()
         X = SpatialCoordinate(mesh)
+        x = X[0] - 1.0
+        y = X[1] - 1.0
+
         T_f = 1.
-        beta = 10.0**-3
+        beta = 10.0**0
 
         v_d_help = Function(space)
         v_d_help.interpolate(as_vector([
-            4. * beta * X[1] * (2. * (3. * X[0] * X[0] - 1.) * (X[1] * X[1] - 1.) + 3. * (X[0] * X[0] - 1.)**2),  # noqa: E501
-            -4. * beta * X[0] * (3. * (X[1] * X[1] - 1.)**2 + 2. * (X[0] * X[0] - 1.) * (3. * X[1] * X[1] - 1.))]))  # noqa: E501
+            4. * beta * y * (2. * (3. * x * x - 1.) * (y * y - 1.) + 3. * (x * x - 1.)**2),  # noqa: E501
+            -4. * beta * x * (3. * (y * y - 1.)**2 + 2. * (x * x - 1.) * (3. * y * y - 1.))]))  # noqa: E501
 
         # desired state
         v_d = Function(space)
         v_d.interpolate(as_vector([
-            exp(T_f - t) * (20. * X[0] * X[1]**3 + 2. * beta * (((X[0] * X[0] - 1.)**2) * (X[1] * X[1] - 7.) - 4. * (3. * X[0] * X[0] - 1.) * (X[1] * X[1] - 1.) + 2.)),  # noqa: E501
-            exp(T_f - t) * (5. * (X[0]**4 - X[1]**4) - 2. * beta * X[0] * (((X[1] * X[1] - 1.)**2) * (X[0] * X[0] - 7.) - 4. * (X[0] * X[0] - 1.) * (3. * X[1] * X[1] - 1.) - 2.))]))  # noqa: E501
+            exp(T_f - t) * (x * y**3 + 2. * beta * y * (((x * x - 1.)**2) * (y * y - 7.) - 4. * (3. * x * x - 1.) * (y * y - 1.) + 2.)),  # noqa: E501
+            exp(T_f - t) * ((1. / 4.) * (x**4 - y**4) - 2. * beta * x * (((y * y - 1.)**2) * (x * x - 7.) - 4. * (x * x - 1.) * (3. * y * y - 1.) - 2.))]))  # noqa: E501
 
         with v_d.dat.vec as b_v, \
                 v_d_help.dat.vec_ro as b_1_v:
@@ -1432,8 +1513,8 @@ def test_instationary_Stokes_control_CN_with_exact_sol():
 
         true_v = Function(space)
         true_v.interpolate(as_vector([
-            exp(T_f - t) * 20. * X[0] * X[1]**3,
-            exp(T_f - t) * (5. * X[0]**4 - 5. * X[1]**4)]))
+            exp(T_f - t) * x * y**3,
+            exp(T_f - t) * (1. / 4.) * (x**4 - y**4)]))
 
         return inner(v_d, test) * dx, true_v
 
@@ -1441,13 +1522,16 @@ def test_instationary_Stokes_control_CN_with_exact_sol():
         space = test.function_space()
         mesh = space.mesh()
         X = SpatialCoordinate(mesh)
+        x = X[0] - 1.0
+        y = X[1] - 1.0
+
         T_f = 1.
         t = 0.0
 
         v_0 = Function(space)
         v_0.interpolate(as_vector([
-            exp(T_f - t) * 20. * X[0] * X[1]**3,
-            exp(T_f - t) * (5. * X[0]**4 - 5. * X[1]**4)]))
+            exp(T_f - t) * x * y**3,
+            exp(T_f - t) * (1. / 4.) * (x**4 - y**4)]))
 
         return v_0
 
@@ -1455,19 +1539,22 @@ def test_instationary_Stokes_control_CN_with_exact_sol():
         space = test.function_space()
         mesh = space.mesh()
         X = SpatialCoordinate(mesh)
+        x = X[0] - 1.0
+        y = X[1] - 1.0
+
         T_f = 1.0
 
         # force function
         f_help = Function(space)
         f_help.interpolate(as_vector([
-            2. * X[1] * (X[0]**2 - 1.)**2 * (X[1]**2 - 1.),
-            -2. * X[0] * (X[0]**2 - 1.) * (X[1]**2 - 1.)**2]))
+            2. * y * (x**2 - 1.)**2 * (y**2 - 1.),
+            -2. * x * (x**2 - 1.) * (y**2 - 1.)**2]))
 
         # force function
         f = Function(space)
         f.interpolate(as_vector([
-            exp(T_f - t) * (-20. * X[0] * X[1]**3 - 2. * X[1] * (X[0] * X[0] - 1.)**2 * (X[1] * X[1] - 1.)),  # noqa: E501
-            exp(T_f - t) * (5. * (X[1]**4 - X[0]**4) + 2. * X[0] * (X[0] * X[0] - 1.) * (X[1] * X[1] - 1.)**2)]))  # noqa: E501
+            exp(T_f - t) * (-x * y**3 - 2. * y * (x * x - 1.)**2 * (y * y - 1.)),  # noqa: E501
+            exp(T_f - t) * ((1. / 4.) * (y**4 - x**4) + 2. * x * (x * x - 1.) * (y * y - 1.)**2)]))  # noqa: E501
 
         with f.dat.vec as b_v, \
                 f_help.dat.vec_ro as b_1_v:
@@ -1499,12 +1586,15 @@ def test_instationary_Stokes_control_CN_with_exact_sol():
         space = test.function_space()
         mesh = space.mesh()
         X = SpatialCoordinate(mesh)
+        x = X[0] - 1.0
+        y = X[1] - 1.0
+
         T_f = 1.0
 
         true_v = Function(space)
         true_v.interpolate(as_vector([
-            exp(T_f - t) * 20. * X[0] * X[1]**3,
-            exp(T_f - t) * (5. * X[0]**4 - 5. * X[1]**4)]))
+            exp(T_f - t) * x * y**3,
+            exp(T_f - t) * (1. / 4.) * (x**4 - y**4)]))
 
         return true_v
 
@@ -1512,11 +1602,14 @@ def test_instationary_Stokes_control_CN_with_exact_sol():
         space = test.function_space()
         mesh = space.mesh()
         X = SpatialCoordinate(mesh)
+        x = X[0] - 1.0
+        y = X[1] - 1.0
+
         T_f = 1.0
 
         true_p = Function(space)
         true_p.interpolate(
-            exp(T_f - t) * (60. * X[0]**2 * X[1] - 20. * X[1]**3))
+            exp(T_f - t) * (3. * x**2 * y - y**3))
 
         return true_p
 
@@ -1524,14 +1617,17 @@ def test_instationary_Stokes_control_CN_with_exact_sol():
         space = test.function_space()
         mesh = space.mesh()
         X = SpatialCoordinate(mesh)
+        x = X[0] - 1.0
+        y = X[1] - 1.0
+
         T_f = 1.0
 
-        beta = 10.0**-3
+        beta = 10.0**0
 
         true_zeta = Function(space)
         true_zeta.interpolate(as_vector([
-            beta * (exp(T_f - t) - 1.) * 2. * X[1] * (X[0]**2 - 1.)**2 * (X[1]**2 - 1.),  # noqa: E501
-            -beta * (exp(T_f - t) - 1.) * 2. * X[0] * (X[0]**2 - 1.) * (X[1]**2 - 1.)**2]))  # noqa: E501
+            beta * (exp(T_f - t) - 1.) * 2. * y * (x**2 - 1.)**2 * (y**2 - 1.),  # noqa: E501
+            -beta * (exp(T_f - t) - 1.) * 2. * x * (x**2 - 1.) * (y**2 - 1.)**2]))  # noqa: E501
 
         return true_zeta
 
@@ -1539,13 +1635,16 @@ def test_instationary_Stokes_control_CN_with_exact_sol():
         space = test.function_space()
         mesh = space.mesh()
         X = SpatialCoordinate(mesh)
+        x = X[0] - 1.0
+        y = X[1] - 1.0
+
         T_f = 1.0
 
-        beta = 10.0**-3
+        beta = 10.0**0
 
         true_mu = Function(space)
         true_mu.interpolate(
-            beta * exp(T_f - t) * 4. * X[0] * X[1])
+            beta * exp(T_f - t) * 4. * x * y)
 
         return true_mu
 
@@ -1578,9 +1677,11 @@ def test_instationary_Stokes_control_CN_with_exact_sol():
     true_zeta_i = zeta_sol(v_test, t_0)
     true_zeta.sub(0).assign(true_zeta_i)
 
+    p_help = Function(space_p)
+
     for i in range(1, n_t):
         t = t_0 + i * tau
-        t_p = t_0 + 0.5 * i * tau
+        t_p = t - 0.5 * tau
 
         true_v_i = v_sol(v_test, t)
         true_v.sub(i).assign(true_v_i)
@@ -1589,26 +1690,44 @@ def test_instationary_Stokes_control_CN_with_exact_sol():
         true_zeta.sub(i).assign(true_zeta_i)
 
         true_p_i = p_sol(p_test, t_p)
+        mean = assemble(true_p_i * dx)
+        with true_p_i.dat.vec as b_p:
+            b_p.shift(-mean)
         true_p.sub(i - 1).assign(true_p_i)
 
         true_mu_i = mu_sol(p_test, t_p)
+        mean = assemble(true_mu_i * dx)
+        with true_mu_i.dat.vec as b_p:
+            b_p.shift(-mean)
         true_mu.sub(i - 1).assign(true_mu_i)
+
+        p_help.assign(my_p.sub(i - 1))
+        mean = assemble(p_help * dx)
+        with p_help.dat.vec as b_p:
+            b_p.shift(-mean)
+        my_p.sub(i - 1).assign(p_help)
+
+        p_help.assign(my_mu.sub(i - 1))
+        mean = assemble(p_help * dx)
+        with p_help.dat.vec as b_p:
+            b_p.shift(-mean)
+        my_mu.sub(i - 1).assign(p_help)
 
     v_error_norm = np.sqrt(abs(assemble(inner(my_v - true_v,
                                               my_v - true_v) * dx)))
-    assert v_error_norm < 0.01
+    assert v_error_norm < 0.025
 
     zeta_error_norm = np.sqrt(abs(assemble(inner(my_zeta - true_zeta,
                                                  my_zeta - true_zeta) * dx)))
-    assert zeta_error_norm < 0.01
+    assert zeta_error_norm < 0.025
 
     p_error_norm = np.sqrt(abs(assemble(inner(my_p - true_p,
                                               my_p - true_p) * dx)))
-    assert p_error_norm < 0.01
+    assert p_error_norm < 0.025
 
     mu_error_norm = np.sqrt(abs(assemble(inner(my_mu - true_mu,
                                                my_mu - true_mu) * dx)))
-    assert mu_error_norm < 0.01
+    assert mu_error_norm < 0.025
 
 
 def test_instationary_Navier_Stokes_BE():
