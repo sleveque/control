@@ -496,8 +496,8 @@ class Control:
                 nullspace_0=(nullspace_v,), nullspace_1=(nullspace_zeta,))
 
             if solver_parameters is None:
-                solver_parameters = {"linear_solver": "fgmres",
-                                     "fgmres_restart": 10,
+                solver_parameters = {"linear_solver": "gmres",
+                                     "gmres_restart": 10,
                                      "maximum_iterations": 50,
                                      "relative_tolerance": 1.0e-6,
                                      "absolute_tolerance": 0.0,
@@ -2841,20 +2841,12 @@ class Control:
                 pc_fn = P
 
             if solver_parameters is None:
-                if self._CN:
-                    solver_parameters = {"linear_solver": "fgmres",
-                                         "fgmres_restart": 10,
-                                         "maximum_iterations": 50,
-                                         "relative_tolerance": 1.0e-6,
-                                         "absolute_tolerance": 0.0,
-                                         "monitor_convergence": print_error}
-                else:
-                    solver_parameters = {"linear_solver": "fgmres",
-                                         "gmres_restart": 10,
-                                         "maximum_iterations": 50,
-                                         "relative_tolerance": 1.0e-6,
-                                         "absolute_tolerance": 0.0,
-                                         "monitor_convergence": print_error}
+                solver_parameters = {"linear_solver": "gmres",
+                                     "gmres_restart": 10,
+                                     "maximum_iterations": 50,
+                                     "relative_tolerance": 1.0e-6,
+                                     "absolute_tolerance": 0.0,
+                                     "monitor_convergence": print_error}
 
             if not self._CN:
                 system = MultiBlockSystem(
