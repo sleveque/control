@@ -473,6 +473,9 @@ class MultiBlockSystem:
                         for i in range(self._n_blocks_11):
                             index = self._n_blocks_00 + i
                             self._y_fn.sub(index).assign(y_help_1.sub(i))
+
+                        del y_help_0
+                        del y_help_1
                     else:
                         flattened_space_0_0 = tuple(self._space_0 for i in range(self._sub_n_blocks_00_0))  # noqa: E501
                         mixed_element_0_0 = ufl.classes.MixedElement(
@@ -527,6 +530,11 @@ class MultiBlockSystem:
                             index = self._n_blocks_00 + self._sub_n_blocks_11_0 + i  # noqa: E501
                             self._y_fn.sub(index).assign(y_help_1_1.sub(i))
 
+                        del y_help_0_0
+                        del y_help_0_1
+                        del y_help_1_0
+                        del y_help_1_1
+
                 x_c_0_help = Function(self._space_0)
                 x_c_1_help = Function(self._space_1)
 
@@ -538,6 +546,9 @@ class MultiBlockSystem:
                     x_c_1_help.assign(self._x_fn.sub(self._n_blocks_00 + i))
                     nullspace_help = self._nullspaces[self._n_blocks_00 + i]
                     nullspace_help.post_mult_correct_lhs(x_c_1_help, self._y_fn.sub(self._n_blocks_00 + i))  # noqa: E501
+
+                del x_c_0_help
+                del x_c_1_help
 
                 with self._y_fn.dat.vec_ro as y_v:
                     y_v.copy(result=y)
