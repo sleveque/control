@@ -463,7 +463,7 @@ class Control:
                     for bc in bcs_zeta:
                         bc.apply(b)
                     try:
-                        solver_1.solve(u_1, b)
+                        solver_1.solve(u_1, b.copy(deepcopy=True))
                     except ConvergenceError:
                         assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                     del b
@@ -473,7 +473,7 @@ class Control:
                     for bc in bcs_zeta:
                         bc.apply(b)
                     try:
-                        solver_2.solve(u_1, b)
+                        solver_2.solve(u_1, b.copy(deepcopy=True))
                     except ConvergenceError:
                         assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                     del b
@@ -892,7 +892,7 @@ class Control:
                         space_v, space_v,
                         block_00=block_00_int, block_01=block_01_int,
                         block_10=block_10_int, block_11=block_11_int,
-                        nullspace_0=(nullspace_v,), nullspace_1=(nullspace_v,))
+                        nullspace_0=(nullspace_v,), nullspace_1=(nullspace_zeta,))
 
                     inner_solver_parameters = {"preconditioner": True,
                                                "linear_solver": "gmres",
@@ -986,7 +986,8 @@ class Control:
                         for bc in bcs_zeta:
                             bc.apply(b)
                         try:
-                            solver_1.solve(u_1_inner, b)
+                            solver_1.solve(u_1_inner,
+                                           b.copy(deepcopy=True))
                         except ConvergenceError:
                             assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                         del b
@@ -996,7 +997,8 @@ class Control:
                         for bc in bcs_zeta:
                             bc.apply(b)
                         try:
-                            solver_2.solve(u_1_inner, b)
+                            solver_2.solve(u_1_inner,
+                                           b.copy(deepcopy=True))
                         except ConvergenceError:
                             assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                         del b
@@ -1068,11 +1070,13 @@ class Control:
                                                "ksp_rtol": 0.0})
 
                     try:
-                        solver_K_p.solve(u_1.sub(0), b_0_help)
+                        solver_K_p.solve(u_1.sub(0),
+                                         b_0_help.copy(deepcopy=True))
                     except ConvergenceError:
                         assert solver_K_p.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                     try:
-                        solver_K_p.solve(u_1.sub(1), b_1_help)
+                        solver_K_p.solve(u_1.sub(1),
+                                         b_1_help.copy(deepcopy=True))
                     except ConvergenceError:
                         assert solver_K_p.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
 
@@ -1111,11 +1115,13 @@ class Control:
                     del b_c_1_help
 
                     try:
-                        solver_M_p.solve(u_1.sub(0), b_0_help)
+                        solver_M_p.solve(u_1.sub(0),
+                                         b_0_help.copy(deepcopy=True))
                     except ConvergenceError:
                         assert solver_M_p.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                     try:
-                        solver_M_p.solve(u_1.sub(1), b_1_help)
+                        solver_M_p.solve(u_1.sub(1),
+                                         b_1_help.copy(deepcopy=True))
                     except ConvergenceError:
                         assert solver_M_p.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
 
@@ -2380,8 +2386,8 @@ class Control:
                             b = Function(space_v)
                             b.assign(b_0_help.sub(i))
                             try:
-                                solver_0.solve(
-                                    u_0.sub(i), b.copy(deepcopy=True))
+                                solver_0.solve(u_0.sub(i),
+                                               b.copy(deepcopy=True))
                             except ConvergenceError:
                                 assert solver_0.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                             del b
@@ -2446,7 +2452,8 @@ class Control:
                         b_help = Function(space_v)
                         b_help.assign(b.sub(0))
                         try:
-                            solver_1.solve(u_1.sub(0), b_help)
+                            solver_1.solve(u_1.sub(0),
+                                           b_help.copy(deepcopy=True))
                         except ConvergenceError:
                             assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                         del b_help
@@ -2484,7 +2491,8 @@ class Control:
                                     "ksp_atol": 0.0,
                                     "ksp_rtol": 0.0})
                             try:
-                                solver_1.solve(u_1.sub(i), b_help)
+                                solver_1.solve(u_1.sub(i),
+                                               b_help.copy(deepcopy=True))
                             except ConvergenceError:
                                 assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                             del b_help
@@ -2524,7 +2532,8 @@ class Control:
                                 "ksp_atol": 0.0,
                                 "ksp_rtol": 0.0})
                         try:
-                            solver_2.solve(u_1.sub(n_t - 2), b_help)
+                            solver_2.solve(u_1.sub(n_t - 2),
+                                           b_help.copy(deepcopy=True))
                         except ConvergenceError:
                             assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                         del b_help
@@ -2555,7 +2564,8 @@ class Control:
                                     "ksp_atol": 0.0,
                                     "ksp_rtol": 0.0})
                             try:
-                                solver_2.solve(u_1.sub(i), b_help)
+                                solver_2.solve(u_1.sub(i),
+                                               b_help.copy(deepcopy=True))
                             except ConvergenceError:
                                 assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                             del b_help
@@ -2665,7 +2675,8 @@ class Control:
                         b_help = Function(space_v)
                         b_help.assign(b.sub(0))
                         try:
-                            solver_1.solve(u_1.sub(0), b_help)
+                            solver_1.solve(u_1.sub(0),
+                                           b_help.copy(deepcopy=True))
                         except ConvergenceError:
                             assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                         del b_help
@@ -2697,7 +2708,8 @@ class Control:
                                     "ksp_rtol": 0.0})
 
                             try:
-                                solver_1.solve(u_1.sub(i), b_help)
+                                solver_1.solve(u_1.sub(i),
+                                               b_help.copy(deepcopy=True))
                             except ConvergenceError:
                                 assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                             del b_help
@@ -2727,7 +2739,8 @@ class Control:
                                 "ksp_atol": 0.0,
                                 "ksp_rtol": 0.0})
                         try:
-                            solver_1.solve(u_1.sub(n_t - 1), b_help)
+                            solver_1.solve(u_1.sub(n_t - 1),
+                                           b_help.copy(deepcopy=True))
                         except ConvergenceError:
                             assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                         del b_help
@@ -2772,7 +2785,8 @@ class Control:
                                 "ksp_atol": 0.0,
                                 "ksp_rtol": 0.0})
                         try:
-                            solver_2.solve(u_1.sub(n_t - 1), b_help)
+                            solver_2.solve(u_1.sub(n_t - 1),
+                                           b_help.copy(deepcopy=True))
                         except ConvergenceError:
                             assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                         del b_help
@@ -2803,7 +2817,8 @@ class Control:
                                     "ksp_atol": 0.0,
                                     "ksp_rtol": 0.0})
                             try:
-                                solver_2.solve(u_1.sub(i), b_help)
+                                solver_2.solve(u_1.sub(i),
+                                               b_help.copy(deepcopy=True))
                             except ConvergenceError:
                                 assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                             del b_help
@@ -2832,7 +2847,8 @@ class Control:
                                 "ksp_atol": 0.0,
                                 "ksp_rtol": 0.0})
                         try:
-                            solver_2.solve(u_1.sub(0), b_help)
+                            solver_2.solve(u_1.sub(0),
+                                           b_help.copy(deepcopy=True))
                         except ConvergenceError:
                             assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                         del b_help
@@ -4360,7 +4376,8 @@ class Control:
                             b_help = Function(space_v)
                             b_help.assign(b.sub(0))
                             try:
-                                solver_1.solve(u_1_inner.sub(0), b_help)
+                                solver_1.solve(u_1_inner.sub(0),
+                                               b_help.copy(deepcopy=True))
                             except ConvergenceError:
                                 assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                             del b_help
@@ -4398,7 +4415,8 @@ class Control:
                                         "ksp_atol": 0.0,
                                         "ksp_rtol": 0.0})
                                 try:
-                                    solver_1.solve(u_1_inner.sub(i), b_help)
+                                    solver_1.solve(u_1_inner.sub(i),
+                                                   b_help.copy(deepcopy=True))
                                 except ConvergenceError:
                                     assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                                 del b_help
@@ -4438,7 +4456,8 @@ class Control:
                                     "ksp_atol": 0.0,
                                     "ksp_rtol": 0.0})
                             try:
-                                solver_2.solve(u_1_inner.sub(n_t - 2), b_help)
+                                solver_2.solve(u_1_inner.sub(n_t - 2),
+                                               b_help.copy(deepcopy=True))
                             except ConvergenceError:
                                 assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                             del b_help
@@ -4469,7 +4488,8 @@ class Control:
                                         "ksp_atol": 0.0,
                                         "ksp_rtol": 0.0})
                                 try:
-                                    solver_2.solve(u_1_inner.sub(i), b_help)
+                                    solver_2.solve(u_1_inner.sub(i),
+                                                   b_help.copy(deepcopy=True))
                                 except ConvergenceError:
                                     assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                                 del b_help
@@ -4570,13 +4590,15 @@ class Control:
                         for i in range(n_t - 1):
                             p_help.assign(b_0_help.sub(i))
                             try:
-                                solver_K_p.solve(u_1.sub(i), p_help)
+                                solver_K_p.solve(u_1.sub(i),
+                                                 p_help.copy(deepcopy=True))
                             except ConvergenceError:
                                 assert solver_K_p.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                             index = n_t - 1 + i
                             p_help.assign(b_1_help.sub(i))
                             try:
-                                solver_K_p.solve(u_1.sub(index), p_help)
+                                solver_K_p.solve(u_1.sub(index),
+                                                 p_help.copy(deepcopy=True))
                             except ConvergenceError:
                                 assert solver_K_p.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                         del p_help
@@ -4674,13 +4696,15 @@ class Control:
                         for i in range(n_t - 1):
                             p_help.assign(b_0_help.sub(i))
                             try:
-                                solver_M_p.solve(u_1.sub(i), p_help)
+                                solver_M_p.solve(u_1.sub(i),
+                                                 p_help.copy(deepcopy=True))
                             except ConvergenceError:
                                 assert solver_M_p.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                             index = n_t - 1 + i
                             p_help.assign(b_1_help.sub(i))
                             try:
-                                solver_M_p.solve(u_1.sub(index), p_help)
+                                solver_M_p.solve(u_1.sub(index),
+                                                 p_help.copy(deepcopy=True))
                             except ConvergenceError:
                                 assert solver_M_p.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                         del p_help
@@ -4826,7 +4850,8 @@ class Control:
                             b_help = Function(space_v)
                             b_help.assign(b.sub(0))
                             try:
-                                solver_1.solve(u_1_inner.sub(0), b_help)
+                                solver_1.solve(u_1_inner.sub(0),
+                                               b_help.copy(deepcopy=True))
                             except ConvergenceError:
                                 assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                             del b_help
@@ -4858,7 +4883,8 @@ class Control:
                                         "ksp_rtol": 0.0})
 
                                 try:
-                                    solver_1.solve(u_1_inner.sub(i), b_help)
+                                    solver_1.solve(u_1_inner.sub(i),
+                                                   b_help.copy(deepcopy=True))
                                 except ConvergenceError:
                                     assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                                 del b_help
@@ -4888,7 +4914,8 @@ class Control:
                                     "ksp_atol": 0.0,
                                     "ksp_rtol": 0.0})
                             try:
-                                solver_1.solve(u_1_inner.sub(n_t - 1), b_help)
+                                solver_1.solve(u_1_inner.sub(n_t - 1),
+                                               b_help.copy(deepcopy=True))
                             except ConvergenceError:
                                 assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                             del b_help
@@ -4933,7 +4960,8 @@ class Control:
                                     "ksp_atol": 0.0,
                                     "ksp_rtol": 0.0})
                             try:
-                                solver_2.solve(u_1_inner.sub(n_t - 1), b_help)
+                                solver_2.solve(u_1_inner.sub(n_t - 1),
+                                               b_help.copy(deepcopy=True))
                             except ConvergenceError:
                                 assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                             del b_help
@@ -4965,7 +4993,8 @@ class Control:
                                         "ksp_atol": 0.0,
                                         "ksp_rtol": 0.0})
                                 try:
-                                    solver_2.solve(u_1_inner.sub(i), b_help)
+                                    solver_2.solve(u_1_inner.sub(i),
+                                                   b_help.copy(deepcopy=True))
                                 except ConvergenceError:
                                     assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                                 del b_help
@@ -4994,7 +5023,8 @@ class Control:
                                     "ksp_atol": 0.0,
                                     "ksp_rtol": 0.0})
                             try:
-                                solver_2.solve(u_1_inner.sub(0), b_help)
+                                solver_2.solve(u_1_inner.sub(0),
+                                               b_help.copy(deepcopy=True))
                             except ConvergenceError:
                                 assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                             del b_help
@@ -5091,13 +5121,15 @@ class Control:
                         for i in range(n_t):
                             p_help.assign(b_0_help.sub(i))
                             try:
-                                solver_K_p.solve(u_1.sub(i), p_help)
+                                solver_K_p.solve(u_1.sub(i),
+                                                 p_help.copy(deepcopy=True))
                             except ConvergenceError:
                                 assert solver_K_p.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                             index = n_t + i
                             p_help.assign(b_1_help.sub(i))
                             try:
-                                solver_K_p.solve(u_1.sub(index), p_help)
+                                solver_K_p.solve(u_1.sub(index),
+                                                 p_help.copy(deepcopy=True))
                             except ConvergenceError:
                                 assert solver_K_p.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                         del p_help
@@ -5199,13 +5231,15 @@ class Control:
                         for i in range(n_t):
                             p_help.assign(b_0_help.sub(i))
                             try:
-                                solver_M_p.solve(u_1.sub(i), p_help)
+                                solver_M_p.solve(u_1.sub(i),
+                                                 p_help.copy(deepcopy=True))
                             except ConvergenceError:
                                 assert solver_M_p.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                             index = n_t + i
                             p_help.assign(b_1_help.sub(i))
                             try:
-                                solver_M_p.solve(u_1.sub(index), p_help)
+                                solver_M_p.solve(u_1.sub(index),
+                                                 p_help.copy(deepcopy=True))
                             except ConvergenceError:
                                 assert solver_M_p.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
                         del p_help
