@@ -200,7 +200,7 @@ class Control:
                 if zeta.function_space() != space_v:
                     raise ValueError("Unexpected space")
                 else:
-                    bcs_zeta = DirichletBC(space_v, 0.0, "on_boundary")
+                    bcs_zeta = homogenize(self._bcs_v)
                     for bc in bcs_zeta:
                         bc.apply(zeta)
 
@@ -298,7 +298,7 @@ class Control:
             else:
                 zeta_help = Function(zeta_new.function_space(), name="zeta")
                 zeta_help.assign(zeta_new)
-                bcs_zeta = DirichletBC(self._space_v, 0.0, "on_boundary")
+                bcs_zeta = homogenize(self._bcs_v)
                 for bc in bcs_zeta:
                     bc.apply(zeta_help)
                 self._zeta.assign(zeta_help)
@@ -339,7 +339,7 @@ class Control:
                 bcs_v_help = self._bcs_v
             else:
                 bcs_v = self._bcs_v
-            bcs_zeta = DirichletBC(space_v, 0.0, "on_boundary")
+            bcs_zeta = bcs_v
 
             nullspace_v = DirichletBCNullspace(bcs_v)
             nullspace_zeta = DirichletBCNullspace(bcs_zeta)
@@ -578,7 +578,7 @@ class Control:
                 bcs_v_help = self._bcs_v
             else:
                 bcs_v = self._bcs_v
-            bcs_zeta = DirichletBC(space_v, 0.0, "on_boundary")
+            bcs_zeta = bcs_v
 
             beta = self._beta
 
@@ -772,7 +772,7 @@ class Control:
                 bcs_v_help = self._bcs_v
             else:
                 bcs_v = self._bcs_v
-            bcs_zeta = DirichletBC(space_v, 0.0, "on_boundary")
+            bcs_zeta = bcs_v
 
             nullspace_v = DirichletBCNullspace(bcs_v)
             nullspace_zeta = DirichletBCNullspace(bcs_zeta)
@@ -1260,7 +1260,7 @@ class Control:
                 bcs_v_help = self._bcs_v
             else:
                 bcs_v = self._bcs_v
-            bcs_zeta = DirichletBC(space_v, 0.0, "on_boundary")
+            bcs_zeta = bcs_v
 
             beta = self._beta
 
@@ -1667,7 +1667,7 @@ class Control:
                 if zeta.function_space() != full_space_v:
                     raise ValueError("Unexpected space")
 
-            bcs_zeta = DirichletBC(space_v, 0.0, "on_boundary")
+            bcs_zeta = homogenize(self._bcs_v[(1)])
             for i in range(n_t):
                 for bc in bcs_zeta:
                     bc.apply(zeta)
@@ -1848,6 +1848,11 @@ class Control:
                     bcs_v_i = full_bcs_v[(i)]
                     for bc in bcs_v_i:
                         bc.apply(self._v.sub(i))
+
+                bcs_zeta = homogenize(self._bcs_v[(1)])
+                for i in range(n_t):
+                    for bc in bcs_zeta:
+                        bc.apply(zeta)
             else:
                 self._set_space_v(space_v, bcs_v_new=True, bcs_v=bcs_v)
 
@@ -1869,7 +1874,7 @@ class Control:
                 raise ValueError("Unexpected space")
             else:
                 self._zeta.assign(zeta_new)
-                bcs_zeta = DirichletBC(self._space_v, 0.0, "on_boundary")
+                bcs_zeta = homogenize(self._bcs_v[(1)])
                 for i in range(self._n_t):
                     for bc in bcs_zeta:
                         bc.apply(self._zeta.sub(i))
@@ -1918,7 +1923,7 @@ class Control:
                 bcs_v_help = self._bcs_v
             else:
                 bcs_v = self._bcs_v[(1)]
-            bcs_zeta = DirichletBC(space_v, 0.0, "on_boundary")
+            bcs_zeta = bcs_v
 
             nullspace_v = DirichletBCNullspace(bcs_v)
             nullspace_zeta = DirichletBCNullspace(bcs_zeta)
@@ -2999,7 +3004,7 @@ class Control:
                 bcs_v_help = self._bcs_v
             else:
                 bcs_v = self._bcs_v[(1)]
-            bcs_zeta = DirichletBC(space_v, 0.0, "on_boundary")
+            bcs_zeta = bcs_v
 
             flattened_space_v = tuple(space_v for i in range(n_t))
             mixed_element_v = ufl.classes.MixedElement(
@@ -3580,7 +3585,7 @@ class Control:
                 bcs_v_help = self._bcs_v
             else:
                 bcs_v = self._bcs_v[(1)]
-            bcs_zeta = DirichletBC(space_v, 0.0, "on_boundary")
+            bcs_zeta = bcs_v
 
             nullspace_v = DirichletBCNullspace(bcs_v)
             nullspace_zeta = DirichletBCNullspace(bcs_zeta)
@@ -5472,7 +5477,7 @@ class Control:
                 bcs_v_help = self._bcs_v
             else:
                 bcs_v = self._bcs_v[(1)]
-            bcs_zeta = DirichletBC(space_v, 0.0, "on_boundary")
+            bcs_zeta = bcs_v
 
             flattened_space_v = tuple(space_v for i in range(n_t))
             mixed_element_v = ufl.classes.MixedElement(
