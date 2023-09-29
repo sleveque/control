@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from firedrake import *
+from firedrake.functionspaceimpl import WithGeometry as FunctionSpaceBase
 
 import ufl
 
@@ -28,7 +29,10 @@ def apply_T_1(x_old, space_v, n_blocks):
         *[space.ufl_element() for space in flattened_space])
     full_space_v = FunctionSpace(space_v.mesh(), mixed_element)
 
-    x_new = Function(full_space_v)
+    if isinstance(x_old, Function):
+        x_new = Function(full_space_v)
+    else:
+        x_new = Cofunction(full_space_v.dual())
     x_new.assign(x_old)
 
     for i in range(n_blocks - 1):
@@ -45,7 +49,10 @@ def apply_T_2(x_old, space_v, n_blocks):
         *[space.ufl_element() for space in flattened_space])
     full_space_v = FunctionSpace(space_v.mesh(), mixed_element)
 
-    x_new = Function(full_space_v)
+    if isinstance(x_old, Function):
+        x_new = Function(full_space_v)
+    else:
+        x_new = Cofunction(full_space_v.dual())
     x_new.assign(x_old)
 
     for i in range(1, n_blocks):
@@ -63,7 +70,10 @@ def apply_T_1_inv(x_old, space_v, n_blocks):
         *[space.ufl_element() for space in flattened_space])
     full_space_v = FunctionSpace(space_v.mesh(), mixed_element)
 
-    x_new = Function(full_space_v)
+    if isinstance(x_old, Function):
+        x_new = Function(full_space_v)
+    else:
+        x_new = Cofunction(full_space_v.dual())
     x_new.assign(x_old)
 
     for i in range(n_blocks - 2, -1, -1):
@@ -80,7 +90,10 @@ def apply_T_2_inv(x_old, space_v, n_blocks):
         *[space.ufl_element() for space in flattened_space])
     full_space_v = FunctionSpace(space_v.mesh(), mixed_element)
 
-    x_new = Function(full_space_v)
+    if isinstance(x_old, Function):
+        x_new = Function(full_space_v)
+    else:
+        x_new = Cofunction(full_space_v.dual())
     x_new.assign(x_old)
 
     for i in range(1, n_blocks):
@@ -104,6 +117,12 @@ class Control:
                 bcs_v = (bcs_v,)
             else:
                 bcs_v = tuple(bcs_v)
+
+            if not isinstance(space_v, FunctionSpaceBase):
+                raise TypeError("Space must be a primal space")
+            if space_p is not None \
+                    and not isinstance(space_p, FunctionSpaceBase):
+                raise TypeError("Space must be a primal space")
 
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
             if J_v is None:
@@ -605,8 +624,8 @@ class Control:
             v_d = assemble(v_d)
 
             def non_linear_res_eval():
-                rhs_0 = Function(space_v, name="rhs_0")
-                rhs_1 = Function(space_v, name="rhs_1")
+                rhs_0 = Cofunction(space_v.dual(), name="rhs_0")
+                rhs_1 = Cofunction(space_v.dual(), name="rhs_1")
 
                 rhs_0.assign(v_d)
                 rhs_1.assign(f)
@@ -642,7 +661,7 @@ class Control:
 
             rhs_0, rhs_1 = non_linear_res_eval()
 
-            rhs = Function(space_v * space_v, name="rhs")
+            rhs = Cofunction((space_v * space_v).dual(), name="rhs")
             rhs.sub(0).assign(rhs_0)
             rhs.sub(1).assign(rhs_1)
 
@@ -829,10 +848,10 @@ class Control:
                     div_v = assemble(- action(B, v_inhom))
 
             if div_zeta is None:
-                div_zeta = Function(space_p)
+                div_zeta = Cofunction(space_p.dual())
 
-            b_0 = Function(space_0, name="b_0")
-            b_1 = Function(space_1, name="b_1")
+            b_0 = Cofunction(space_0.dual(), name="b_0")
+            b_1 = Cofunction(space_1.dual(), name="b_1")
 
             b_0.sub(0).assign(v_d)
             b_0.sub(1).assign(f)
@@ -882,8 +901,8 @@ class Control:
 
             if P is None:
                 def pc_fn(u_0, u_1, b_0, b_1):
-                    b_0_help = Function(space_v)
-                    b_1_help = Function(space_v)
+                    b_0_help = Cofunction(space_v.dual())
+                    b_1_help = Cofunction(space_v.dual())
 
                     b_0_help.assign(b_0.sub(0))
                     b_1_help.assign(b_0.sub(1))
@@ -1019,8 +1038,8 @@ class Control:
                     u_0.sub(1).assign(zeta_help)
 
                     # u_1 = - b_1 + block_10 * u_0
-                    b_0_help = Function(space_p)
-                    b_1_help = Function(space_p)
+                    b_0_help = Cofunction(space_p.dual())
+                    b_1_help = Cofunction(space_p.dual())
                     b_0_help.assign(assemble(action(B, v_help)))
                     b_1_help.assign(assemble(action(B, zeta_help)))
                     with b_0_help.dat.vec as b_v, \
@@ -1100,8 +1119,8 @@ class Control:
                     else:
                         block_11_p = - (1.0 / beta) * self._J_u(p_trial, p_test)  # noqa: E501
 
-                    b_0_help = Function(space_p)
-                    b_1_help = Function(space_p)
+                    b_0_help = Cofunction(space_p.dual())
+                    b_1_help = Cofunction(space_p.dual())
                     b_c_0_help = Function(space_p)
                     b_c_1_help = Function(space_p)
                     b_c_0_help.assign(u_1.sub(0))
@@ -1297,11 +1316,11 @@ class Control:
             v_d = assemble(v_d)
 
             def non_linear_res_eval():
-                rhs_00 = Function(space_v, name="rhs_00")
-                rhs_01 = Function(space_v, name="rhs_01")
+                rhs_00 = Cofunction(space_v.dual(), name="rhs_00")
+                rhs_01 = Cofunction(space_v.dual(), name="rhs_01")
 
-                rhs_10 = Function(space_p, name="rhs_10")
-                rhs_11 = Function(space_p, name="rhs_11")
+                rhs_10 = Cofunction(space_p.dual(), name="rhs_10")
+                rhs_11 = Cofunction(space_p.dual(), name="rhs_11")
 
                 rhs_00.assign(v_d)
                 rhs_01.assign(f)
@@ -1359,7 +1378,7 @@ class Control:
 
             rhs_00, rhs_01, rhs_10, rhs_11 = non_linear_res_eval()
 
-            rhs = Function(space_0 * space_1, name="rhs")
+            rhs = Cofunction((space_0 * space_1).dual(), name="rhs")
             rhs.sub(0).assign(rhs_00)
             rhs.sub(1).assign(rhs_01)
             rhs.sub(2).assign(rhs_10)
@@ -1501,6 +1520,12 @@ class Control:
                      initial_condition=None, time_interval=None,
                      J_v=None, J_u=None,
                      bcs_v=None):
+            if not isinstance(space_v, FunctionSpaceBase):
+                raise TypeError("Space must be a primal space")
+            if space_p is not None \
+                    and not isinstance(space_p, FunctionSpaceBase):
+                raise TypeError("Space must be a primal space")
+
             flattened_space_v = tuple(space_v for i in range(n_t))
             mixed_element_v = ufl.classes.MixedElement(
                 *[space.ufl_element() for space in flattened_space_v])
@@ -1951,7 +1976,7 @@ class Control:
 
             if f is None:
                 check_f = True
-                f = Function(full_space_v)
+                f = Cofunction(full_space_v.dual())
                 for i in range(n_t):
                     t = t_0 + i * tau
                     f.sub(i).assign(assemble(self._force_function(v_test, t)))
@@ -1960,7 +1985,7 @@ class Control:
 
             if v_d is None:
                 check_v_d = True
-                v_d = Function(full_space_v)
+                v_d = Cofunction(full_space_v.dual())
                 true_v = Function(full_space_v)
                 for i in range(n_t):
                     t = t_0 + i * tau
@@ -2081,8 +2106,8 @@ class Control:
                 block_10[(n_t - 1, n_t - 1)] = tau * D_v_i + M_v
 
             if not self._CN:
-                b_0 = Function(full_space_v, name="b_0")
-                b_1 = Function(full_space_v, name="b_1")
+                b_0 = Cofunction(full_space_v.dual(), name="b_0")
+                b_1 = Cofunction(full_space_v.dual(), name="b_1")
             else:
                 flattened_space_v_help = tuple(space_v for i in range(n_t - 1))
                 mixed_element_v_help = ufl.classes.MixedElement(
@@ -2090,8 +2115,8 @@ class Control:
                 full_space_v_help = FunctionSpace(space_v.mesh(),
                                                   mixed_element_v_help)
 
-                b_0 = Function(full_space_v_help, name="b_0")
-                b_1 = Function(full_space_v_help, name="b_1")
+                b_0 = Cofunction(full_space_v_help.dual(), name="b_0")
+                b_1 = Cofunction(full_space_v_help.dual(), name="b_1")
 
             if not self._CN:
                 if check_v_d:
@@ -2389,7 +2414,7 @@ class Control:
                         b_0_help = apply_T_1_inv(b_0, space_v, n_t - 1)
 
                         for i in range(n_t - 1):
-                            b = Function(space_v)
+                            b = Cofunction(space_v.dual())
                             b.assign(b_0_help.sub(i))
                             try:
                                 solver_0.solve(u_0.sub(i),
@@ -2406,7 +2431,7 @@ class Control:
                         del b_0_help
 
                         # u_1 = - b_1 + D_v * u_0
-                        b = Function(full_space_v_help)
+                        b = Cofunction(full_space_v_help.dual())
                         block_ii = block_10[(0, 0)]
                         b_help = Function(space_v)
                         b_help.assign(u_0.sub(0))
@@ -2455,7 +2480,7 @@ class Control:
                                 "pc_hypre_boomeramg_max_iter": 2,
                                 "ksp_atol": 0.0,
                                 "ksp_rtol": 0.0})
-                        b_help = Function(space_v)
+                        b_help = Cofunction(space_v.dual())
                         b_help.assign(b.sub(0))
                         try:
                             solver_1.solve(u_1.sub(0),
@@ -2481,6 +2506,7 @@ class Control:
                             del b_help_new
                             for bc in bcs_zeta:
                                 bc.apply(b.sub(i))
+                            b_help = Cofunction(space_v.dual())
                             b_help.assign(b.sub(i))
 
                             block_ii = block_10[(i, i)]
@@ -2509,7 +2535,7 @@ class Control:
                             u_1.sub(i).assign(b.sub(i))
                         del b
 
-                        b = Function(full_space_v_help)
+                        b = Cofunction(full_space_v_help.dual())
                         for i in range(n_t - 1):
                             b_help = Function(space_v)
                             b_help.assign(u_1.sub(i))
@@ -2522,7 +2548,7 @@ class Control:
                                 bc.apply(b.sub(i))
 
                         # second solve
-                        b_help = Function(space_v)
+                        b_help = Cofunction(space_v.dual())
                         b_help.assign(b.sub(n_t - 2))
                         block_ii = block_01[(n_t - 2, n_t - 2)]
                         solver_2 = LinearSolver(
@@ -2555,6 +2581,7 @@ class Control:
                             del b_help_new
                             for bc in bcs_zeta:
                                 bc.apply(b.sub(i))
+                            b_help = Cofunction(space_v.dual())
                             b_help.assign(b.sub(i))
                             block_ii = block_01[(i, i)]
                             solver_2 = LinearSolver(
@@ -2618,7 +2645,7 @@ class Control:
                                                        "ksp_rtol": 0.0})
 
                         for i in range(n_t):
-                            b = Function(space_v)
+                            b = Cofunction(space_v.dual())
                             b.assign(b_0.sub(i))
                             try:
                                 solver_0.solve(
@@ -2633,7 +2660,7 @@ class Control:
                             x_v.scale(1.0 / epsilon)
 
                         # u_1 = - b_1 + D_v * u_0
-                        b = Function(full_space_v)
+                        b = Cofunction(full_space_v.dual())
                         block_ii = block_10[(0, 0)]
                         b_help = Function(space_v)
                         b_help.assign(u_0.sub(0))
@@ -2678,7 +2705,7 @@ class Control:
                                 "ksp_atol": 0.0,
                                 "ksp_rtol": 0.0})
 
-                        b_help = Function(space_v)
+                        b_help = Cofunction(space_v.dual())
                         b_help.assign(b.sub(0))
                         try:
                             solver_1.solve(u_1.sub(0),
@@ -2698,6 +2725,7 @@ class Control:
                             del b_help_new
                             for bc in bcs_zeta:
                                 bc.apply(b.sub(i))
+                            b_help = Cofunction(space_v.dual())
                             b_help.assign(b.sub(i))
                             block_ii = block_10[(i, i)]
                             solver_1 = LinearSolver(
@@ -2730,6 +2758,7 @@ class Control:
                         for bc in bcs_zeta:
                             bc.apply(b.sub(n_t - 1))
                         del b_help_new
+                        b_help = Cofunction(space_v.dual())
                         b_help.assign(b.sub(n_t - 1))
                         block_ii = block_10[(n_t - 1, n_t - 1)]
                         solver_1 = LinearSolver(
@@ -2752,7 +2781,7 @@ class Control:
                         del b_help
                         del b
 
-                        b = Function(full_space_v)
+                        b = Cofunction(full_space_v.dual())
                         for i in range(n_t - 1):
                             b_help = Function(space_v)
                             b_help.assign(u_1.sub(i))
@@ -2775,7 +2804,7 @@ class Control:
                             bc.apply(b.sub(n_t - 1))
 
                         # second solve
-                        b_help = Function(space_v)
+                        b_help = Cofunction(space_v.dual())
                         b_help.assign(b.sub(n_t - 1))
                         block_ii = block_01[(n_t - 1, n_t - 1)]
                         solver_2 = LinearSolver(
@@ -2808,6 +2837,7 @@ class Control:
                             del b_help_new
                             for bc in bcs_zeta:
                                 bc.apply(b.sub(i))
+                            b_help = Cofunction(space_v.dual())
                             b_help.assign(b.sub(i))
                             block_ii = block_01[(i, i)]
                             solver_2 = LinearSolver(
@@ -2839,6 +2869,7 @@ class Control:
                         del b_help_new
                         for bc in bcs_zeta:
                             bc.apply(b.sub(0))
+                        b_help = Cofunction(space_v.dual())
                         b_help.assign(b.sub(0))
                         block_ii = block_01[(0, 0)]
                         solver_2 = LinearSolver(
@@ -3639,17 +3670,17 @@ class Control:
                 space_p.mesh(),
                 full_space_p.ufl_element() * full_space_p.ufl_element())
 
-            b_0 = Function(space_0, name="b_0")
-            b_1 = Function(space_1, name="b_1")
+            b_0 = Cofunction(space_0.dual(), name="b_0")
+            b_1 = Cofunction(space_1.dual(), name="b_1")
 
             if self._CN:
-                b_0_0 = Function(full_space_v_help, name="b_0_0")
-                b_0_1 = Function(full_space_v_help, name="b_0_1")
+                b_0_0 = Cofunction(full_space_v_help.dual(), name="b_0_0")
+                b_0_1 = Cofunction(full_space_v_help.dual(), name="b_0_1")
             else:
-                b_0_0 = Function(full_space_v, name="b_0_0")
-                b_0_1 = Function(full_space_v, name="b_0_1")
-            b_1_0 = Function(full_space_p, name="b_1_0")
-            b_1_1 = Function(full_space_p, name="b_1_1")
+                b_0_0 = Cofunction(full_space_v.dual(), name="b_0_0")
+                b_0_1 = Cofunction(full_space_v.dual(), name="b_0_1")
+            b_1_0 = Cofunction(full_space_p.dual(), name="b_1_0")
+            b_1_1 = Cofunction(full_space_p.dual(), name="b_1_1")
 
             if self._initial_condition is not None:
                 v_0 = self._initial_condition(v_test)
@@ -3658,7 +3689,7 @@ class Control:
 
             if f is None:
                 check_f = True
-                f = Function(full_space_v)
+                f = Cofunction(full_space_v.dual())
                 for i in range(n_t):
                     t = t_0 + i * tau
                     f.sub(i).assign(assemble(self._force_function(v_test, t)))
@@ -3667,7 +3698,7 @@ class Control:
 
             if v_d is None:
                 check_v_d = True
-                v_d = Function(full_space_v)
+                v_d = Cofunction(full_space_v.dual())
                 true_v = Function(full_space_v, name="true_v")
                 for i in range(n_t):
                     t = t_0 + i * tau
@@ -4236,8 +4267,8 @@ class Control:
                 # definition of preconditioner
                 if self._CN:
                     def pc_fn(u_0, u_1, b_0, b_1):
-                        b_0_help = Function(full_space_v_help)
-                        b_1_help = Function(full_space_v_help)
+                        b_0_help = Cofunction(full_space_v_help.dual())
+                        b_1_help = Cofunction(full_space_v_help.dual())
 
                         for i in range(n_t - 1):
                             b_0_help.sub(i).assign(b_0.sub(i))
@@ -4310,7 +4341,7 @@ class Control:
                                 b_0_inner, space_v, n_t - 1)
 
                             for i in range(n_t - 1):
-                                b = Function(space_v)
+                                b = Cofunction(space_v.dual())
                                 b.assign(b_0_help.sub(i))
                                 try:
                                     solver_0.solve(
@@ -4329,7 +4360,7 @@ class Control:
                             del b_0_help
 
                             # u_1 = - b_1 + D_v * u_0
-                            b = Function(full_space_v_help)
+                            b = Cofunction(full_space_v_help.dual())
                             block_ii = block_10_int[(0, 0)]
                             b_help = Function(space_v)
                             b_help.assign(u_0_inner.sub(0))
@@ -4379,7 +4410,7 @@ class Control:
                                     "pc_hypre_boomeramg_max_iter": 2,
                                     "ksp_atol": 0.0,
                                     "ksp_rtol": 0.0})
-                            b_help = Function(space_v)
+                            b_help = Cofunction(space_v.dual())
                             b_help.assign(b.sub(0))
                             try:
                                 solver_1.solve(u_1_inner.sub(0),
@@ -4405,6 +4436,7 @@ class Control:
                                 del b_help_new
                                 for bc in bcs_zeta:
                                     bc.apply(b.sub(i))
+                                b_help = Cofunction(space_v.dual())
                                 b_help.assign(b.sub(i))
 
                                 block_ii = block_10_int[(i, i)]
@@ -4433,7 +4465,7 @@ class Control:
                                 u_1_inner.sub(i).assign(b.sub(i))
                             del b
 
-                            b = Function(full_space_v_help)
+                            b = Cofunction(full_space_v_help.dual())
                             for i in range(n_t - 1):
                                 b_help = Function(space_v)
                                 b_help.assign(u_1_inner.sub(i))
@@ -4446,7 +4478,7 @@ class Control:
                                     bc.apply(b.sub(i))
 
                             # second solve
-                            b_help = Function(space_v)
+                            b_help = Cofunction(space_v.dual())
                             b_help.assign(b.sub(n_t - 2))
                             block_ii = block_01_int[(n_t - 2, n_t - 2)]
                             solver_2 = LinearSolver(
@@ -4479,6 +4511,7 @@ class Control:
                                 del b_help_new
                                 for bc in bcs_zeta:
                                     bc.apply(b.sub(i))
+                                b_help = Cofunction(space_v.dual())
                                 b_help.assign(b.sub(i))
                                 block_ii = block_01_int[(i, i)]
                                 solver_2 = LinearSolver(
@@ -4520,8 +4553,8 @@ class Control:
                         del zeta_help
 
                         # u_1 = - b_1 + block_10 * u_0
-                        b_0_help = Function(full_space_p)
-                        b_1_help = Function(full_space_p)
+                        b_0_help = Cofunction(full_space_p.dual())
+                        b_1_help = Cofunction(full_space_p.dual())
                         v_help = Function(space_v)
                         for i in range(n_t - 1):
                             v_help.assign(u_0.sub(i))
@@ -4592,7 +4625,7 @@ class Control:
                         b_0_help = apply_T_2_inv(b_0_help, space_p, n_t - 1)
                         b_1_help = apply_T_1_inv(b_1_help, space_p, n_t - 1)
 
-                        p_help = Function(space_p)
+                        p_help = Cofunction(space_p.dual())
                         for i in range(n_t - 1):
                             p_help.assign(b_0_help.sub(i))
                             try:
@@ -4611,8 +4644,8 @@ class Control:
                         del b_0_help
                         del b_1_help
 
-                        b_0_help = Function(full_space_p)
-                        b_1_help = Function(full_space_p)
+                        b_0_help = Cofunction(full_space_p.dual())
+                        b_1_help = Cofunction(full_space_p.dual())
 
                         for i in range(n_t - 1):
                             v_n_help = Function(space_v)
@@ -4698,7 +4731,7 @@ class Control:
                         del p_help
                         del mu_help
 
-                        p_help = Function(space_p)
+                        p_help = Cofunction(space_p.dual())
                         for i in range(n_t - 1):
                             p_help.assign(b_0_help.sub(i))
                             try:
@@ -4718,8 +4751,8 @@ class Control:
                         del b_1_help
                 else:
                     def pc_fn(u_0, u_1, b_0, b_1):
-                        b_0_help = Function(full_space_v)
-                        b_1_help = Function(full_space_v)
+                        b_0_help = Cofunction(full_space_v.dual())
+                        b_1_help = Cofunction(full_space_v.dual())
 
                         for i in range(n_t):
                             b_0_help.sub(i).assign(b_0.sub(i))
@@ -4791,7 +4824,7 @@ class Control:
                                             "ksp_rtol": 0.0})
 
                             for i in range(n_t):
-                                b = Function(space_v)
+                                b = Cofunction(space_v.dual())
                                 b.assign(b_0_inner.sub(i))
                                 try:
                                     solver_0.solve(u_0_inner.sub(i),
@@ -4806,7 +4839,7 @@ class Control:
                                 x_v.scale(1.0 / epsilon)
 
                             # u_1 = - b_1 + D_v * u_0
-                            b = Function(full_space_v)
+                            b = Cofunction(full_space_v.dual())
                             block_ii = block_10_int[(0, 0)]
                             b_help = Function(space_v)
                             b_help.assign(u_0_inner.sub(0))
@@ -4853,7 +4886,7 @@ class Control:
                                     "ksp_atol": 0.0,
                                     "ksp_rtol": 0.0})
 
-                            b_help = Function(space_v)
+                            b_help = Cofunction(space_v.dual())
                             b_help.assign(b.sub(0))
                             try:
                                 solver_1.solve(u_1_inner.sub(0),
@@ -4873,6 +4906,7 @@ class Control:
                                 del b_help_new
                                 for bc in bcs_zeta:
                                     bc.apply(b.sub(i))
+                                b_help = Cofunction(space_v.dual())
                                 b_help.assign(b.sub(i))
                                 block_ii = block_10_int[(i, i)]
                                 solver_1 = LinearSolver(
@@ -4905,6 +4939,7 @@ class Control:
                             for bc in bcs_zeta:
                                 bc.apply(b.sub(n_t - 1))
                             del b_help_new
+                            b_help = Cofunction(space_v.dual())
                             b_help.assign(b.sub(n_t - 1))
                             block_ii = block_10_int[(n_t - 1, n_t - 1)]
                             solver_1 = LinearSolver(
@@ -4927,7 +4962,7 @@ class Control:
                             del b_help
                             del b
 
-                            b = Function(full_space_v)
+                            b = Cofunction(full_space_v.dual())
                             for i in range(n_t - 1):
                                 b_help = Function(space_v)
                                 b_help.assign(u_1_inner.sub(i))
@@ -4950,7 +4985,7 @@ class Control:
                                 bc.apply(b.sub(n_t - 1))
 
                             # second solve
-                            b_help = Function(space_v)
+                            b_help = Cofunction(space_v.dual())
                             b_help.assign(b.sub(n_t - 1))
                             block_ii = block_01_int[(n_t - 1, n_t - 1)]
                             solver_2 = LinearSolver(
@@ -4983,6 +5018,7 @@ class Control:
                                 del b_help_new
                                 for bc in bcs_zeta:
                                     bc.apply(b.sub(i))
+                                b_help = Cofunction(space_v.dual())
                                 b_help.assign(b.sub(i))
                                 block_ii = block_01_int[(i, i)]
                                 solver_2 = LinearSolver(
@@ -5015,6 +5051,7 @@ class Control:
                             del b_help_new
                             for bc in bcs_zeta:
                                 bc.apply(b.sub(0))
+                            b_help = Cofunction(space_v.dual())
                             b_help.assign(b.sub(0))
                             block_ii = block_01_int[(0, 0)]
                             solver_2 = LinearSolver(
@@ -5056,8 +5093,8 @@ class Control:
                         del zeta_help
 
                         # u_1 = - b_1 + block_10 * u_0
-                        b_0_help = Function(full_space_p)
-                        b_1_help = Function(full_space_p)
+                        b_0_help = Cofunction(full_space_p.dual())
+                        b_1_help = Cofunction(full_space_p.dual())
                         v_help = Function(space_v)
                         for i in range(n_t):
                             v_help.assign(u_0.sub(i))
@@ -5123,7 +5160,7 @@ class Control:
                             with b_1_help.sub(i).dat.vec as b_v:
                                 b_v.scale(1.0 / (tau**2))
 
-                        p_help = Function(space_p)
+                        p_help = Cofunction(space_p.dual())
                         for i in range(n_t):
                             p_help.assign(b_0_help.sub(i))
                             try:
@@ -5142,8 +5179,8 @@ class Control:
                         del b_0_help
                         del b_1_help
 
-                        b_0_help = Function(full_space_p)
-                        b_1_help = Function(full_space_p)
+                        b_0_help = Cofunction(full_space_p.dual())
+                        b_1_help = Cofunction(full_space_p.dual())
 
                         for i in range(n_t - 1):
                             v_n_help = Function(space_v)
@@ -5233,7 +5270,7 @@ class Control:
                         del p_help
                         del mu_help
 
-                        p_help = Function(space_p)
+                        p_help = Cofunction(space_p.dual())
                         for i in range(n_t):
                             p_help.assign(b_0_help.sub(i))
                             try:
@@ -5528,12 +5565,12 @@ class Control:
 
             zeta_old.sub(n_t - 1).assign(Constant(0.0))
 
-            f = Function(full_space_v)
+            f = Cofunction(full_space_v.dual())
             for i in range(n_t):
                 t = t_0 + i * tau
                 f.sub(i).assign(assemble(self._force_function(v_test, t)))
 
-            v_d = Function(full_space_v)
+            v_d = Cofunction(full_space_v.dual())
             true_v = Function(full_space_v, name="true_v")
             for i in range(n_t):
                 t = t_0 + i * tau
@@ -5547,12 +5584,12 @@ class Control:
             B_T = - inner(p_trial, div(v_test)) * dx
 
             def non_linear_res_eval():
-                rhs_10 = Function(full_space_p, name="rhs_10")
-                rhs_11 = Function(full_space_p, name="rhs_11")
+                rhs_10 = Cofunction(full_space_p.dual(), name="rhs_10")
+                rhs_11 = Cofunction(full_space_p.dual(), name="rhs_11")
 
                 if not self._CN:
-                    rhs_00 = Function(full_space_v, name="rhs_00")
-                    rhs_01 = Function(full_space_v, name="rhs_01")
+                    rhs_00 = Cofunction(full_space_v.dual(), name="rhs_00")
+                    rhs_01 = Cofunction(full_space_v.dual(), name="rhs_01")
 
                     if not self._Gauss_Newton:
                         D_v_i = self._forward_form(
@@ -5792,8 +5829,8 @@ class Control:
                         for bc in bcs_v:
                             bc.apply(rhs_01.sub(i))
                 else:
-                    rhs_00 = Function(full_space_v_help, name="rhs_00")
-                    rhs_01 = Function(full_space_v_help, name="rhs_01")
+                    rhs_00 = Cofunction(full_space_v_help.dual(), name="rhs_00")  # noqa: E501
+                    rhs_01 = Cofunction(full_space_v_help.dual(), name="rhs_01")  # noqa: E501
 
                     if not self._Gauss_Newton:
                         D_v_i = self._forward_form(
@@ -6040,14 +6077,14 @@ class Control:
             rhs_00, rhs_01, rhs_10, rhs_11 = non_linear_res_eval()
 
             if not self._CN:
-                rhs = Function(full_space_v * full_space_v * full_space_p * full_space_p, name="rhs")  # noqa: E501
+                rhs = Cofunction((full_space_v * full_space_v * full_space_p * full_space_p).dual(), name="rhs")  # noqa: E501
                 for i in range(n_t):
                     rhs.sub(i).assign(rhs_00.sub(i))
                     rhs.sub(n_t + i).assign(rhs_01.sub(i))
                     rhs.sub(2 * n_t + i).assign(rhs_10.sub(i))
                     rhs.sub(3 * n_t + i).assign(rhs_11.sub(i))
             else:
-                rhs = Function(full_space_v_help * full_space_v_help * full_space_p * full_space_p, name="rhs")  # noqa: E501
+                rhs = Cofunction((full_space_v_help * full_space_v_help * full_space_p * full_space_p).dual(), name="rhs")  # noqa: E501
                 for i in range(n_t - 1):
                     rhs.sub(i).assign(rhs_00.sub(i))
                     rhs.sub(n_t - 1 + i).assign(rhs_01.sub(i))

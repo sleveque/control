@@ -3,18 +3,18 @@
 
 from firedrake import *
 
-from tlm_adjoint.firedrake import *
-
 from preconditioner.preconditioner import *
 
 from control.control import *
+
+from tlm_adjoint.firedrake import (
+    DirichletBCApplication, Functional, compute_gradient, minimize_scipy,
+    reset_manager, start_manager, stop_manager)
 
 import mpi4py.MPI as MPI
 import numpy as np
 import ufl
 import pytest
-
-stop_manager()
 
 
 pytestmark = pytest.mark.skipif(
@@ -575,7 +575,7 @@ def test_stationary_linear_control_with_reference_sol():
 
         def forward(u_ref, m):
             m_1 = Function(space_0, name="m_1")
-            DirichletBCSolver(m, m_1, "on_boundary").solve()
+            DirichletBCApplication(m_1, m, "on_boundary").solve()
             m_0 = Function(space_0, name="m_0")
             m_0.assign(m - m_1)
 
@@ -725,7 +725,7 @@ def test_Picard_stationary_non_linear_control_with_reference_sol():
 
         def forward(u_ref, m):
             m_1 = Function(space_0, name="m_1")
-            DirichletBCSolver(m, m_1, "on_boundary").solve()
+            DirichletBCApplication(m_1, m, "on_boundary").solve()
             m_0 = Function(space_0, name="m_0")
             m_0.assign(m - m_1)
 
@@ -878,7 +878,7 @@ def test_GN_stationary_non_linear_control_with_reference_sol():
 
         def forward(u_ref, m):
             m_1 = Function(space_0, name="m_1")
-            DirichletBCSolver(m, m_1, "on_boundary").solve()
+            DirichletBCApplication(m_1, m, "on_boundary").solve()
             m_0 = Function(space_0, name="m_0")
             m_0.assign(m - m_1)
 
@@ -1249,8 +1249,8 @@ def test_instationary_linear_control_BE():
     v_0 = Function(full_space_v)
     zeta_0 = Function(full_space_v)
 
-    b_0 = Function(full_space_v)
-    b_1 = Function(full_space_v)
+    b_0 = Cofunction(full_space_v.dual())
+    b_1 = Cofunction(full_space_v.dual())
 
     b_v_help_0 = Function(space_0)
     b_v_help_1 = Function(space_0)
@@ -1453,8 +1453,8 @@ def test_instationary_linear_control_CN():
     v_0 = Function(full_space_v)
     zeta_0 = Function(full_space_v)
 
-    b_0 = Function(full_space_v_CN)
-    b_1 = Function(full_space_v_CN)
+    b_0 = Cofunction(full_space_v_CN.dual())
+    b_1 = Cofunction(full_space_v_CN.dual())
 
     b_v_help_0 = Function(space_0)
     b_v_help_1 = Function(space_0)
@@ -3184,7 +3184,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
             my_control_instationary.incompressible_linear_solve(
                 ConstantNullspace(), space_p=space_p,
                 solver_parameters=solver_parameters,
-                lambda_p_boudns=lambda_p_bounds,
+                lambda_p_bounds=lambda_p_bounds,
                 print_error=False, create_output=False)
 
             flattened_space_v = tuple(space_v for i in range(n_t))

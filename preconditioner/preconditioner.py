@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from firedrake import \
-    ConvergenceError, DirichletBC, Function, FunctionSpace, assemble
+from firedrake import (
+    Cofunction, ConvergenceError, DirichletBC, Function, FunctionSpace,
+    assemble)
+from firedrake.functionspaceimpl import WithGeometry as FunctionSpaceBase
 
 import petsc4py.PETSc as PETSc
 import ufl
@@ -237,6 +239,10 @@ class MultiBlockSystem:
 
         if space_0.mesh() != space_1.mesh():
             raise ValueError("Unexpected mesh")
+        if not isinstance(space_0, FunctionSpaceBase):
+            raise TypeError("Space must be a primal space")
+        if not isinstance(space_1, FunctionSpaceBase):
+            raise TypeError("Space must be a primal space")
 
         def check_blocks(block, n_row_blocks, n_col_blocks):
             if len(block) != n_row_blocks * n_col_blocks:
@@ -564,7 +570,7 @@ class MultiBlockSystem:
                 self._nullspaces = tuple(nullspaces)
                 self._error_on_nonconvergence = error_on_nonconvergence
 
-                self._x_fn = Function(spaces)
+                self._x_fn = Cofunction(spaces.dual())
                 self._y_fn = Function(spaces)
 
                 self._space_0 = space_0
@@ -594,8 +600,8 @@ class MultiBlockSystem:
                         *[space.ufl_element() for space in flattened_space_1])
                     space_help_1 = FunctionSpace(space_1.mesh(), mixed_element_1)  # noqa: E501
 
-                b_0 = Function(space_help_0, name="b_0")
-                b_1 = Function(space_help_1, name="b_1")
+                b_0 = Cofunction(space_help_0.dual(), name="b_0")
+                b_1 = Cofunction(space_help_1.dual(), name="b_1")
                 if self._n_blocks_00 == 1:
                     b_0.assign(self._x_fn.sub(0))
                 else:
@@ -608,13 +614,13 @@ class MultiBlockSystem:
                     for i in range(self._n_blocks_11):
                         b_1.sub(i).assign(self._x_fn.sub(self._n_blocks_00 + i))  # noqa: E501
 
-                b_0_c = Function(space_help_0, name="b_0_c")
-                b_1_c = Function(space_help_1, name="b_1_c")
+                b_0_c = Cofunction(space_help_0.dual(), name="b_0_c")
+                b_1_c = Cofunction(space_help_1.dual(), name="b_1_c")
                 if self._n_blocks_00 == 1:
                     nullspace_help = self._nullspaces[0]
                     b_0_c.assign(nullspace_help.pc_pre_mult_corrected(b_0))
                 else:
-                    b_0_c_help = Function(space_0)
+                    b_0_c_help = Cofunction(space_0.dual())
                     for i in range(self._n_blocks_00):
                         b_0_c_help.assign(b_0.sub(i))
                         nullspace_help = self._nullspaces[i]
@@ -625,7 +631,7 @@ class MultiBlockSystem:
                     nullspace_help = self._nullspaces[self._n_blocks_00]
                     b_1_c.assign(nullspace_help.pc_pre_mult_corrected(b_1))
                 else:
-                    b_1_c_help = Function(space_1)
+                    b_1_c_help = Cofunction(space_1.dual())
                     for i in range(self._n_blocks_11):
                         b_1_c_help.assign(b_1.sub(i))
                         nullspace_help = self._nullspaces[self._n_blocks_00 + i]  # noqa: E501
@@ -646,7 +652,7 @@ class MultiBlockSystem:
                     nullspace_help = self._nullspaces[0]
                     nullspace_help.pc_post_mult_correct(self._y_fn.sub(0), b_0)  # noqa: E501
                 else:
-                    y_c_0_help = Function(space_0)
+                    y_c_0_help = Cofunction(space_0.dual())
                     for i in range(self._n_blocks_00):
                         y_c_0_help.assign(b_0.sub(i))
                         self._y_fn.sub(i).assign(u_0.sub(i))
@@ -659,7 +665,7 @@ class MultiBlockSystem:
                     nullspace_help = self._nullspaces[self._n_blocks_00]
                     nullspace_help.pc_post_mult_correct(self._y_fn.sub(self._n_blocks_00), b_1)  # noqa: E501
                 else:
-                    y_c_1_help = Function(space_1)
+                    y_c_1_help = Cofunction(space_1.dual())
                     for i in range(self._n_blocks_11):
                         y_c_1_help.assign(b_1.sub(i))
                         self._y_fn.sub(self._n_blocks_00 + i).assign(u_1.sub(i))  # noqa: E501
@@ -692,7 +698,7 @@ class MultiBlockSystem:
                 nullspace_help = self._nullspaces[self._n_blocks_00 + i]
                 nullspace_help.correct_soln(u.sub(self._n_blocks_00 + i))
 
-        b = Function(self._spaces)
+        b = Cofunction(self._spaces.dual())
 
         if self._n_blocks_00 == 1:
             if b_0 is not None:
