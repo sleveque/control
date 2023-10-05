@@ -340,6 +340,185 @@ class Control:
             else:
                 raise ValueError("Undefined space_p: unable to assign value")
 
+        def print_error(self, v_test):
+            v_d, true_v = self._desired_state(v_test)
+            v_err = self._v - true_v
+            print('estimated error in the L2-norm: ',
+                  sqrt(abs(assemble(inner(v_err, v_err) * dx))))
+
+        def construct_D_v(self, v_trial, v_test, v_old):
+            if not self._Gauss_Newton:
+                D_v = self._forward_form(v_trial, v_test, v_old)
+            else:
+                D_v = ufl.derivative(self._forward_form(v_trial,
+                                                        v_test,
+                                                        v_old),
+                                     v_old,
+                                     v_trial)
+
+            return D_v
+
+        def construct_f(self, inhomogeneous_bcs_v, v_test,
+                        D_v, v_inhom, bcs_v):
+            if inhomogeneous_bcs_v:
+                f = assemble(self._force_function(v_test)
+                             - action(D_v, v_inhom))
+                for bc in bcs_v:
+                    bc.apply(f)
+            else:
+                f = assemble(self._force_function(v_test))
+
+            return f
+
+        def construct_v_d(self, v_test, inhomogeneous_bcs_v, v_inhom, bcs_v):
+            v_d, true_v = self._desired_state(v_test)
+            if inhomogeneous_bcs_v:
+                v_d = assemble(v_d - action(self._M_v, v_inhom))
+                for bc in bcs_v:
+                    bc.apply(v_d)
+            else:
+                v_d = assemble(v_d)
+
+            return v_d, true_v
+
+        def construct_pc(self, Multigrid, lambda_v_bounds,
+                         bcs_v, bcs_zeta, D_v, D_zeta):
+            beta = self._beta
+
+            # definition of preconditioners
+            def pc_linear(u_0, u_1, b_0, b_1):
+                if Multigrid:
+                    solver_0 = LinearSolver(
+                        assemble(self._M_v,
+                                 bcs=bcs_v),
+                        solver_parameters={
+                            "ksp_type": "preonly",
+                            "pc_type": "hypre",
+                            "pc_hypre_type": "boomeramg",
+                            "ksp_max_it": 1,
+                            "pc_hypre_boomeramg_max_iter": 2,
+                            "ksp_atol": 0.0,
+                            "ksp_rtol": 0.0})
+                else:
+                    if lambda_v_bounds is not None:
+                        e_min = lambda_v_bounds[0]
+                        e_max = lambda_v_bounds[1]
+                        solver_0 = LinearSolver(
+                            assemble(self._M_v,
+                                     bcs=bcs_v),
+                            solver_parameters={
+                                "ksp_type": "chebyshev",
+                                "pc_type": "jacobi",
+                                "ksp_chebyshev_eigenvalues": f"{e_min:.16e}, {e_max:.16e}",  # noqa: E501
+                                "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
+                                "ksp_chebyshev_esteig_steps": 0,
+                                "ksp_chebyshev_esteig_noisy": False,
+                                "ksp_max_it": 20,
+                                "ksp_atol": 0.0,
+                                "ksp_rtol": 0.0})
+                    else:
+                        solver_0 = LinearSolver(
+                            assemble(self._M_v,
+                                     bcs=bcs_v),
+                            solver_parameters={"ksp_type": "preonly",
+                                               "pc_type": "jacobi",
+                                               "ksp_max_it": 1,
+                                               "ksp_atol": 0.0,
+                                               "ksp_rtol": 0.0})
+
+                solver_1 = LinearSolver(
+                    assemble(D_v + (1.0 / beta**0.5) * self._M_v,
+                             bcs=bcs_zeta),
+                    solver_parameters={"ksp_type": "preonly",
+                                       "pc_type": "hypre",
+                                       "pc_hypre_type": "boomeramg",
+                                       "ksp_max_it": 1,
+                                       "pc_hypre_boomeramg_max_iter": 2,
+                                       "ksp_atol": 0.0,
+                                       "ksp_rtol": 0.0})
+
+                solver_2 = LinearSolver(
+                    assemble(D_zeta + (1.0 / beta**0.5) * self._M_zeta,
+                             bcs=bcs_zeta),
+                    solver_parameters={"ksp_type": "preonly",
+                                       "pc_type": "hypre",
+                                       "pc_hypre_type": "boomeramg",
+                                       "ksp_max_it": 1,
+                                       "pc_hypre_boomeramg_max_iter": 2,
+                                       "ksp_atol": 0.0,
+                                       "ksp_rtol": 0.0})
+
+                # solving for the (1,1)-block
+                try:
+                    solver_0.solve(u_0, b_0.copy(deepcopy=True))
+                except ConvergenceError:
+                    assert solver_0.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
+
+                # u_1 = - b_1 + D_v * u_0
+                b = assemble(action(D_v, u_0))
+                with b.dat.vec as b_v, \
+                        b_1.dat.vec_ro as b_1_v:
+                    b_v.axpy(-1.0, b_1_v)
+
+                # solving for the Schur complement approximation
+                # first solve
+                for bc in bcs_zeta:
+                    bc.apply(b)
+                try:
+                    solver_1.solve(u_1, b.copy(deepcopy=True))
+                except ConvergenceError:
+                    assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
+                del b
+
+                # second solve
+                b = assemble(action(self._M_v, u_1))
+                for bc in bcs_zeta:
+                    bc.apply(b)
+                try:
+                    solver_2.solve(u_1, b.copy(deepcopy=True))
+                except ConvergenceError:
+                    assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
+                del b
+
+            return pc_linear
+
+        def non_linear_res_eval(self, space_v, v_d, f, v_old, zeta_old,
+                                D_v, D_zeta, M_zeta, bcs_v, bcs_zeta):
+            rhs_0 = Cofunction(space_v.dual(), name="rhs_0")
+            rhs_1 = Cofunction(space_v.dual(), name="rhs_1")
+
+            rhs_0.assign(v_d)
+            rhs_1.assign(f)
+
+            b = assemble(action(self._M_v, v_old))
+            with b.dat.vec_ro as b_v, \
+                    rhs_0.dat.vec as b_1_v:
+                b_1_v.axpy(-1.0, b_v)
+            del b
+            b = assemble(action(D_zeta, zeta_old))
+            with b.dat.vec_ro as b_v, \
+                    rhs_0.dat.vec as b_1_v:
+                b_1_v.axpy(-1.0, b_v)
+            del b
+
+            b = assemble(action(D_v, v_old))
+            with b.dat.vec_ro as b_v, \
+                    rhs_1.dat.vec as b_1_v:
+                b_1_v.axpy(-1.0, b_v)
+            del b
+            b = assemble(action(M_zeta, zeta_old))
+            with b.dat.vec_ro as b_v, \
+                    rhs_1.dat.vec as b_1_v:
+                b_1_v.axpy(-1.0, b_v)
+            del b
+
+            for bc in bcs_v:
+                bc.apply(rhs_0)
+            for bc in bcs_zeta:
+                bc.apply(rhs_1)
+
+            return rhs_0, rhs_1
+
         def linear_solve(self, *,
                          P=None, solver_parameters=None, Multigrid=False,
                          lambda_v_bounds=None, v_d=None, f=None,
@@ -368,134 +547,27 @@ class Control:
             v_old = Function(space_v, name="v_old")
             v_old.assign(self._v)
 
-            if not self._Gauss_Newton:
-                D_v = self._forward_form(v_trial, v_test, v_old)
-            else:
-                D_v = ufl.derivative(self._forward_form(v_trial,
-                                                        v_test,
-                                                        v_old),
-                                     v_old,
-                                     v_trial)
+            D_v = self.construct_D_v(v_trial, v_test, v_old)
             D_zeta = adjoint(D_v)
 
             if inhomogeneous_bcs_v:
                 v_inhom = Function(space_v)
                 for bc in bcs_v_help:
                     bc.apply(v_inhom)
+            else:
+                v_inhom = None
 
             if f is None:
-                if inhomogeneous_bcs_v:
-                    f = assemble(self._force_function(v_test)
-                                 - action(D_v, v_inhom))
-                    for bc in bcs_v:
-                        bc.apply(f)
-                else:
-                    f = assemble(self._force_function(v_test))
+                f = self.construct_f(inhomogeneous_bcs_v, v_test,
+                                     D_v, v_inhom, bcs_v)
 
             if v_d is None:
-                v_d, true_v = self._desired_state(v_test)
-                if inhomogeneous_bcs_v:
-                    v_d = assemble(v_d - action(self._M_v, v_inhom))
-                    for bc in bcs_v:
-                        bc.apply(v_d)
-                else:
-                    v_d = assemble(v_d)
+                v_d, true_v = self.construct_v_d(v_test, inhomogeneous_bcs_v,
+                                                 v_inhom, bcs_v)
 
             if P is None:
-                # definition of preconditioner
-                def pc_fn(u_0, u_1, b_0, b_1):
-                    if Multigrid:
-                        solver_0 = LinearSolver(
-                            assemble(self._M_v,
-                                     bcs=bcs_v),
-                            solver_parameters={
-                                "ksp_type": "preonly",
-                                "pc_type": "hypre",
-                                "pc_hypre_type": "boomeramg",
-                                "ksp_max_it": 1,
-                                "pc_hypre_boomeramg_max_iter": 2,
-                                "ksp_atol": 0.0,
-                                "ksp_rtol": 0.0})
-                    else:
-                        if lambda_v_bounds is not None:
-                            e_min = lambda_v_bounds[0]
-                            e_max = lambda_v_bounds[1]
-                            solver_0 = LinearSolver(
-                                assemble(self._M_v,
-                                         bcs=bcs_v),
-                                solver_parameters={
-                                    "ksp_type": "chebyshev",
-                                    "pc_type": "jacobi",
-                                    "ksp_chebyshev_eigenvalues": f"{e_min:.16e}, {e_max:.16e}",  # noqa: E501
-                                    "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
-                                    "ksp_chebyshev_esteig_steps": 0,
-                                    "ksp_chebyshev_esteig_noisy": False,
-                                    "ksp_max_it": 20,
-                                    "ksp_atol": 0.0,
-                                    "ksp_rtol": 0.0})
-                        else:
-                            solver_0 = LinearSolver(
-                                assemble(self._M_v,
-                                         bcs=bcs_v),
-                                solver_parameters={"ksp_type": "preonly",
-                                                   "pc_type": "jacobi",
-                                                   "ksp_max_it": 1,
-                                                   "ksp_atol": 0.0,
-                                                   "ksp_rtol": 0.0})
-
-                    solver_1 = LinearSolver(
-                        assemble(D_v + (1.0 / beta**0.5) * self._M_v,
-                                 bcs=bcs_zeta),
-                        solver_parameters={"ksp_type": "preonly",
-                                           "pc_type": "hypre",
-                                           "pc_hypre_type": "boomeramg",
-                                           "ksp_max_it": 1,
-                                           "pc_hypre_boomeramg_max_iter": 2,
-                                           "ksp_atol": 0.0,
-                                           "ksp_rtol": 0.0})
-
-                    solver_2 = LinearSolver(
-                        assemble(D_zeta + (1.0 / beta**0.5) * self._M_zeta,
-                                 bcs=bcs_zeta),
-                        solver_parameters={"ksp_type": "preonly",
-                                           "pc_type": "hypre",
-                                           "pc_hypre_type": "boomeramg",
-                                           "ksp_max_it": 1,
-                                           "pc_hypre_boomeramg_max_iter": 2,
-                                           "ksp_atol": 0.0,
-                                           "ksp_rtol": 0.0})
-
-                    # solving for the (1,1)-block
-                    try:
-                        solver_0.solve(u_0, b_0.copy(deepcopy=True))
-                    except ConvergenceError:
-                        assert solver_0.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-
-                    # u_1 = - b_1 + D_v * u_0
-                    b = assemble(action(D_v, u_0))
-                    with b.dat.vec as b_v, \
-                            b_1.dat.vec_ro as b_1_v:
-                        b_v.axpy(-1.0, b_1_v)
-
-                    # solving for the Schur complement approximation
-                    # first solve
-                    for bc in bcs_zeta:
-                        bc.apply(b)
-                    try:
-                        solver_1.solve(u_1, b.copy(deepcopy=True))
-                    except ConvergenceError:
-                        assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                    del b
-
-                    # second solve
-                    b = assemble(action(self._M_v, u_1))
-                    for bc in bcs_zeta:
-                        bc.apply(b)
-                    try:
-                        solver_2.solve(u_1, b.copy(deepcopy=True))
-                    except ConvergenceError:
-                        assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                    del b
+                pc_fn = self.construct_pc(Multigrid, lambda_v_bounds,
+                                          bcs_v, bcs_zeta, D_v, D_zeta)
             else:
                 pc_fn = P
 
@@ -539,10 +611,7 @@ class Control:
             self.set_zeta(zeta)
 
             if print_error:
-                v_d, true_v = self._desired_state(v_test)
-                v_err = self._v - true_v
-                print('estimated error in the L2-norm: ',
-                      sqrt(abs(assemble(inner(v_err, v_err) * dx))))
+                self.print_error(v_test)
 
             if create_output:
                 v_output = File("v.pvd")
@@ -609,12 +678,7 @@ class Control:
             v_old.assign(self._v)
             zeta_old.assign(self._zeta)
 
-            if not self._Gauss_Newton:
-                D_v = self._forward_form(v_trial, v_test, v_old)
-            else:
-                D_v = ufl.derivative(
-                    self._forward_form(v_trial, v_test, v_old),
-                    v_old, v_trial)
+            D_v = self.construct_D_v(v_trial, v_test, v_old)
             D_zeta = adjoint(D_v)
             M_zeta = -(1.0 / beta) * self._M_zeta
 
@@ -623,43 +687,9 @@ class Control:
             v_d, true_v = self._desired_state(v_test)
             v_d = assemble(v_d)
 
-            def non_linear_res_eval():
-                rhs_0 = Cofunction(space_v.dual(), name="rhs_0")
-                rhs_1 = Cofunction(space_v.dual(), name="rhs_1")
-
-                rhs_0.assign(v_d)
-                rhs_1.assign(f)
-
-                b = assemble(action(self._M_v, v_old))
-                with b.dat.vec_ro as b_v, \
-                        rhs_0.dat.vec as b_1_v:
-                    b_1_v.axpy(-1.0, b_v)
-                del b
-                b = assemble(action(D_zeta, zeta_old))
-                with b.dat.vec_ro as b_v, \
-                        rhs_0.dat.vec as b_1_v:
-                    b_1_v.axpy(-1.0, b_v)
-                del b
-
-                b = assemble(action(D_v, v_old))
-                with b.dat.vec_ro as b_v, \
-                        rhs_1.dat.vec as b_1_v:
-                    b_1_v.axpy(-1.0, b_v)
-                del b
-                b = assemble(action(M_zeta, zeta_old))
-                with b.dat.vec_ro as b_v, \
-                        rhs_1.dat.vec as b_1_v:
-                    b_1_v.axpy(-1.0, b_v)
-                del b
-
-                for bc in bcs_v:
-                    bc.apply(rhs_0)
-                for bc in bcs_zeta:
-                    bc.apply(rhs_1)
-
-                return rhs_0, rhs_1
-
-            rhs_0, rhs_1 = non_linear_res_eval()
+            rhs_0, rhs_1 = self.non_linear_res_eval(
+                space_v, v_d, f, v_old, zeta_old,
+                D_v, D_zeta, M_zeta, bcs_v, bcs_zeta)
 
             rhs = Cofunction((space_v * space_v).dual(), name="rhs")
             rhs.sub(0).assign(rhs_0)
@@ -698,16 +728,12 @@ class Control:
                     bc.apply(zeta_old)
                 self.set_zeta(zeta_old)
 
-                if not self._Gauss_Newton:
-                    D_v = self._forward_form(v_trial, v_test, v_old)
-                else:
-                    D_v = ufl.derivative(
-                        self._forward_form(
-                            v_trial, v_test, v_old),
-                        v_old, v_trial)
+                D_v = self.construct_D_v(v_trial, v_test, v_old)
                 D_zeta = adjoint(D_v)
 
-                rhs_0, rhs_1 = non_linear_res_eval()
+                rhs_0, rhs_1 = self.non_linear_res_eval(
+                    space_v, v_d, f, v_old, zeta_old,
+                    D_v, D_zeta, M_zeta, bcs_v, bcs_zeta)
 
                 rhs.sub(0).assign(rhs_0)
                 rhs.sub(1).assign(rhs_1)
@@ -728,9 +754,7 @@ class Control:
                     print('the non-linear iteration did not converge')
                     print('relative non-linear residual: ', norm_k / norm_0)
                     print('absolute non-linear residual: ', norm_k)
-                v_err = self._v - true_v
-                print('estimated error in the L2-norm: ',
-                      sqrt(abs(assemble(inner(v_err, v_err) * dx))))
+                self.print_error(v_test)
 
             if create_output:
                 v_output = File("v.pvd")
@@ -807,13 +831,7 @@ class Control:
             v_old.assign(self._v)
 
             M_zeta = -(1.0 / beta) * self._M_zeta
-            if not self._Gauss_Newton:
-                D_v = self._forward_form(v_trial, v_test, v_old)
-            else:
-                D_v = ufl.derivative(
-                    self._forward_form(
-                        v_trial, v_test, v_old),
-                    v_old, v_trial)
+            D_v = self.construct_D_v(v_trial, v_test, v_old)
             D_zeta = adjoint(D_v)
 
             B = - inner(div(v_trial), p_test) * dx
@@ -823,24 +841,16 @@ class Control:
                 v_inhom = Function(space_v)
                 for bc in bcs_v_help:
                     bc.apply(v_inhom)
+            else:
+                v_inhom = None
 
             if f is None:
-                if inhomogeneous_bcs_v:
-                    f = assemble(self._force_function(v_test)
-                                 - action(D_v, v_inhom))
-                    for bc in bcs_v:
-                        bc.apply(f)
-                else:
-                    f = assemble(self._force_function(v_test))
+                f = self.construct_f(inhomogeneous_bcs_v, v_test,
+                                     D_v, v_inhom, bcs_v)
 
             if v_d is None:
-                v_d, true_v = self._desired_state(v_test)
-                if inhomogeneous_bcs_v:
-                    v_d = assemble(v_d - action(self._M_v, v_inhom))
-                    for bc in bcs_v:
-                        bc.apply(v_d)
-                else:
-                    v_d = assemble(v_d)
+                v_d, true_v = self.construct_v_d(v_test, inhomogeneous_bcs_v,
+                                                 v_inhom, bcs_v)
 
             if div_v is None:
                 div_v = Function(space_p)
@@ -879,16 +889,6 @@ class Control:
             block_11[(1, 0)] = None
             block_11[(1, 1)] = None
 
-            if P is None:
-                block_00_int = {}
-                block_00_int[(0, 0)] = self._M_v
-                block_01_int = {}
-                block_01_int[(0, 0)] = D_zeta
-                block_10_int = {}
-                block_10_int[(0, 0)] = D_v
-                block_11_int = {}
-                block_11_int[(0, 0)] = M_zeta
-
             nullspace_0 = (nullspace_v, nullspace_zeta)
             nullspace_1 = (nullspace_p, nullspace_p)
 
@@ -900,6 +900,63 @@ class Control:
                 nullspace_0=nullspace_0, nullspace_1=nullspace_1)
 
             if P is None:
+                block_00_int = {}
+                block_00_int[(0, 0)] = self._M_v
+                block_01_int = {}
+                block_01_int[(0, 0)] = D_zeta
+                block_10_int = {}
+                block_10_int[(0, 0)] = D_v
+                block_11_int = {}
+                block_11_int[(0, 0)] = M_zeta
+
+                K_p = inner(grad(p_trial), grad(p_test)) * dx
+                M_p = inner(p_trial, p_test) * dx
+
+                solver_K_p = LinearSolver(
+                    assemble(K_p),
+                    solver_parameters={"ksp_type": "preonly",
+                                       "pc_type": "hypre",
+                                       "pc_hypre_type": "boomeramg",
+                                       "ksp_max_it": 1,
+                                       "pc_hypre_boomeramg_max_iter": 1,
+                                       "ksp_atol": 0.0,
+                                       "ksp_rtol": 0.0})
+
+                if lambda_p_bounds is not None:
+                    e_min_p = lambda_p_bounds[0]
+                    e_max_p = lambda_p_bounds[1]
+                    solver_M_p = LinearSolver(
+                        assemble(M_p),
+                        solver_parameters={
+                            "ksp_type": "chebyshev",
+                            "pc_type": "jacobi",
+                            "ksp_chebyshev_eigenvalues": f"{e_min_p:.16e}, {e_max_p:.16e}",  # noqa: E501
+                            "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
+                            "ksp_chebyshev_esteig_steps": 0,
+                            "ksp_chebyshev_esteig_noisy": False,
+                            "ksp_max_it": 20,
+                            "ksp_atol": 0.0,
+                            "ksp_rtol": 0.0})
+                else:
+                    solver_M_p = LinearSolver(
+                        assemble(M_p),
+                        solver_parameters={"ksp_type": "preonly",
+                                           "pc_type": "jacobi",
+                                           "ksp_max_it": 1,
+                                           "ksp_atol": 0.0,
+                                           "ksp_rtol": 0.0})
+
+                if self._M_p is not None:
+                    block_00_p = self._M_p
+                else:
+                    block_00_p = self._J_v(p_trial, p_test)
+                block_10_p = self.construct_D_v(p_trial, p_test, v_old)
+                block_01_p = adjoint(block_10_p)
+                if self._M_mu is not None:
+                    block_11_p = - (1.0 / beta) * self._M_mu
+                else:
+                    block_11_p = - (1.0 / beta) * self._J_u(p_trial, p_test)  # noqa: E501
+
                 def pc_fn(u_0, u_1, b_0, b_1):
                     b_0_help = Cofunction(space_v.dual())
                     b_1_help = Cofunction(space_v.dual())
@@ -924,104 +981,9 @@ class Control:
                     v_help = Function(space_v)
                     zeta_help = Function(space_v)
 
-                    def inner_pc_fn(u_0_inner, u_1_inner, b_0_inner, b_1_inner):  # noqa: E501
-                        if Multigrid:
-                            solver_0 = LinearSolver(
-                                assemble(self._M_v,
-                                         bcs=bcs_v),
-                                solver_parameters={
-                                    "ksp_type": "preonly",
-                                    "pc_type": "hypre",
-                                    "pc_hypre_type": "boomeramg",
-                                    "ksp_max_it": 1,
-                                    "pc_hypre_boomeramg_max_iter": 2,
-                                    "ksp_atol": 0.0,
-                                    "ksp_rtol": 0.0})
-                        else:
-                            if lambda_v_bounds is not None:
-                                e_min_v = lambda_v_bounds[0]
-                                e_max_v = lambda_v_bounds[1]
-                                solver_0 = LinearSolver(
-                                    assemble(self._M_v,
-                                             bcs=bcs_v),
-                                    solver_parameters={
-                                        "ksp_type": "chebyshev",
-                                        "pc_type": "jacobi",
-                                        "ksp_chebyshev_eigenvalues": f"{e_min_v:.16e}, {e_max_v:.16e}",  # noqa: E501
-                                        "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",  # noqa: E501
-                                        "ksp_chebyshev_esteig_steps": 0,
-                                        "ksp_chebyshev_esteig_noisy": False,
-                                        "ksp_max_it": 20,
-                                        "ksp_atol": 0.0,
-                                        "ksp_rtol": 0.0})
-                            else:
-                                solver_0 = LinearSolver(
-                                    assemble(self._M_v,
-                                             bcs=bcs_v),
-                                    solver_parameters={"ksp_type": "preonly",
-                                                       "pc_type": "jacobi",
-                                                       "ksp_max_it": 1,
-                                                       "ksp_atol": 0.0,
-                                                       "ksp_rtol": 0.0})
-
-                        solver_1 = LinearSolver(
-                            assemble(D_v + (1.0 / beta**0.5) * self._M_v,
-                                     bcs=bcs_zeta),
-                            solver_parameters={
-                                "ksp_type": "preonly",
-                                "pc_type": "hypre",
-                                "pc_hypre_type": "boomeramg",
-                                "ksp_max_it": 1,
-                                "pc_hypre_boomeramg_max_iter": 2,
-                                "ksp_atol": 0.0,
-                                "ksp_rtol": 0.0})
-
-                        solver_2 = LinearSolver(
-                            assemble(D_zeta + (1.0 / beta**0.5) * self._M_zeta,
-                                     bcs=bcs_zeta),
-                            solver_parameters={
-                                "ksp_type": "preonly",
-                                "pc_type": "hypre",
-                                "pc_hypre_type": "boomeramg",
-                                "ksp_max_it": 1,
-                                "pc_hypre_boomeramg_max_iter": 2,
-                                "ksp_atol": 0.0,
-                                "ksp_rtol": 0.0})
-
-                        # solving for the (1,1)-block
-                        try:
-                            solver_0.solve(u_0_inner,
-                                           b_0_inner.copy(deepcopy=True))
-                        except ConvergenceError:
-                            assert solver_0.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-
-                        # u_1 = - b_1 + D_v * u_0
-                        b = assemble(action(D_v, u_0_inner))
-                        with b.dat.vec as b_v, \
-                                b_1_inner.dat.vec_ro as b_1_v:
-                            b_v.axpy(-1.0, b_1_v)
-
-                        # solving for the Schur complement approximation
-                        # first solve
-                        for bc in bcs_zeta:
-                            bc.apply(b)
-                        try:
-                            solver_1.solve(u_1_inner,
-                                           b.copy(deepcopy=True))
-                        except ConvergenceError:
-                            assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                        del b
-
-                        # second solve
-                        b = assemble(action(self._M_v, u_1_inner))
-                        for bc in bcs_zeta:
-                            bc.apply(b)
-                        try:
-                            solver_2.solve(u_1_inner,
-                                           b.copy(deepcopy=True))
-                        except ConvergenceError:
-                            assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                        del b
+                    inner_pc_fn = self.construct_pc(Multigrid, lambda_v_bounds,
+                                                    bcs_v, bcs_zeta,
+                                                    D_v, D_zeta)
 
                     try:
                         inner_ksp_solver = inner_system.solve(
@@ -1052,43 +1014,6 @@ class Control:
                     del zeta_help
 
                     # solving for the Schur complement approximation
-                    K_p = inner(grad(p_trial), grad(p_test)) * dx
-                    M_p = inner(p_trial, p_test) * dx
-
-                    solver_K_p = LinearSolver(
-                        assemble(K_p),
-                        solver_parameters={"ksp_type": "preonly",
-                                           "pc_type": "hypre",
-                                           "pc_hypre_type": "boomeramg",
-                                           "ksp_max_it": 1,
-                                           "pc_hypre_boomeramg_max_iter": 1,
-                                           "ksp_atol": 0.0,
-                                           "ksp_rtol": 0.0})
-
-                    if lambda_p_bounds is not None:
-                        e_min_p = lambda_p_bounds[0]
-                        e_max_p = lambda_p_bounds[1]
-                        solver_M_p = LinearSolver(
-                            assemble(M_p),
-                            solver_parameters={
-                                "ksp_type": "chebyshev",
-                                "pc_type": "jacobi",
-                                "ksp_chebyshev_eigenvalues": f"{e_min_p:.16e}, {e_max_p:.16e}",  # noqa: E501
-                                "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
-                                "ksp_chebyshev_esteig_steps": 0,
-                                "ksp_chebyshev_esteig_noisy": False,
-                                "ksp_max_it": 20,
-                                "ksp_atol": 0.0,
-                                "ksp_rtol": 0.0})
-                    else:
-                        solver_M_p = LinearSolver(
-                            assemble(M_p),
-                            solver_parameters={"ksp_type": "preonly",
-                                               "pc_type": "jacobi",
-                                               "ksp_max_it": 1,
-                                               "ksp_atol": 0.0,
-                                               "ksp_rtol": 0.0})
-
                     try:
                         solver_K_p.solve(u_1.sub(0),
                                          b_0_help.copy(deepcopy=True))
@@ -1102,22 +1027,6 @@ class Control:
 
                     del b_0_help
                     del b_1_help
-
-                    if self._M_p is not None:
-                        block_00_p = self._M_p
-                    else:
-                        block_00_p = self._J_v(p_trial, p_test)
-                    if not self._Gauss_Newton:
-                        block_10_p = self._forward_form(p_trial, p_test, v_old)
-                    else:
-                        block_10_p = ufl.derivative(
-                            self._forward_form(p_trial, p_test, v_old),
-                            v_old, p_trial)
-                    block_01_p = adjoint(block_10_p)
-                    if self._M_mu is not None:
-                        block_11_p = - (1.0 / beta) * self._M_mu
-                    else:
-                        block_11_p = - (1.0 / beta) * self._J_u(p_trial, p_test)  # noqa: E501
 
                     b_0_help = Cofunction(space_p.dual())
                     b_1_help = Cofunction(space_p.dual())
@@ -1189,10 +1098,7 @@ class Control:
             self.set_mu(mu)
 
             if print_error:
-                v_d, true_v = self._desired_state(v_test)
-                v_err = self._v - true_v
-                print('estimated error in the L2-norm: ',
-                      sqrt(abs(assemble(inner(v_err, v_err) * dx))))
+                self.print_error(v_test)
 
             if create_output:
                 v_output = File("v.pvd")
@@ -1298,12 +1204,7 @@ class Control:
             p_old.assign(self._p)
             mu_old.assign(self._mu)
 
-            if not self._Gauss_Newton:
-                D_v = self._forward_form(v_trial, v_test, v_old)
-            else:
-                D_v = ufl.derivative(
-                    self._forward_form(v_trial, v_test, v_old),
-                    v_old, v_trial)
+            D_v = self.construct_D_v(v_trial, v_test, v_old)
             D_zeta = adjoint(D_v)
             M_zeta = -(1.0 / beta) * self._M_zeta
 
@@ -1322,35 +1223,22 @@ class Control:
                 rhs_10 = Cofunction(space_p.dual(), name="rhs_10")
                 rhs_11 = Cofunction(space_p.dual(), name="rhs_11")
 
-                rhs_00.assign(v_d)
-                rhs_01.assign(f)
+                rhs_0, rhs_1 = self.non_linear_res_eval(
+                    space_v, v_d, f, v_old, zeta_old,
+                    D_v, D_zeta, M_zeta, bcs_v, bcs_zeta)
 
-                b = assemble(action(self._M_v, v_old))
-                with b.dat.vec_ro as b_v, \
-                        rhs_00.dat.vec as b_1_v:
-                    b_1_v.axpy(-1.0, b_v)
-                del b
-                b = assemble(action(D_zeta, zeta_old))
-                with b.dat.vec_ro as b_v, \
-                        rhs_00.dat.vec as b_1_v:
-                    b_1_v.axpy(-1.0, b_v)
-                del b
+                rhs_00.assign(rhs_0)
+                rhs_01.assign(rhs_1)
+
+                del rhs_0
+                del rhs_1
+
                 b = assemble(action(B_T, mu_old))
                 with b.dat.vec_ro as b_v, \
                         rhs_00.dat.vec as b_1_v:
                     b_1_v.axpy(-1.0, b_v)
                 del b
 
-                b = assemble(action(D_v, v_old))
-                with b.dat.vec_ro as b_v, \
-                        rhs_01.dat.vec as b_1_v:
-                    b_1_v.axpy(-1.0, b_v)
-                del b
-                b = assemble(action(M_zeta, zeta_old))
-                with b.dat.vec_ro as b_v, \
-                        rhs_01.dat.vec as b_1_v:
-                    b_1_v.axpy(-1.0, b_v)
-                del b
                 b = assemble(action(B_T, p_old))
                 with b.dat.vec_ro as b_v, \
                         rhs_01.dat.vec as b_1_v:
@@ -1430,12 +1318,7 @@ class Control:
                     b_1_v.axpy(1.0, b_v)
                 self.set_mu(mu_old)
 
-                if not self._Gauss_Newton:
-                    D_v = self._forward_form(v_trial, v_test, v_old)
-                else:
-                    D_v = ufl.derivative(
-                        self._forward_form(v_trial, v_test, v_old),
-                        v_old, v_trial)
+                D_v = self.construct_D_v(v_trial, v_test, v_old)
                 D_zeta = adjoint(D_v)
 
                 rhs_00, rhs_01, rhs_10, rhs_11 = non_linear_res_eval()
@@ -1461,9 +1344,7 @@ class Control:
                     print('the non-linear iteration did not converge')
                     print('relative non-linear residual: ', norm_k / norm_0)
                     print('absolute non-linear residual: ', norm_k)
-                v_err = self._v - true_v
-                print('estimated error in the L2-norm: ',
-                      sqrt(abs(assemble(inner(v_err, v_err) * dx))))
+                self.print_error(v_test)
 
             if create_output:
                 v_output = File("v.pvd")
@@ -1922,6 +1803,957 @@ class Control:
             else:
                 raise ValueError("Undefined space_p: unable to assign value")
 
+        def print_error(self, full_space_v, v_test):
+            n_t = self._n_t
+            t_0 = self._time_interval[0]
+            T_f = self._time_interval[1]
+
+            tau = (T_f - t_0) / (n_t - 1.0)
+
+            true_v = Function(full_space_v, name="true_v")
+            for i in range(n_t):
+                t = t_0 + i * tau
+                v_d_i, true_v_i = self._desired_state(v_test, t)
+                true_v.sub(i).assign(true_v_i)
+            v_err = true_v - self._v
+            error = sqrt(tau) * sqrt(abs(assemble(
+                inner(v_err, v_err) * dx)))
+            print('estimated error in the L2-norm: ', error)
+
+        def construct_D_v(self, v_trial, v_test, v_n_help, t):
+            if not self._Gauss_Newton:
+                D_v_i = self._forward_form(v_trial, v_test, v_n_help, t)
+            else:
+                D_v_i = ufl.derivative(
+                    self._forward_form(v_trial, v_test, v_n_help, t),
+                    v_n_help,
+                    v_trial)
+
+            return D_v_i
+
+        def construct_f(self, full_space_v, v_test):
+            f = Cofunction(full_space_v.dual(), name="f")
+
+            n_t = self._n_t
+            t_0 = self._time_interval[0]
+            T_f = self._time_interval[1]
+
+            tau = (T_f - t_0) / (n_t - 1.0)
+
+            for i in range(n_t):
+                t = t_0 + i * tau
+                f.sub(i).assign(assemble(self._force_function(v_test, t)))
+
+            return f
+
+        def construct_v_d(self, full_space_v, v_test):
+            v_d = Cofunction(full_space_v.dual(), name="v_d")
+            true_v = Function(full_space_v, name="true_v")
+
+            n_t = self._n_t
+            t_0 = self._time_interval[0]
+            T_f = self._time_interval[1]
+
+            tau = (T_f - t_0) / (n_t - 1.0)
+
+            for i in range(n_t):
+                t = t_0 + i * tau
+                v_d_i, true_v_i = self._desired_state(v_test, t)
+                v_d.sub(i).assign(assemble(v_d_i))
+                true_v.sub(i).assign(true_v_i)
+
+            return v_d, true_v
+
+        def construct_pc(self, Multigrid, lambda_v_bounds, full_space_v,
+                         bcs_v, bcs_zeta, block_01, block_10, epsilon):
+            space_v = self._space_v
+            n_t = self._n_t
+            beta = self._beta
+            t_0 = self._time_interval[0]
+            T_f = self._time_interval[1]
+
+            tau = (T_f - t_0) / (n_t - 1.0)
+
+            # definition of preconditioner
+            if self._CN:
+                def pc_linear(u_0, u_1, b_0, b_1):
+                    # solving for the (1,1)-block
+                    if Multigrid:
+                        solver_0 = LinearSolver(
+                            assemble(self._M_v,
+                                     bcs=bcs_v),
+                            solver_parameters={
+                                "ksp_type": "preonly",
+                                "pc_type": "hypre",
+                                "pc_hypre_type": "boomeramg",
+                                "ksp_max_it": 1,
+                                "pc_hypre_boomeramg_max_iter": 2,
+                                "ksp_atol": 0.0,
+                                "ksp_rtol": 0.0})
+                    else:
+                        if lambda_v_bounds is not None:
+                            e_min = lambda_v_bounds[0]
+                            e_max = lambda_v_bounds[1]
+                            solver_0 = LinearSolver(
+                                assemble(self._M_v,
+                                         bcs=bcs_v),
+                                solver_parameters={
+                                    "ksp_type": "chebyshev",
+                                    "pc_type": "jacobi",
+                                    "ksp_chebyshev_eigenvalues": f"{e_min:.16e}, {e_max:.16e}",  # noqa: E501
+                                    "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
+                                    "ksp_chebyshev_esteig_steps": 0,
+                                    "ksp_chebyshev_esteig_noisy": False,
+                                    "ksp_max_it": 20,
+                                    "ksp_atol": 0.0,
+                                    "ksp_rtol": 0.0})
+                        else:
+                            solver_0 = LinearSolver(
+                                assemble(self._M_v,
+                                         bcs=bcs_v),
+                                solver_parameters={"ksp_type": "preonly",
+                                                   "pc_type": "jacobi",
+                                                   "ksp_max_it": 1,
+                                                   "ksp_atol": 0.0,
+                                                   "ksp_rtol": 0.0})
+
+                    b_0_help = apply_T_1_inv(b_0, space_v, n_t - 1)
+
+                    for i in range(n_t - 1):
+                        b = Cofunction(space_v.dual())
+                        b.assign(b_0_help.sub(i))
+                        try:
+                            solver_0.solve(u_0.sub(i),
+                                           b.copy(deepcopy=True))
+                        except ConvergenceError:
+                            assert solver_0.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
+                        del b
+                        with u_0.sub(i).dat.vec as x_v:
+                            x_v.scale(2.0 / tau)
+
+                    b_0_help = apply_T_2_inv(u_0, space_v, n_t - 1)
+                    for i in range(n_t - 1):
+                        u_0.sub(i).assign(b_0_help.sub(i))
+                    del b_0_help
+
+                    # u_1 = - b_1 + D_v * u_0
+                    b = Cofunction(full_space_v.dual())
+                    block_ii = block_10[(0, 0)]
+                    b_help = Function(space_v)
+                    b_help.assign(u_0.sub(0))
+                    b.sub(0).assign(assemble(action(block_ii, b_help)))
+                    for bc in bcs_zeta:
+                        bc.apply(b.sub(0))
+                    del b_help
+                    for i in range(1, n_t - 1):
+                        block_ij = block_10[(i, i - 1)]
+                        b_help = Function(space_v)
+                        b_help.assign(u_0.sub(i - 1))
+                        b_help_new = assemble(action(block_ij, b_help))
+                        block_ii = block_10[(i, i)]
+                        b_help.assign(u_0.sub(i))
+                        b.sub(i).assign(assemble(action(block_ii, b_help)))
+                        with b.sub(i).dat.vec as b_v, \
+                                b_help_new.dat.vec_ro as b_1_v:
+                            b_v.axpy(1.0, b_1_v)
+                        del b_help
+                        del b_help_new
+                        for bc in bcs_zeta:
+                            bc.apply(b.sub(i))
+
+                    b = apply_T_2(b, space_v, n_t - 1)
+
+                    for i in range(n_t - 1):
+                        with b.sub(i).dat.vec as b_v, \
+                                b_1.sub(i).dat.vec_ro as b_1_v:
+                            b_v.axpy(-1.0, b_1_v)
+                        for bc in bcs_zeta:
+                            bc.apply(b.sub(i))
+
+                    # solving for the Schur complement approximation
+                    b = apply_T_2_inv(b, space_v, n_t - 1)
+                    # first solve
+                    block_ii = block_10[(0, 0)]
+                    solver_1 = LinearSolver(
+                        assemble(block_ii
+                                 + (0.5 * tau / (beta**0.5)) * self._M_v,
+                                 bcs=bcs_zeta),
+                        solver_parameters={
+                            "ksp_type": "preonly",
+                            "pc_type": "hypre",
+                            "pc_hypre_type": "boomeramg",
+                            "ksp_max_it": 1,
+                            "pc_hypre_boomeramg_max_iter": 2,
+                            "ksp_atol": 0.0,
+                            "ksp_rtol": 0.0})
+                    b_help = Cofunction(space_v.dual())
+                    b_help.assign(b.sub(0))
+                    try:
+                        solver_1.solve(u_1.sub(0),
+                                       b_help.copy(deepcopy=True))
+                    except ConvergenceError:
+                        assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
+                    del b_help
+
+                    for i in range(1, n_t - 1):
+                        block_ij = block_10[(i, i - 1)]
+                        b_help = Function(space_v)
+                        b_help.assign(u_1.sub(i - 1))
+                        b_help_new = assemble(action(block_ij, b_help))
+                        with b.sub(i).dat.vec as b_v, \
+                                b_help_new.dat.vec_ro as b_1_v:
+                            b_v.axpy(-1.0, b_1_v)
+                        b_help_new = assemble(
+                            action((0.5 * tau / (beta**0.5)) * self._M_v,
+                                   b_help))
+                        with b.sub(i).dat.vec as b_v, \
+                                b_help_new.dat.vec_ro as b_1_v:
+                            b_v.axpy(-1.0, b_1_v)
+                        del b_help_new
+                        for bc in bcs_zeta:
+                            bc.apply(b.sub(i))
+                        b_help = Cofunction(space_v.dual())
+                        b_help.assign(b.sub(i))
+
+                        block_ii = block_10[(i, i)]
+                        solver_1 = LinearSolver(
+                            assemble(block_ii
+                                     + (0.5 * tau / beta**0.5) * self._M_v,
+                                     bcs=bcs_zeta),
+                            solver_parameters={
+                                "ksp_type": "preonly",
+                                "pc_type": "hypre",
+                                "pc_hypre_type": "boomeramg",
+                                "ksp_max_it": 1,
+                                "pc_hypre_boomeramg_max_iter": 2,
+                                "ksp_atol": 0.0,
+                                "ksp_rtol": 0.0})
+                        try:
+                            solver_1.solve(u_1.sub(i),
+                                           b_help.copy(deepcopy=True))
+                        except ConvergenceError:
+                            assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
+                        del b_help
+                    del b
+
+                    b = apply_T_2(u_1, space_v, n_t - 1)
+                    for i in range(n_t - 1):
+                        u_1.sub(i).assign(b.sub(i))
+                    del b
+
+                    b = Cofunction(full_space_v.dual())
+                    for i in range(n_t - 1):
+                        b_help = Function(space_v)
+                        b_help.assign(u_1.sub(i))
+                        b.sub(i).assign(assemble(action(self._M_v,
+                                                        b_help)))
+                        del b_help
+                        with b.sub(i).dat.vec as b_v:
+                            b_v.scale(0.5 * tau)
+                        for bc in bcs_zeta:
+                            bc.apply(b.sub(i))
+
+                    # second solve
+                    b_help = Cofunction(space_v.dual())
+                    b_help.assign(b.sub(n_t - 2))
+                    block_ii = block_01[(n_t - 2, n_t - 2)]
+                    solver_2 = LinearSolver(
+                        assemble(block_ii
+                                 + (0.5 * tau / beta**0.5) * self._M_zeta,
+                                 bcs=bcs_zeta),
+                        solver_parameters={
+                            "ksp_type": "preonly",
+                            "pc_type": "hypre",
+                            "pc_hypre_type": "boomeramg",
+                            "ksp_max_it": 1,
+                            "pc_hypre_boomeramg_max_iter": 2,
+                            "ksp_atol": 0.0,
+                            "ksp_rtol": 0.0})
+                    try:
+                        solver_2.solve(u_1.sub(n_t - 2),
+                                       b_help.copy(deepcopy=True))
+                    except ConvergenceError:
+                        assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
+                    del b_help
+
+                    for i in range(n_t - 3, -1, -1):
+                        b_help = Function(space_v)
+                        b_help.assign(u_1.sub(i + 1))
+                        block_ij = block_01[(i, i + 1)] + (0.5 * tau / beta**0.5) * self._M_zeta  # noqa: E501
+                        b_help_new = assemble(action(block_ij, b_help))
+                        with b.sub(i).dat.vec as b_v, \
+                                b_help_new.dat.vec_ro as b_1_v:
+                            b_v.axpy(-1.0, b_1_v)
+                        del b_help_new
+                        for bc in bcs_zeta:
+                            bc.apply(b.sub(i))
+                        b_help = Cofunction(space_v.dual())
+                        b_help.assign(b.sub(i))
+                        block_ii = block_01[(i, i)]
+                        solver_2 = LinearSolver(
+                            assemble(block_ii
+                                     + (0.5 * tau / beta**0.5) * self._M_zeta,
+                                     bcs=bcs_zeta),
+                            solver_parameters={
+                                "ksp_type": "preonly",
+                                "pc_type": "hypre",
+                                "pc_hypre_type": "boomeramg",
+                                "ksp_max_it": 1,
+                                "pc_hypre_boomeramg_max_iter": 2,
+                                "ksp_atol": 0.0,
+                                "ksp_rtol": 0.0})
+                        try:
+                            solver_2.solve(u_1.sub(i),
+                                           b_help.copy(deepcopy=True))
+                        except ConvergenceError:
+                            assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
+                        del b_help
+            else:
+                def pc_linear(u_0, u_1, b_0, b_1):
+                    # solving for the (1,1)-block
+                    if Multigrid:
+                        solver_0 = LinearSolver(
+                            assemble(self._M_v,
+                                     bcs=bcs_v),
+                            solver_parameters={
+                                "ksp_type": "preonly",
+                                "pc_type": "hypre",
+                                "pc_hypre_type": "boomeramg",
+                                "ksp_max_it": 1,
+                                "pc_hypre_boomeramg_max_iter": 2,
+                                "ksp_atol": 0.0,
+                                "ksp_rtol": 0.0})
+                    else:
+                        if lambda_v_bounds is not None:
+                            e_min = lambda_v_bounds[0]
+                            e_max = lambda_v_bounds[1]
+                            solver_0 = LinearSolver(
+                                assemble(self._M_v,
+                                         bcs=bcs_v),
+                                solver_parameters={
+                                    "ksp_type": "chebyshev",
+                                    "pc_type": "jacobi",
+                                    "ksp_chebyshev_eigenvalues": f"{e_min:.16e}, {e_max:.16e}",  # noqa: E501
+                                    "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
+                                    "ksp_chebyshev_esteig_steps": 0,
+                                    "ksp_chebyshev_esteig_noisy": False,
+                                    "ksp_max_it": 20,
+                                    "ksp_atol": 0.0,
+                                    "ksp_rtol": 0.0})
+                        else:
+                            solver_0 = LinearSolver(
+                                assemble(self._M_v,
+                                         bcs=bcs_v),
+                                solver_parameters={"ksp_type": "preonly",
+                                                   "pc_type": "jacobi",
+                                                   "ksp_max_it": 1,
+                                                   "ksp_atol": 0.0,
+                                                   "ksp_rtol": 0.0})
+
+                    for i in range(n_t):
+                        b = Cofunction(space_v.dual())
+                        b.assign(b_0.sub(i))
+                        try:
+                            solver_0.solve(
+                                u_0.sub(i), b.copy(deepcopy=True))
+                        except ConvergenceError:
+                            assert solver_0.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
+                        del b
+                        with u_0.sub(i).dat.vec as x_v:
+                            x_v.scale(1.0 / tau)
+
+                    with u_0.sub(n_t - 1).dat.vec as x_v:
+                        x_v.scale(1.0 / epsilon)
+
+                    # u_1 = - b_1 + D_v * u_0
+                    b = Cofunction(full_space_v.dual())
+                    block_ii = block_10[(0, 0)]
+                    b_help = Function(space_v)
+                    b_help.assign(u_0.sub(0))
+                    b.sub(0).assign(assemble(action(block_ii, b_help)))
+                    with b.sub(0).dat.vec as b_v, \
+                            b_1.sub(0).dat.vec_ro as b_1_v:
+                        b_v.axpy(-1.0, b_1_v)
+                    for bc in bcs_zeta:
+                        bc.apply(b.sub(0))
+                    del b_help
+                    for i in range(1, n_t):
+                        block_ij = block_10[(i, i - 1)]
+                        b_help = Function(space_v)
+                        b_help.assign(u_0.sub(i - 1))
+                        b_help_new = assemble(action(block_ij, b_help))
+                        block_ii = block_10[(i, i)]
+                        b_help.assign(u_0.sub(i))
+                        b.sub(i).assign(assemble(action(block_ii, b_help)))
+                        with b.sub(i).dat.vec as b_v, \
+                                b_help_new.dat.vec_ro as b_1_v:
+                            b_v.axpy(1.0, b_1_v)
+                        del b_help
+                        del b_help_new
+                        with b.sub(i).dat.vec as b_v, \
+                                b_1.sub(i).dat.vec_ro as b_1_v:
+                            b_v.axpy(-1.0, b_1_v)
+                        for bc in bcs_zeta:
+                            bc.apply(b.sub(i))
+
+                    # solving for the Schur complement approximation
+                    # first solve
+                    block_ii = block_10[(0, 0)]
+                    solver_1 = LinearSolver(
+                        assemble(block_ii,
+                                 bcs=bcs_zeta),
+                        solver_parameters={
+                            "ksp_type": "preonly",
+                            "pc_type": "hypre",
+                            "pc_hypre_type": "boomeramg",
+                            "ksp_max_it": 1,
+                            "pc_hypre_boomeramg_max_iter": 2,
+                            "ksp_atol": 0.0,
+                            "ksp_rtol": 0.0})
+
+                    b_help = Cofunction(space_v.dual())
+                    b_help.assign(b.sub(0))
+                    try:
+                        solver_1.solve(u_1.sub(0),
+                                       b_help.copy(deepcopy=True))
+                    except ConvergenceError:
+                        assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
+                    del b_help
+
+                    for i in range(1, n_t - 1):
+                        block_ij = block_10[(i, i - 1)]
+                        b_help = Function(space_v)
+                        b_help.assign(u_1.sub(i - 1))
+                        b_help_new = assemble(action(block_ij, b_help))
+                        with b.sub(i).dat.vec as b_v, \
+                                b_help_new.dat.vec_ro as b_1_v:
+                            b_v.axpy(-1.0, b_1_v)
+                        del b_help_new
+                        for bc in bcs_zeta:
+                            bc.apply(b.sub(i))
+                        b_help = Cofunction(space_v.dual())
+                        b_help.assign(b.sub(i))
+                        block_ii = block_10[(i, i)]
+                        solver_1 = LinearSolver(
+                            assemble(block_ii
+                                     + (tau / (beta**0.5)) * self._M_v,
+                                     bcs=bcs_zeta),
+                            solver_parameters={
+                                "ksp_type": "preonly",
+                                "pc_type": "hypre",
+                                "pc_hypre_type": "boomeramg",
+                                "ksp_max_it": 1,
+                                "pc_hypre_boomeramg_max_iter": 2,
+                                "ksp_atol": 0.0,
+                                "ksp_rtol": 0.0})
+
+                        try:
+                            solver_1.solve(u_1.sub(i),
+                                           b_help.copy(deepcopy=True))
+                        except ConvergenceError:
+                            assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
+                        del b_help
+
+                    block_ij = block_10[(n_t - 1, n_t - 2)]
+                    b_help = Function(space_v)
+                    b_help.assign(u_1.sub(n_t - 2))
+                    b_help_new = assemble(action(block_ij, b_help))
+                    with b.sub(n_t - 1).dat.vec as b_v, \
+                            b_help_new.dat.vec_ro as b_1_v:
+                        b_v.axpy(-1.0, b_1_v)
+                    for bc in bcs_zeta:
+                        bc.apply(b.sub(n_t - 1))
+                    del b_help_new
+                    b_help = Cofunction(space_v.dual())
+                    b_help.assign(b.sub(n_t - 1))
+                    block_ii = block_10[(n_t - 1, n_t - 1)]
+                    solver_1 = LinearSolver(
+                        assemble(block_ii
+                                 + ((epsilon**0.5) * tau / (beta**0.5)) * self._M_v,  # noqa: E501
+                                 bcs=bcs_zeta),
+                        solver_parameters={
+                            "ksp_type": "preonly",
+                            "pc_type": "hypre",
+                            "pc_hypre_type": "boomeramg",
+                            "ksp_max_it": 1,
+                            "pc_hypre_boomeramg_max_iter": 2,
+                            "ksp_atol": 0.0,
+                            "ksp_rtol": 0.0})
+                    try:
+                        solver_1.solve(u_1.sub(n_t - 1),
+                                       b_help.copy(deepcopy=True))
+                    except ConvergenceError:
+                        assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
+                    del b_help
+                    del b
+
+                    b = Cofunction(full_space_v.dual())
+                    for i in range(n_t - 1):
+                        b_help = Function(space_v)
+                        b_help.assign(u_1.sub(i))
+                        b.sub(i).assign(assemble(action(self._M_v,
+                                                        b_help)))
+                        del b_help
+                        with b.sub(i).dat.vec as b_v:
+                            b_v.scale(tau)
+                        for bc in bcs_zeta:
+                            bc.apply(b.sub(i))
+
+                    b_help = Function(space_v)
+                    b_help.assign(u_1.sub(n_t - 1))
+                    b.sub(n_t - 1).assign(assemble(action(self._M_v,
+                                                          b_help)))
+                    del b_help
+                    with b.sub(n_t - 1).dat.vec as b_v:
+                        b_v.scale(epsilon * tau)
+                    for bc in bcs_zeta:
+                        bc.apply(b.sub(n_t - 1))
+
+                    # second solve
+                    b_help = Cofunction(space_v.dual())
+                    b_help.assign(b.sub(n_t - 1))
+                    block_ii = block_01[(n_t - 1, n_t - 1)]
+                    solver_2 = LinearSolver(
+                        assemble(block_ii
+                                 + ((epsilon**0.5) * tau / (beta**0.5)) * self._M_zeta,  # noqa: E501
+                                 bcs=bcs_zeta),
+                        solver_parameters={
+                            "ksp_type": "preonly",
+                            "pc_type": "hypre",
+                            "pc_hypre_type": "boomeramg",
+                            "ksp_max_it": 1,
+                            "pc_hypre_boomeramg_max_iter": 2,
+                            "ksp_atol": 0.0,
+                            "ksp_rtol": 0.0})
+                    try:
+                        solver_2.solve(u_1.sub(n_t - 1),
+                                       b_help.copy(deepcopy=True))
+                    except ConvergenceError:
+                        assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
+                    del b_help
+
+                    for i in range(n_t - 2, 0, -1):
+                        b_help = Function(space_v)
+                        b_help.assign(u_1.sub(i + 1))
+                        block_ij = block_01[(i, i + 1)]
+                        b_help_new = assemble(action(block_ij, b_help))
+                        with b.sub(i).dat.vec as b_v, \
+                                b_help_new.dat.vec_ro as b_1_v:
+                            b_v.axpy(-1.0, b_1_v)
+                        del b_help_new
+                        for bc in bcs_zeta:
+                            bc.apply(b.sub(i))
+                        b_help = Cofunction(space_v.dual())
+                        b_help.assign(b.sub(i))
+                        block_ii = block_01[(i, i)]
+                        solver_2 = LinearSolver(
+                            assemble(block_ii
+                                     + (tau / (beta**0.5)) * self._M_zeta,
+                                     bcs=bcs_zeta),
+                            solver_parameters={
+                                "ksp_type": "preonly",
+                                "pc_type": "hypre",
+                                "pc_hypre_type": "boomeramg",
+                                "ksp_max_it": 1,
+                                "pc_hypre_boomeramg_max_iter": 2,
+                                "ksp_atol": 0.0,
+                                "ksp_rtol": 0.0})
+                        try:
+                            solver_2.solve(u_1.sub(i),
+                                           b_help.copy(deepcopy=True))
+                        except ConvergenceError:
+                            assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
+                        del b_help
+
+                    b_help = Function(space_v)
+                    b_help.assign(u_1.sub(1))
+                    block_ij = block_01[(0, 1)]
+                    b_help_new = assemble(action(block_ij, b_help))
+                    with b.sub(0).dat.vec as b_v, \
+                            b_help_new.dat.vec_ro as b_1_v:
+                        b_v.axpy(-1.0, b_1_v)
+                    del b_help_new
+                    for bc in bcs_zeta:
+                        bc.apply(b.sub(0))
+                    b_help = Cofunction(space_v.dual())
+                    b_help.assign(b.sub(0))
+                    block_ii = block_01[(0, 0)]
+                    solver_2 = LinearSolver(
+                        assemble(block_ii,
+                                 bcs=bcs_zeta),
+                        solver_parameters={
+                            "ksp_type": "preonly",
+                            "pc_type": "hypre",
+                            "pc_hypre_type": "boomeramg",
+                            "ksp_max_it": 1,
+                            "pc_hypre_boomeramg_max_iter": 2,
+                            "ksp_atol": 0.0,
+                            "ksp_rtol": 0.0})
+                    try:
+                        solver_2.solve(u_1.sub(0),
+                                       b_help.copy(deepcopy=True))
+                    except ConvergenceError:
+                        assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
+                    del b_help
+                    del b
+
+            return pc_linear
+
+        def non_linear_res_eval(self, full_space_v, v_old, zeta_old, v_0,
+                                v_d, f, M_v, bcs_v, bcs_zeta):
+            space_v = self._space_v
+            n_t = self._n_t
+            beta = self._beta
+            t_0 = self._time_interval[0]
+            T_f = self._time_interval[1]
+
+            tau = (T_f - t_0) / (n_t - 1.0)
+
+            v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
+
+            if not self._CN:
+                rhs_0 = Cofunction(full_space_v.dual(), name="rhs_0")
+                rhs_1 = Cofunction(full_space_v.dual(), name="rhs_1")
+
+                D_v_i = self.construct_D_v(v_trial, v_test,
+                                           v_old.sub(0), t_0)
+                D_zeta_i = adjoint(D_v_i)
+
+                D_v_0 = self.construct_D_v(v_trial, v_test, v_0, t_0)
+
+                rhs_0.sub(0).assign(tau * v_d.sub(0))
+                b_help = Function(space_v)
+                b_help.assign(v_old.sub(0))
+                b = assemble(action(tau * self._M_v, b_help))
+                with b.dat.vec_ro as b_v, \
+                        rhs_0.sub(0).dat.vec as b_0_v:
+                    b_0_v.axpy(-1.0, b_v)
+                del b
+                del b_help
+
+                b_help = Function(space_v)
+                b_help.assign(zeta_old.sub(0))
+                b = assemble(action(tau * D_zeta_i + M_v, b_help))
+                with b.dat.vec_ro as b_v, \
+                        rhs_0.sub(0).dat.vec as b_0_v:
+                    b_0_v.axpy(-1.0, b_v)
+                del b
+                del b_help
+
+                b_help = Function(space_v)
+                b_help.assign(zeta_old.sub(1))
+                b = assemble(action(M_v, b_help))
+                with b.dat.vec_ro as b_v, \
+                        rhs_0.sub(0).dat.vec as b_0_v:
+                    b_0_v.axpy(1.0, b_v)
+                del b
+                del b_help
+                for bc in bcs_zeta:
+                    bc.apply(rhs_0.sub(0))
+
+                b = assemble(action(tau * D_v_0 + M_v, v_0))
+                rhs_1.sub(0).assign(b)
+                del b
+
+                b_help = Function(space_v)
+                b_help.assign(v_old.sub(0))
+                b = assemble(action(tau * D_v_i + M_v, b_help))
+                with b.dat.vec_ro as b_v, \
+                        rhs_1.sub(0).dat.vec as b_1_v:
+                    b_1_v.axpy(-1.0, b_v)
+                del b
+                del b_help
+                for bc in bcs_v:
+                    bc.apply(rhs_1.sub(0))
+
+                D_v_i = self.construct_D_v(v_trial, v_test,
+                                           v_old.sub(n_t - 1), T_f)
+
+                rhs_1.sub(n_t - 1).assign(tau * f.sub(n_t - 1))
+                b_help = Function(space_v)
+                b_help.assign(v_old.sub(n_t - 2))
+                b = assemble(action(M_v, b_help))
+                with b.dat.vec_ro as b_v, \
+                        rhs_1.sub(n_t - 1).dat.vec as b_1_v:
+                    b_1_v.axpy(1.0, b_v)
+                del b
+                del b_help
+
+                b_help = Function(space_v)
+                b_help.assign(v_old.sub(n_t - 1))
+                b = assemble(action(tau * D_v_i + M_v, b_help))
+                with b.dat.vec_ro as b_v, \
+                        rhs_1.sub(n_t - 1).dat.vec as b_1_v:
+                    b_1_v.axpy(-1.0, b_v)
+                del b
+                del b_help
+
+                b_help = Function(space_v)
+                b_help.assign(zeta_old.sub(n_t - 1))
+                b = assemble(action((tau / beta) * self._M_zeta, b_help))
+                with b.dat.vec_ro as b_v, \
+                        rhs_1.sub(n_t - 1).dat.vec as b_1_v:
+                    b_1_v.axpy(1.0, b_v)
+                del b
+                del b_help
+                for bc in bcs_v:
+                    bc.apply(rhs_1.sub(n_t - 1))
+
+                for i in range(1, n_t - 1):
+                    t = t_0 + i * tau
+                    D_v_i = self.construct_D_v(v_trial, v_test,
+                                               v_old.sub(i), t)
+                    D_zeta_i = adjoint(D_v_i)
+
+                    rhs_0.sub(i).assign(tau * v_d.sub(i))
+                    rhs_1.sub(i).assign(tau * f.sub(i))
+
+                    b_help = Function(space_v)
+                    b_help.assign(v_old.sub(i))
+                    b = assemble(action(tau * self._M_v, b_help))
+                    with b.dat.vec_ro as b_v, \
+                            rhs_0.sub(i).dat.vec as b_0_v:
+                        b_0_v.axpy(-1.0, b_v)
+                    del b
+                    del b_help
+
+                    b_help = Function(space_v)
+                    b_help.assign(zeta_old.sub(i))
+                    b = assemble(action(tau * D_zeta_i + M_v, b_help))
+                    with b.dat.vec_ro as b_v, \
+                            rhs_0.sub(i).dat.vec as b_0_v:
+                        b_0_v.axpy(-1.0, b_v)
+                    del b
+                    del b_help
+
+                    b_help = Function(space_v)
+                    b_help.assign(zeta_old.sub(i + 1))
+                    b = assemble(action(M_v, b_help))
+                    with b.dat.vec_ro as b_v, \
+                            rhs_0.sub(i).dat.vec as b_0_v:
+                        b_0_v.axpy(1.0, b_v)
+                    del b
+                    del b_help
+                    for bc in bcs_zeta:
+                        bc.apply(rhs_0.sub(i))
+
+                    b_help = Function(space_v)
+                    b_help.assign(v_old.sub(i))
+                    b = assemble(action(tau * D_v_i + M_v, b_help))
+                    with b.dat.vec_ro as b_v, \
+                            rhs_1.sub(i).dat.vec as b_1_v:
+                        b_1_v.axpy(-1.0, b_v)
+                    del b
+                    del b_help
+
+                    b_help = Function(space_v)
+                    b_help.assign(v_old.sub(i - 1))
+                    b = assemble(action(M_v, b_help))
+                    with b.dat.vec_ro as b_v, \
+                            rhs_1.sub(i).dat.vec as b_1_v:
+                        b_1_v.axpy(1.0, b_v)
+                    del b
+                    del b_help
+
+                    b_help = Function(space_v)
+                    b_help.assign(zeta_old.sub(i))
+                    b = assemble(action((tau / beta) * self._M_zeta,
+                                        b_help))
+                    with b.dat.vec_ro as b_v, \
+                            rhs_1.sub(i).dat.vec as b_1_v:
+                        b_1_v.axpy(1.0, b_v)
+                    del b
+                    del b_help
+                    for bc in bcs_v:
+                        bc.apply(rhs_1.sub(i))
+            else:
+                rhs_0 = Cofunction(full_space_v.dual(), name="rhs_0")
+                rhs_1 = Cofunction(full_space_v.dual(), name="rhs_1")
+
+                D_v_i = self.construct_D_v(v_trial, v_test,
+                                           v_old.sub(0), t_0)
+                D_v_i_plus = self.construct_D_v(v_trial, v_test,
+                                                v_old.sub(1), t_0 + tau)
+                D_zeta_i = adjoint(D_v_i)
+                D_zeta_i_plus = adjoint(D_v_i_plus)
+
+                rhs_0.sub(0).assign(0.5 * tau * (v_d.sub(0) + v_d.sub(1)))
+                b_help = Function(space_v)
+                b_help.assign(v_old.sub(0))
+                b = assemble(action(0.5 * tau * self._M_v, b_help))
+                with b.dat.vec_ro as b_v, \
+                        rhs_0.sub(0).dat.vec as b_0_v:
+                    b_0_v.axpy(-1.0, b_v)
+                del b
+
+                b_help = Function(space_v)
+                b_help.assign(v_old.sub(1))
+                b = assemble(action(0.5 * tau * self._M_v, b_help))
+                with b.dat.vec_ro as b_v, \
+                        rhs_0.sub(0).dat.vec as b_0_v:
+                    b_0_v.axpy(-1.0, b_v)
+                del b
+                del b_help
+
+                b_help = Function(space_v)
+                b_help.assign(zeta_old.sub(0))
+                b = assemble(action(0.5 * tau * D_zeta_i + M_v, b_help))
+                with b.dat.vec_ro as b_v, \
+                        rhs_0.sub(0).dat.vec as b_0_v:
+                    b_0_v.axpy(-1.0, b_v)
+                del b
+                del b_help
+
+                b_help = Function(space_v)
+                b_help.assign(zeta_old.sub(1))
+                b = assemble(action(0.5 * tau * D_zeta_i_plus - M_v,
+                                    b_help))
+                with b.dat.vec_ro as b_v, \
+                        rhs_0.sub(0).dat.vec as b_0_v:
+                    b_0_v.axpy(-1.0, b_v)
+                del b
+                del b_help
+                for bc in bcs_zeta:
+                    bc.apply(rhs_0.sub(0))
+
+                rhs_1.sub(0).assign(0.5 * tau * (f.sub(0) + f.sub(1)))
+                b_help = Function(space_v)
+                b_help.assign(v_old.sub(0))
+                b = assemble(action(0.5 * tau * D_v_i - M_v, b_help))
+                with b.dat.vec_ro as b_v, \
+                        rhs_1.sub(0).dat.vec as b_1_v:
+                    b_1_v.axpy(-1.0, b_v)
+                del b
+                del b_help
+
+                b_help = Function(space_v)
+                b_help.assign(v_old.sub(1))
+                b = assemble(action(0.5 * tau * D_v_i_plus + M_v, b_help))
+                with b.dat.vec_ro as b_v, \
+                        rhs_1.sub(0).dat.vec as b_1_v:
+                    b_1_v.axpy(-1.0, b_v)
+                del b
+                del b_help
+
+                b_help = Function(space_v)
+                b_help.assign(zeta_old.sub(0))
+                b = assemble(action(0.5 * (tau / beta) * self._M_zeta,
+                                    b_help))
+                with b.dat.vec_ro as b_v, \
+                        rhs_1.sub(0).dat.vec as b_1_v:
+                    b_1_v.axpy(1.0, b_v)
+                del b
+                del b_help
+
+                b_help = Function(space_v)
+                b_help.assign(zeta_old.sub(1))
+                b = assemble(action(0.5 * (tau / beta) * self._M_zeta,
+                                    b_help))
+                with b.dat.vec_ro as b_v, \
+                        rhs_1.sub(0).dat.vec as b_1_v:
+                    b_1_v.axpy(1.0, b_v)
+                del b
+                del b_help
+                for bc in bcs_v:
+                    bc.apply(rhs_1.sub(0))
+
+                for i in range(1, n_t - 1):
+                    t = t_0 + i * tau
+                    D_v_i = self.construct_D_v(v_trial, v_test,
+                                               v_old.sub(i), t)
+                    D_v_i_plus = self.construct_D_v(v_trial, v_test,
+                                                    v_old.sub(i + 1), t + tau)
+                    D_zeta_i = adjoint(D_v_i)
+                    D_zeta_i_plus = adjoint(D_v_i_plus)
+
+                    rhs_0.sub(i).assign(
+                        0.5 * tau * (v_d.sub(i) + v_d.sub(i + 1)))
+                    rhs_1.sub(i).assign(
+                        0.5 * tau * (f.sub(i) + f.sub(i + 1)))
+
+                    b_help = Function(space_v)
+                    b_help.assign(v_old.sub(i))
+                    b = assemble(action(0.5 * tau * self._M_v, b_help))
+                    with b.dat.vec_ro as b_v, \
+                            rhs_0.sub(i).dat.vec as b_0_v:
+                        b_0_v.axpy(-1.0, b_v)
+                    del b
+                    del b_help
+
+                    b_help = Function(space_v)
+                    b_help.assign(v_old.sub(i + 1))
+                    b = assemble(action(0.5 * tau * self._M_v, b_help))
+                    with b.dat.vec_ro as b_v, \
+                            rhs_0.sub(i).dat.vec as b_0_v:
+                        b_0_v.axpy(-1.0, b_v)
+                    del b
+                    del b_help
+
+                    b_help = Function(space_v)
+                    b_help.assign(zeta_old.sub(i))
+                    b = assemble(action(0.5 * tau * D_zeta_i + M_v,
+                                        b_help))
+                    with b.dat.vec_ro as b_v, \
+                            rhs_0.sub(i).dat.vec as b_0_v:
+                        b_0_v.axpy(-1.0, b_v)
+                    del b
+                    del b_help
+
+                    b_help = Function(space_v)
+                    b_help.assign(zeta_old.sub(i + 1))
+                    b = assemble(action(0.5 * tau * D_zeta_i_plus - M_v,
+                                        b_help))
+                    with b.dat.vec_ro as b_v, \
+                            rhs_0.sub(i).dat.vec as b_0_v:
+                        b_0_v.axpy(-1.0, b_v)
+                    del b
+                    del b_help
+                    for bc in bcs_zeta:
+                        bc.apply(rhs_0.sub(i))
+
+                    b_help = Function(space_v)
+                    b_help.assign(v_old.sub(i))
+                    b = assemble(action(0.5 * tau * D_v_i - M_v, b_help))
+                    with b.dat.vec_ro as b_v, \
+                            rhs_1.sub(i).dat.vec as b_1_v:
+                        b_1_v.axpy(-1.0, b_v)
+                    del b
+                    del b_help
+
+                    b_help = Function(space_v)
+                    b_help.assign(v_old.sub(i + 1))
+                    b = assemble(action(0.5 * tau * D_v_i_plus + M_v,
+                                        b_help))
+                    with b.dat.vec_ro as b_v, \
+                            rhs_1.sub(i).dat.vec as b_1_v:
+                        b_1_v.axpy(-1.0, b_v)
+                    del b
+                    del b_help
+
+                    b_help = Function(space_v)
+                    b_help.assign(zeta_old.sub(i))
+                    b = assemble(action(0.5 * (tau / beta) * self._M_zeta,
+                                        b_help))
+                    with b.dat.vec_ro as b_v, \
+                            rhs_1.sub(i).dat.vec as b_1_v:
+                        b_1_v.axpy(1.0, b_v)
+                    del b
+                    del b_help
+
+                    b_help = Function(space_v)
+                    b_help.assign(zeta_old.sub(i + 1))
+                    b = assemble(action(0.5 * (tau / beta) * self._M_zeta,
+                                        b_help))
+                    with b.dat.vec_ro as b_v, \
+                            rhs_1.sub(i).dat.vec as b_1_v:
+                        b_1_v.axpy(1.0, b_v)
+                    del b
+                    del b_help
+                    for bc in bcs_v:
+                        bc.apply(rhs_1.sub(i))
+
+            return rhs_0, rhs_1
+
         def linear_solve(self, *,
                          P=None, solver_parameters=None, Multigrid=False,
                          lambda_v_bounds=None, v_d=None, f=None,
@@ -1936,6 +2768,11 @@ class Control:
             tau = (T_f - t_0) / (n_t - 1.0)
 
             beta = self._beta
+
+            if self._CN:
+                epsilon = None
+            else:
+                epsilon = 10.0**-3
 
             inhomogeneous_bcs_v = False
             for (i), bc_i in self._bcs_v.items():
@@ -1958,11 +2795,10 @@ class Control:
             for i in range(n_t - 1):
                 full_nullspace_v = full_nullspace_v + (nullspace_v, )
                 full_nullspace_zeta = full_nullspace_zeta + (nullspace_zeta, )
+
             if not self._CN:
                 full_nullspace_v = full_nullspace_v + (nullspace_v, )
                 full_nullspace_zeta = full_nullspace_zeta + (nullspace_zeta, )
-
-                epsilon = 10.0**-3
 
             flattened_space_v = tuple(space_v for i in range(n_t))
             mixed_element_v = ufl.classes.MixedElement(
@@ -1976,22 +2812,13 @@ class Control:
 
             if f is None:
                 check_f = True
-                f = Cofunction(full_space_v.dual())
-                for i in range(n_t):
-                    t = t_0 + i * tau
-                    f.sub(i).assign(assemble(self._force_function(v_test, t)))
+                f = self.construct_f(full_space_v, v_test)
             else:
                 check_f = False
 
             if v_d is None:
                 check_v_d = True
-                v_d = Cofunction(full_space_v.dual())
-                true_v = Function(full_space_v)
-                for i in range(n_t):
-                    t = t_0 + i * tau
-                    v_d_i, true_v_i = self._desired_state(v_test, t)
-                    v_d.sub(i).assign(assemble(v_d_i))
-                    true_v.sub(i).assign(true_v_i)
+                v_d, true_v = self.construct_v_d(full_space_v, v_test)
             else:
                 check_v_d = False
                 true_v = Function(full_space_v, name="true_v")
@@ -2017,14 +2844,10 @@ class Control:
             for i in range(n_t - 1):
                 t = t_0 + i * tau
                 v_n_help.assign(v_old.sub(i))
-                if not self._Gauss_Newton:
-                    D_v_i = self._forward_form(v_trial, v_test, v_n_help, t)
-                else:
-                    D_v_i = ufl.derivative(
-                        self._forward_form(v_trial, v_test, v_n_help, t),
-                        v_n_help,
-                        v_trial)
+
+                D_v_i = self.construct_D_v(v_trial, v_test, v_n_help, t)
                 D_zeta_i = adjoint(D_v_i)
+
                 if not self._CN:
                     for j in range(n_t):
                         if j == i - 1:
@@ -2050,16 +2873,11 @@ class Control:
                 else:
                     v_n_help_plus = Function(space_v)
                     v_n_help_plus.assign(v_old.sub(i + 1))
-                    if not self._Gauss_Newton:
-                        D_v_i_plus = self._forward_form(
-                            v_trial, v_test, v_n_help_plus, t + tau)
-                    else:
-                        D_v_i_plus = ufl.derivative(
-                            self._forward_form(
-                                v_trial, v_test, v_n_help_plus, t + tau),
-                            v_n_help_plus,
-                            v_trial)
+
+                    D_v_i_plus = self.construct_D_v(v_trial, v_test,
+                                                    v_n_help_plus, t + tau)
                     D_zeta_i_plus = adjoint(D_v_i_plus)
+
                     for j in range(n_t - 1):
                         if j == i - 1:
                             block_00[(i, j)] = 0.5 * tau * self._M_v
@@ -2085,14 +2903,10 @@ class Control:
             if not self._CN:
                 t = T_f
                 v_n_help.assign(v_old.sub(n_t - 1))
-                if not self._Gauss_Newton:
-                    D_v_i = self._forward_form(v_trial, v_test, v_n_help, t)
-                else:
-                    D_v_i = ufl.derivative(
-                        self._forward_form(v_trial, v_test, v_n_help, t),
-                        v_n_help,
-                        v_trial)
+
+                D_v_i = self.construct_D_v(v_trial, v_test, v_n_help, t)
                 D_zeta_i = adjoint(D_v_i)
+
                 for j in range(n_t - 2):
                     block_00[(n_t - 1, j)] = None
                     block_01[(n_t - 1, j)] = None
@@ -2121,6 +2935,7 @@ class Control:
             if not self._CN:
                 if check_v_d:
                     b_0.sub(0).assign(tau * v_d.sub(0))
+
                     if inhomogeneous_bcs_v:
                         v_inhom = Function(space_v)
                         for bc in bcs_v_help[(0)]:
@@ -2131,21 +2946,18 @@ class Control:
                             b_v.axpy(-1.0, b_1_v)
                         del v_inhom
                         del b_help
+
                     for bc in bcs_zeta:
                         bc.apply(b_0.sub(0))
                 else:
                     b_0.sub(0).assign(v_d.sub(0))
 
                 if check_f:
-                    if not self._Gauss_Newton:
-                        D_v_i = self._forward_form(v_trial, v_test, v_0, t_0)
-                    else:
-                        D_v_i = ufl.derivative(
-                            self._forward_form(v_trial, v_test, v_0, t_0),
-                            v_0,
-                            v_trial)
+                    D_v_i = self.construct_D_v(v_trial, v_test, v_0, t_0)
+
                     b_1.sub(0).assign(assemble(action(tau * D_v_i + M_v,
                                                       v_0)))
+
                     if inhomogeneous_bcs_v:
                         v_inhom = Function(space_v)
                         for bc in bcs_v_help[(0)]:
@@ -2156,6 +2968,7 @@ class Control:
                             b_v.axpy(-1.0, b_1_v)
                         del v_inhom
                         del b_help
+
                     for bc in bcs_v:
                         bc.apply(b_1.sub(0))
                 else:
@@ -2164,6 +2977,7 @@ class Control:
                 for i in range(1, n_t - 1):
                     if check_v_d:
                         b_0.sub(i).assign(tau * v_d.sub(i))
+
                         if inhomogeneous_bcs_v:
                             v_inhom = Function(space_v)
                             for bc in bcs_v_help[(i)]:
@@ -2174,6 +2988,7 @@ class Control:
                                 b_v.axpy(-1.0, b_1_v)
                             del v_inhom
                             del b_help
+
                         for bc in bcs_zeta:
                             bc.apply(b_0.sub(i))
                     else:
@@ -2181,18 +2996,14 @@ class Control:
 
                     if check_f:
                         b_1.sub(i).assign(tau * f.sub(i))
+
                         if inhomogeneous_bcs_v:
                             t = t_0 + i * tau
                             v_n_help.assign(v_old.sub(i))
-                            if not self._Gauss_Newton:
-                                D_v_i = self._forward_form(
-                                    v_trial, v_test, v_n_help, t)
-                            else:
-                                D_v_i = ufl.derivative(
-                                    self._forward_form(
-                                        v_trial, v_test, v_n_help, t),
-                                    v_n_help,
-                                    v_trial)
+
+                            D_v_i = self.construct_D_v(v_trial, v_test,
+                                                       v_n_help, t)
+
                             v_inhom = Function(space_v)
                             for bc in bcs_v_help[(i)]:
                                 bc.apply(v_inhom)
@@ -2201,8 +3012,10 @@ class Control:
                             with b_1.sub(i).dat.vec as b_v, \
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
+
                             del v_inhom
                             del b_help
+
                             v_inhom = Function(space_v)
                             for bc in bcs_v_help[(i - 1)]:
                                 bc.apply(v_inhom)
@@ -2210,8 +3023,10 @@ class Control:
                             with b_1.sub(i).dat.vec as b_v, \
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(1.0, b_1_v)
+
                             del v_inhom
                             del b_help
+
                         for bc in bcs_v:
                             bc.apply(b_1.sub(i))
                     else:
@@ -2224,15 +3039,10 @@ class Control:
                     b_1.sub(n_t - 1).assign(tau * f.sub(n_t - 1))
                     if inhomogeneous_bcs_v:
                         v_n_help.assign(v_old.sub(n_t - 1))
-                        if not self._Gauss_Newton:
-                            D_v_i = self._forward_form(
-                                v_trial, v_test, v_n_help, T_f)
-                        else:
-                            D_v_i = ufl.derivative(
-                                self._forward_form(
-                                    v_trial, v_test, v_n_help, T_f),
-                                v_n_help,
-                                v_trial)
+
+                        D_v_i = self.construct_D_v(v_trial, v_test,
+                                                   v_n_help, T_f)
+
                         v_inhom = Function(space_v)
                         for bc in bcs_v_help[(n_t - 1)]:
                             bc.apply(v_inhom)
@@ -2240,8 +3050,10 @@ class Control:
                         with b_1.sub(n_t - 1).dat.vec as b_v, \
                                 b_help.dat.vec_ro as b_1_v:
                             b_v.axpy(-1.0, b_1_v)
+
                         del v_inhom
                         del b_help
+
                         v_inhom = Function(space_v)
                         for bc in bcs_v_help[(n_t - 2)]:
                             bc.apply(v_inhom)
@@ -2249,8 +3061,10 @@ class Control:
                         with b_1.sub(n_t - 1).dat.vec as b_v, \
                                 b_help.dat.vec_ro as b_1_v:
                             b_v.axpy(1.0, b_1_v)
+
                         del v_inhom
                         del b_help
+
                     for bc in bcs_v:
                         bc.apply(b_1.sub(n_t - 1))
                 else:
@@ -2260,6 +3074,7 @@ class Control:
                     if check_v_d:
                         b_0.sub(i).assign(
                             0.5 * tau * (v_d.sub(i) + v_d.sub(i + 1)))
+
                         if inhomogeneous_bcs_v:
                             v_inhom = Function(space_v)
                             for bc in bcs_v_help[(i + 1)]:
@@ -2269,19 +3084,26 @@ class Control:
                             with b_0.sub(i).dat.vec as b_v, \
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
+
                             del v_inhom
                             del b_help
+
                             if i > 0:
                                 v_inhom = Function(space_v)
+
                                 for bc in bcs_v_help[(i)]:
                                     bc.apply(v_inhom)
+
                                 b_help = assemble(action(0.5 * tau * self._M_v,
                                                          v_inhom))
+
                                 with b_0.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_1_v:
                                     b_v.axpy(-1.0, b_1_v)
+
                                 del v_inhom
                                 del b_help
+
                         for bc in bcs_zeta:
                             bc.apply(b_0.sub(i))
                     else:
@@ -2290,40 +3112,34 @@ class Control:
                     if check_f:
                         b_1.sub(i).assign(
                             0.5 * tau * (f.sub(i) + f.sub(i + 1)))
+
                         if inhomogeneous_bcs_v:
                             t = t_0 + (i + 1) * tau
                             v_n_help.assign(v_old.sub(i + 1))
-                            if not self._Gauss_Newton:
-                                D_v_i = self._forward_form(
-                                    v_trial, v_test, v_n_help, t)
-                            else:
-                                D_v_i = ufl.derivative(
-                                    self._forward_form(
-                                        v_trial, v_test, v_n_help, t),
-                                    v_n_help,
-                                    v_trial)
+
+                            D_v_i = self.construct_D_v(v_trial, v_test,
+                                                       v_n_help, t)
+
                             v_inhom = Function(space_v)
                             for bc in bcs_v_help[(i + 1)]:
                                 bc.apply(v_inhom)
+
                             b_help = assemble(action(0.5 * tau * D_v_i + M_v,
                                                      v_inhom))
                             with b_1.sub(i).dat.vec as b_v, \
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
+
                             del v_inhom
                             del b_help
+
                             if i > 0:
                                 t = t_0 + i * tau
                                 v_n_help.assign(v_old.sub(i))
-                                if not self._Gauss_Newton:
-                                    D_v_i = self._forward_form(
-                                        v_trial, v_test, v_n_help, t)
-                                else:
-                                    D_v_i = ufl.derivative(
-                                        self._forward_form(
-                                            v_trial, v_test, v_n_help, t),
-                                        v_n_help,
-                                        v_trial)
+
+                                D_v_i = self.construct_D_v(v_trial, v_test,
+                                                           v_n_help, t)
+
                                 v_inhom = Function(space_v)
                                 for bc in bcs_v_help[(i)]:
                                     bc.apply(v_inhom)
@@ -2332,6 +3148,7 @@ class Control:
                                 with b_1.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_1_v:
                                     b_v.axpy(-1.0, b_1_v)
+
                                 del v_inhom
                                 del b_help
                         for bc in bcs_v:
@@ -2346,550 +3163,36 @@ class Control:
                         b_v.axpy(-1.0, b_1_v)
                     for bc in bcs_zeta:
                         bc.apply(b_0.sub(0))
+
                     del b
 
                 if check_f:
-                    if not self._Gauss_Newton:
-                        D_v_i = self._forward_form(v_trial, v_test, v_0, t_0)
-                    else:
-                        D_v_i = ufl.derivative(
-                            self._forward_form(v_trial, v_test, v_0, t_0),
-                            v_0,
-                            v_trial)
+                    D_v_i = self.construct_D_v(v_trial, v_test,
+                                               v_0, t_0)
+
                     b = assemble(action(0.5 * tau * D_v_i - M_v, v_0))
                     with b_1.sub(0).dat.vec as b_v, \
                             b.dat.vec_ro as b_1_v:
                         b_v.axpy(-1.0, b_1_v)
                     for bc in bcs_v:
                         bc.apply(b_1.sub(0))
+
                     del b
 
                 b_0 = apply_T_1(b_0, space_v, n_t - 1)
                 b_1 = apply_T_2(b_1, space_v, n_t - 1)
 
             if P is None:
-                # definition of preconditioner
                 if self._CN:
-                    def pc_fn(u_0, u_1, b_0, b_1):
-                        # solving for the (1,1)-block
-                        if Multigrid:
-                            solver_0 = LinearSolver(
-                                assemble(self._M_v,
-                                         bcs=bcs_v),
-                                solver_parameters={
-                                    "ksp_type": "preonly",
-                                    "pc_type": "hypre",
-                                    "pc_hypre_type": "boomeramg",
-                                    "ksp_max_it": 1,
-                                    "pc_hypre_boomeramg_max_iter": 2,
-                                    "ksp_atol": 0.0,
-                                    "ksp_rtol": 0.0})
-                        else:
-                            if lambda_v_bounds is not None:
-                                e_min = lambda_v_bounds[0]
-                                e_max = lambda_v_bounds[1]
-                                solver_0 = LinearSolver(
-                                    assemble(self._M_v,
-                                             bcs=bcs_v),
-                                    solver_parameters={
-                                        "ksp_type": "chebyshev",
-                                        "pc_type": "jacobi",
-                                        "ksp_chebyshev_eigenvalues": f"{e_min:.16e}, {e_max:.16e}",  # noqa: E501
-                                        "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",  # noqa: E501
-                                        "ksp_chebyshev_esteig_steps": 0,
-                                        "ksp_chebyshev_esteig_noisy": False,
-                                        "ksp_max_it": 20,
-                                        "ksp_atol": 0.0,
-                                        "ksp_rtol": 0.0})
-                            else:
-                                solver_0 = LinearSolver(
-                                    assemble(self._M_v,
-                                             bcs=bcs_v),
-                                    solver_parameters={"ksp_type": "preonly",
-                                                       "pc_type": "jacobi",
-                                                       "ksp_max_it": 1,
-                                                       "ksp_atol": 0.0,
-                                                       "ksp_rtol": 0.0})
-
-                        b_0_help = apply_T_1_inv(b_0, space_v, n_t - 1)
-
-                        for i in range(n_t - 1):
-                            b = Cofunction(space_v.dual())
-                            b.assign(b_0_help.sub(i))
-                            try:
-                                solver_0.solve(u_0.sub(i),
-                                               b.copy(deepcopy=True))
-                            except ConvergenceError:
-                                assert solver_0.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                            del b
-                            with u_0.sub(i).dat.vec as x_v:
-                                x_v.scale(2.0 / tau)
-
-                        b_0_help = apply_T_2_inv(u_0, space_v, n_t - 1)
-                        for i in range(n_t - 1):
-                            u_0.sub(i).assign(b_0_help.sub(i))
-                        del b_0_help
-
-                        # u_1 = - b_1 + D_v * u_0
-                        b = Cofunction(full_space_v_help.dual())
-                        block_ii = block_10[(0, 0)]
-                        b_help = Function(space_v)
-                        b_help.assign(u_0.sub(0))
-                        b.sub(0).assign(assemble(action(block_ii, b_help)))
-                        for bc in bcs_zeta:
-                            bc.apply(b.sub(0))
-                        del b_help
-                        for i in range(1, n_t - 1):
-                            block_ij = block_10[(i, i - 1)]
-                            b_help = Function(space_v)
-                            b_help.assign(u_0.sub(i - 1))
-                            b_help_new = assemble(action(block_ij, b_help))
-                            block_ii = block_10[(i, i)]
-                            b_help.assign(u_0.sub(i))
-                            b.sub(i).assign(assemble(action(block_ii, b_help)))
-                            with b.sub(i).dat.vec as b_v, \
-                                    b_help_new.dat.vec_ro as b_1_v:
-                                b_v.axpy(1.0, b_1_v)
-                            del b_help
-                            del b_help_new
-                            for bc in bcs_zeta:
-                                bc.apply(b.sub(i))
-
-                        b = apply_T_2(b, space_v, n_t - 1)
-
-                        for i in range(n_t - 1):
-                            with b.sub(i).dat.vec as b_v, \
-                                    b_1.sub(i).dat.vec_ro as b_1_v:
-                                b_v.axpy(-1.0, b_1_v)
-                            for bc in bcs_zeta:
-                                bc.apply(b.sub(i))
-
-                        # solving for the Schur complement approximation
-                        b = apply_T_2_inv(b, space_v, n_t - 1)
-                        # first solve
-                        block_ii = block_10[(0, 0)]
-                        solver_1 = LinearSolver(
-                            assemble(block_ii
-                                     + (0.5 * tau / (beta**0.5)) * self._M_v,
-                                     bcs=bcs_zeta),
-                            solver_parameters={
-                                "ksp_type": "preonly",
-                                "pc_type": "hypre",
-                                "pc_hypre_type": "boomeramg",
-                                "ksp_max_it": 1,
-                                "pc_hypre_boomeramg_max_iter": 2,
-                                "ksp_atol": 0.0,
-                                "ksp_rtol": 0.0})
-                        b_help = Cofunction(space_v.dual())
-                        b_help.assign(b.sub(0))
-                        try:
-                            solver_1.solve(u_1.sub(0),
-                                           b_help.copy(deepcopy=True))
-                        except ConvergenceError:
-                            assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                        del b_help
-
-                        for i in range(1, n_t - 1):
-                            block_ij = block_10[(i, i - 1)]
-                            b_help = Function(space_v)
-                            b_help.assign(u_1.sub(i - 1))
-                            b_help_new = assemble(action(block_ij, b_help))
-                            with b.sub(i).dat.vec as b_v, \
-                                    b_help_new.dat.vec_ro as b_1_v:
-                                b_v.axpy(-1.0, b_1_v)
-                            b_help_new = assemble(
-                                action((0.5 * tau / (beta**0.5)) * self._M_v,
-                                       b_help))
-                            with b.sub(i).dat.vec as b_v, \
-                                    b_help_new.dat.vec_ro as b_1_v:
-                                b_v.axpy(-1.0, b_1_v)
-                            del b_help_new
-                            for bc in bcs_zeta:
-                                bc.apply(b.sub(i))
-                            b_help = Cofunction(space_v.dual())
-                            b_help.assign(b.sub(i))
-
-                            block_ii = block_10[(i, i)]
-                            solver_1 = LinearSolver(
-                                assemble(block_ii
-                                         + (0.5 * tau / beta**0.5) * self._M_v,
-                                         bcs=bcs_zeta),
-                                solver_parameters={
-                                    "ksp_type": "preonly",
-                                    "pc_type": "hypre",
-                                    "pc_hypre_type": "boomeramg",
-                                    "ksp_max_it": 1,
-                                    "pc_hypre_boomeramg_max_iter": 2,
-                                    "ksp_atol": 0.0,
-                                    "ksp_rtol": 0.0})
-                            try:
-                                solver_1.solve(u_1.sub(i),
-                                               b_help.copy(deepcopy=True))
-                            except ConvergenceError:
-                                assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                            del b_help
-                        del b
-
-                        b = apply_T_2(u_1, space_v, n_t - 1)
-                        for i in range(n_t - 1):
-                            u_1.sub(i).assign(b.sub(i))
-                        del b
-
-                        b = Cofunction(full_space_v_help.dual())
-                        for i in range(n_t - 1):
-                            b_help = Function(space_v)
-                            b_help.assign(u_1.sub(i))
-                            b.sub(i).assign(assemble(action(self._M_v,
-                                                            b_help)))
-                            del b_help
-                            with b.sub(i).dat.vec as b_v:
-                                b_v.scale(0.5 * tau)
-                            for bc in bcs_zeta:
-                                bc.apply(b.sub(i))
-
-                        # second solve
-                        b_help = Cofunction(space_v.dual())
-                        b_help.assign(b.sub(n_t - 2))
-                        block_ii = block_01[(n_t - 2, n_t - 2)]
-                        solver_2 = LinearSolver(
-                            assemble(block_ii
-                                     + (0.5 * tau / beta**0.5) * self._M_zeta,
-                                     bcs=bcs_zeta),
-                            solver_parameters={
-                                "ksp_type": "preonly",
-                                "pc_type": "hypre",
-                                "pc_hypre_type": "boomeramg",
-                                "ksp_max_it": 1,
-                                "pc_hypre_boomeramg_max_iter": 2,
-                                "ksp_atol": 0.0,
-                                "ksp_rtol": 0.0})
-                        try:
-                            solver_2.solve(u_1.sub(n_t - 2),
-                                           b_help.copy(deepcopy=True))
-                        except ConvergenceError:
-                            assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                        del b_help
-
-                        for i in range(n_t - 3, -1, -1):
-                            b_help = Function(space_v)
-                            b_help.assign(u_1.sub(i + 1))
-                            block_ij = block_01[(i, i + 1)] + (0.5 * tau / beta**0.5) * self._M_zeta  # noqa: E501
-                            b_help_new = assemble(action(block_ij, b_help))
-                            with b.sub(i).dat.vec as b_v, \
-                                    b_help_new.dat.vec_ro as b_1_v:
-                                b_v.axpy(-1.0, b_1_v)
-                            del b_help_new
-                            for bc in bcs_zeta:
-                                bc.apply(b.sub(i))
-                            b_help = Cofunction(space_v.dual())
-                            b_help.assign(b.sub(i))
-                            block_ii = block_01[(i, i)]
-                            solver_2 = LinearSolver(
-                                assemble(block_ii
-                                         + (0.5 * tau / beta**0.5) * self._M_zeta,  # noqa: E501
-                                         bcs=bcs_zeta),
-                                solver_parameters={
-                                    "ksp_type": "preonly",
-                                    "pc_type": "hypre",
-                                    "pc_hypre_type": "boomeramg",
-                                    "ksp_max_it": 1,
-                                    "pc_hypre_boomeramg_max_iter": 2,
-                                    "ksp_atol": 0.0,
-                                    "ksp_rtol": 0.0})
-                            try:
-                                solver_2.solve(u_1.sub(i),
-                                               b_help.copy(deepcopy=True))
-                            except ConvergenceError:
-                                assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                            del b_help
+                    pc_fn = self.construct_pc(Multigrid, lambda_v_bounds,
+                                              full_space_v_help,
+                                              bcs_v, bcs_zeta,
+                                              block_01, block_10, epsilon)
                 else:
-                    def pc_fn(u_0, u_1, b_0, b_1):
-                        # solving for the (1,1)-block
-                        if Multigrid:
-                            solver_0 = LinearSolver(
-                                assemble(self._M_v,
-                                         bcs=bcs_v),
-                                solver_parameters={
-                                    "ksp_type": "preonly",
-                                    "pc_type": "hypre",
-                                    "pc_hypre_type": "boomeramg",
-                                    "ksp_max_it": 1,
-                                    "pc_hypre_boomeramg_max_iter": 2,
-                                    "ksp_atol": 0.0,
-                                    "ksp_rtol": 0.0})
-                        else:
-                            if lambda_v_bounds is not None:
-                                e_min = lambda_v_bounds[0]
-                                e_max = lambda_v_bounds[1]
-                                solver_0 = LinearSolver(
-                                    assemble(self._M_v,
-                                             bcs=bcs_v),
-                                    solver_parameters={
-                                        "ksp_type": "chebyshev",
-                                        "pc_type": "jacobi",
-                                        "ksp_chebyshev_eigenvalues": f"{e_min:.16e}, {e_max:.16e}",  # noqa: E501
-                                        "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",  # noqa: E501
-                                        "ksp_chebyshev_esteig_steps": 0,
-                                        "ksp_chebyshev_esteig_noisy": False,
-                                        "ksp_max_it": 20,
-                                        "ksp_atol": 0.0,
-                                        "ksp_rtol": 0.0})
-                            else:
-                                solver_0 = LinearSolver(
-                                    assemble(self._M_v,
-                                             bcs=bcs_v),
-                                    solver_parameters={"ksp_type": "preonly",
-                                                       "pc_type": "jacobi",
-                                                       "ksp_max_it": 1,
-                                                       "ksp_atol": 0.0,
-                                                       "ksp_rtol": 0.0})
-
-                        for i in range(n_t):
-                            b = Cofunction(space_v.dual())
-                            b.assign(b_0.sub(i))
-                            try:
-                                solver_0.solve(
-                                    u_0.sub(i), b.copy(deepcopy=True))
-                            except ConvergenceError:
-                                assert solver_0.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                            del b
-                            with u_0.sub(i).dat.vec as x_v:
-                                x_v.scale(1.0 / tau)
-
-                        with u_0.sub(n_t - 1).dat.vec as x_v:
-                            x_v.scale(1.0 / epsilon)
-
-                        # u_1 = - b_1 + D_v * u_0
-                        b = Cofunction(full_space_v.dual())
-                        block_ii = block_10[(0, 0)]
-                        b_help = Function(space_v)
-                        b_help.assign(u_0.sub(0))
-                        b.sub(0).assign(assemble(action(block_ii, b_help)))
-                        with b.sub(0).dat.vec as b_v, \
-                                b_1.sub(0).dat.vec_ro as b_1_v:
-                            b_v.axpy(-1.0, b_1_v)
-                        for bc in bcs_zeta:
-                            bc.apply(b.sub(0))
-                        del b_help
-                        for i in range(1, n_t):
-                            block_ij = block_10[(i, i - 1)]
-                            b_help = Function(space_v)
-                            b_help.assign(u_0.sub(i - 1))
-                            b_help_new = assemble(action(block_ij, b_help))
-                            block_ii = block_10[(i, i)]
-                            b_help.assign(u_0.sub(i))
-                            b.sub(i).assign(assemble(action(block_ii, b_help)))
-                            with b.sub(i).dat.vec as b_v, \
-                                    b_help_new.dat.vec_ro as b_1_v:
-                                b_v.axpy(1.0, b_1_v)
-                            del b_help
-                            del b_help_new
-                            with b.sub(i).dat.vec as b_v, \
-                                    b_1.sub(i).dat.vec_ro as b_1_v:
-                                b_v.axpy(-1.0, b_1_v)
-                            for bc in bcs_zeta:
-                                bc.apply(b.sub(i))
-
-                        # solving for the Schur complement approximation
-                        # first solve
-                        block_ii = block_10[(0, 0)]
-                        solver_1 = LinearSolver(
-                            assemble(block_ii,
-                                     bcs=bcs_zeta),
-                            solver_parameters={
-                                "ksp_type": "preonly",
-                                "pc_type": "hypre",
-                                "pc_hypre_type": "boomeramg",
-                                "ksp_max_it": 1,
-                                "pc_hypre_boomeramg_max_iter": 2,
-                                "ksp_atol": 0.0,
-                                "ksp_rtol": 0.0})
-
-                        b_help = Cofunction(space_v.dual())
-                        b_help.assign(b.sub(0))
-                        try:
-                            solver_1.solve(u_1.sub(0),
-                                           b_help.copy(deepcopy=True))
-                        except ConvergenceError:
-                            assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                        del b_help
-
-                        for i in range(1, n_t - 1):
-                            block_ij = block_10[(i, i - 1)]
-                            b_help = Function(space_v)
-                            b_help.assign(u_1.sub(i - 1))
-                            b_help_new = assemble(action(block_ij, b_help))
-                            with b.sub(i).dat.vec as b_v, \
-                                    b_help_new.dat.vec_ro as b_1_v:
-                                b_v.axpy(-1.0, b_1_v)
-                            del b_help_new
-                            for bc in bcs_zeta:
-                                bc.apply(b.sub(i))
-                            b_help = Cofunction(space_v.dual())
-                            b_help.assign(b.sub(i))
-                            block_ii = block_10[(i, i)]
-                            solver_1 = LinearSolver(
-                                assemble(block_ii
-                                         + (tau / (beta**0.5)) * self._M_v,
-                                         bcs=bcs_zeta),
-                                solver_parameters={
-                                    "ksp_type": "preonly",
-                                    "pc_type": "hypre",
-                                    "pc_hypre_type": "boomeramg",
-                                    "ksp_max_it": 1,
-                                    "pc_hypre_boomeramg_max_iter": 2,
-                                    "ksp_atol": 0.0,
-                                    "ksp_rtol": 0.0})
-
-                            try:
-                                solver_1.solve(u_1.sub(i),
-                                               b_help.copy(deepcopy=True))
-                            except ConvergenceError:
-                                assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                            del b_help
-
-                        block_ij = block_10[(n_t - 1, n_t - 2)]
-                        b_help = Function(space_v)
-                        b_help.assign(u_1.sub(n_t - 2))
-                        b_help_new = assemble(action(block_ij, b_help))
-                        with b.sub(n_t - 1).dat.vec as b_v, \
-                                b_help_new.dat.vec_ro as b_1_v:
-                            b_v.axpy(-1.0, b_1_v)
-                        for bc in bcs_zeta:
-                            bc.apply(b.sub(n_t - 1))
-                        del b_help_new
-                        b_help = Cofunction(space_v.dual())
-                        b_help.assign(b.sub(n_t - 1))
-                        block_ii = block_10[(n_t - 1, n_t - 1)]
-                        solver_1 = LinearSolver(
-                            assemble(block_ii
-                                     + ((epsilon**0.5) * tau / (beta**0.5)) * self._M_v,  # noqa: E501
-                                     bcs=bcs_zeta),
-                            solver_parameters={
-                                "ksp_type": "preonly",
-                                "pc_type": "hypre",
-                                "pc_hypre_type": "boomeramg",
-                                "ksp_max_it": 1,
-                                "pc_hypre_boomeramg_max_iter": 2,
-                                "ksp_atol": 0.0,
-                                "ksp_rtol": 0.0})
-                        try:
-                            solver_1.solve(u_1.sub(n_t - 1),
-                                           b_help.copy(deepcopy=True))
-                        except ConvergenceError:
-                            assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                        del b_help
-                        del b
-
-                        b = Cofunction(full_space_v.dual())
-                        for i in range(n_t - 1):
-                            b_help = Function(space_v)
-                            b_help.assign(u_1.sub(i))
-                            b.sub(i).assign(assemble(action(self._M_v,
-                                                            b_help)))
-                            del b_help
-                            with b.sub(i).dat.vec as b_v:
-                                b_v.scale(tau)
-                            for bc in bcs_zeta:
-                                bc.apply(b.sub(i))
-
-                        b_help = Function(space_v)
-                        b_help.assign(u_1.sub(n_t - 1))
-                        b.sub(n_t - 1).assign(assemble(action(self._M_v,
-                                                              b_help)))
-                        del b_help
-                        with b.sub(n_t - 1).dat.vec as b_v:
-                            b_v.scale(epsilon * tau)
-                        for bc in bcs_zeta:
-                            bc.apply(b.sub(n_t - 1))
-
-                        # second solve
-                        b_help = Cofunction(space_v.dual())
-                        b_help.assign(b.sub(n_t - 1))
-                        block_ii = block_01[(n_t - 1, n_t - 1)]
-                        solver_2 = LinearSolver(
-                            assemble(block_ii
-                                     + ((epsilon**0.5) * tau / (beta**0.5)) * self._M_zeta,  # noqa: E501
-                                     bcs=bcs_zeta),
-                            solver_parameters={
-                                "ksp_type": "preonly",
-                                "pc_type": "hypre",
-                                "pc_hypre_type": "boomeramg",
-                                "ksp_max_it": 1,
-                                "pc_hypre_boomeramg_max_iter": 2,
-                                "ksp_atol": 0.0,
-                                "ksp_rtol": 0.0})
-                        try:
-                            solver_2.solve(u_1.sub(n_t - 1),
-                                           b_help.copy(deepcopy=True))
-                        except ConvergenceError:
-                            assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                        del b_help
-
-                        for i in range(n_t - 2, 0, -1):
-                            b_help = Function(space_v)
-                            b_help.assign(u_1.sub(i + 1))
-                            block_ij = block_01[(i, i + 1)]
-                            b_help_new = assemble(action(block_ij, b_help))
-                            with b.sub(i).dat.vec as b_v, \
-                                    b_help_new.dat.vec_ro as b_1_v:
-                                b_v.axpy(-1.0, b_1_v)
-                            del b_help_new
-                            for bc in bcs_zeta:
-                                bc.apply(b.sub(i))
-                            b_help = Cofunction(space_v.dual())
-                            b_help.assign(b.sub(i))
-                            block_ii = block_01[(i, i)]
-                            solver_2 = LinearSolver(
-                                assemble(block_ii
-                                         + (tau / (beta**0.5)) * self._M_zeta,
-                                         bcs=bcs_zeta),
-                                solver_parameters={
-                                    "ksp_type": "preonly",
-                                    "pc_type": "hypre",
-                                    "pc_hypre_type": "boomeramg",
-                                    "ksp_max_it": 1,
-                                    "pc_hypre_boomeramg_max_iter": 2,
-                                    "ksp_atol": 0.0,
-                                    "ksp_rtol": 0.0})
-                            try:
-                                solver_2.solve(u_1.sub(i),
-                                               b_help.copy(deepcopy=True))
-                            except ConvergenceError:
-                                assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                            del b_help
-
-                        b_help = Function(space_v)
-                        b_help.assign(u_1.sub(1))
-                        block_ij = block_01[(0, 1)]
-                        b_help_new = assemble(action(block_ij, b_help))
-                        with b.sub(0).dat.vec as b_v, \
-                                b_help_new.dat.vec_ro as b_1_v:
-                            b_v.axpy(-1.0, b_1_v)
-                        del b_help_new
-                        for bc in bcs_zeta:
-                            bc.apply(b.sub(0))
-                        b_help = Cofunction(space_v.dual())
-                        b_help.assign(b.sub(0))
-                        block_ii = block_01[(0, 0)]
-                        solver_2 = LinearSolver(
-                            assemble(block_ii,
-                                     bcs=bcs_zeta),
-                            solver_parameters={
-                                "ksp_type": "preonly",
-                                "pc_type": "hypre",
-                                "pc_hypre_type": "boomeramg",
-                                "ksp_max_it": 1,
-                                "pc_hypre_boomeramg_max_iter": 2,
-                                "ksp_atol": 0.0,
-                                "ksp_rtol": 0.0})
-                        try:
-                            solver_2.solve(u_1.sub(0),
-                                           b_help.copy(deepcopy=True))
-                        except ConvergenceError:
-                            assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                        del b_help
-                        del b
+                    pc_fn = self.construct_pc(Multigrid, lambda_v_bounds,
+                                              full_space_v,
+                                              bcs_v, bcs_zeta,
+                                              block_01, block_10, epsilon)
             else:
                 pc_fn = P
 
@@ -2953,15 +3256,7 @@ class Control:
                 self.set_zeta(zeta)
 
             if print_error:
-                true_v = Function(full_space_v, name="true_v")
-                for i in range(n_t):
-                    t = t_0 + i * tau
-                    v_d_i, true_v_i = self._desired_state(v_test, t)
-                    true_v.sub(i).assign(true_v_i)
-                v_err = true_v - self._v
-                error = sqrt(tau) * sqrt(abs(assemble(
-                    inner(v_err, v_err) * dx)))
-                print('estimated error in the L2-norm: ', error)
+                self.print_error(full_space_v, v_test)
 
             if create_output:
                 v_output = File("v.pvd")
@@ -3022,8 +3317,6 @@ class Control:
             T_f = self._time_interval[1]
             tau = (T_f - t_0) / (n_t - 1.0)
 
-            beta = self._beta
-
             inhomogeneous_bcs_v = False
             for (i), bc_i in self._bcs_v.items():
                 for bc in bc_i:
@@ -3058,18 +3351,9 @@ class Control:
             v_old.sub(0).assign(v_0)
             zeta_old.sub(n_t - 1).assign(Constant(0.0))
 
-            f = Function(full_space_v)
-            for i in range(n_t):
-                t = t_0 + i * tau
-                f.sub(i).assign(assemble(self._force_function(v_test, t)))
+            f = self.construct_f(full_space_v, v_test)
 
-            v_d = Function(full_space_v)
-            true_v = Function(full_space_v, name="true_v")
-            for i in range(n_t):
-                t = t_0 + i * tau
-                v_d_i, true_v_i = self._desired_state(v_test, t)
-                v_d.sub(i).assign(assemble(v_d_i))
-                true_v.sub(i).assign(true_v_i)
+            v_d, true_v = self.construct_v_d(full_space_v, v_test)
 
             M_v = inner(v_trial, v_test) * dx
 
@@ -3080,382 +3364,14 @@ class Control:
                 full_space_v_help = FunctionSpace(
                     space_v.mesh(), mixed_element_v_help)
 
-            def non_linear_res_eval():
-                if not self._CN:
-                    rhs_0 = Function(full_space_v, name="rhs_0")
-                    rhs_1 = Function(full_space_v, name="rhs_1")
-
-                    if not self._Gauss_Newton:
-                        D_v_i = self._forward_form(
-                            v_trial, v_test, v_old.sub(0), t_0)
-                    else:
-                        D_v_i = ufl.derivative(
-                            self._forward_form(
-                                v_trial, v_test, v_old.sub(0), t_0),
-                            v_old.sub(0),
-                            v_trial)
-                    D_zeta_i = adjoint(D_v_i)
-
-                    if not self._Gauss_Newton:
-                        D_v_0 = self._forward_form(v_trial, v_test, v_0, t_0)
-                    else:
-                        D_v_0 = ufl.derivative(
-                            self._forward_form(v_trial, v_test, v_0, t_0),
-                            v_0,
-                            v_trial)
-
-                    rhs_0.sub(0).assign(tau * v_d.sub(0))
-                    b_help = Function(space_v)
-                    b_help.assign(v_old.sub(0))
-                    b = assemble(action(tau * self._M_v, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_0.sub(0).dat.vec as b_0_v:
-                        b_0_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
-                    b_help = Function(space_v)
-                    b_help.assign(zeta_old.sub(0))
-                    b = assemble(action(tau * D_zeta_i + M_v, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_0.sub(0).dat.vec as b_0_v:
-                        b_0_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
-                    b_help = Function(space_v)
-                    b_help.assign(zeta_old.sub(1))
-                    b = assemble(action(M_v, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_0.sub(0).dat.vec as b_0_v:
-                        b_0_v.axpy(1.0, b_v)
-                    del b
-                    del b_help
-                    for bc in bcs_zeta:
-                        bc.apply(rhs_0.sub(0))
-
-                    b = assemble(action(tau * D_v_0 + M_v, v_0))
-                    rhs_1.sub(0).assign(b)
-                    del b
-                    b_help = Function(space_v)
-                    b_help.assign(v_old.sub(0))
-                    b = assemble(action(tau * D_v_i + M_v, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_1.sub(0).dat.vec as b_1_v:
-                        b_1_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
-                    for bc in bcs_v:
-                        bc.apply(rhs_1.sub(0))
-
-                    if not self._Gauss_Newton:
-                        D_v_i = self._forward_form(
-                            v_trial, v_test, v_old.sub(n_t - 1), T_f)
-                    else:
-                        D_v_i = ufl.derivative(
-                            self._forward_form(
-                                v_trial, v_test, v_old.sub(n_t - 1), T_f),
-                            v_old.sub(n_t - 1),
-                            v_trial)
-
-                    rhs_1.sub(n_t - 1).assign(tau * f.sub(n_t - 1))
-                    b_help = Function(space_v)
-                    b_help.assign(v_old.sub(n_t - 2))
-                    b = assemble(action(M_v, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_1.sub(n_t - 1).dat.vec as b_1_v:
-                        b_1_v.axpy(1.0, b_v)
-                    del b
-                    del b_help
-                    b_help = Function(space_v)
-                    b_help.assign(v_old.sub(n_t - 1))
-                    b = assemble(action(tau * D_v_i + M_v, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_1.sub(n_t - 1).dat.vec as b_1_v:
-                        b_1_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
-                    b_help = Function(space_v)
-                    b_help.assign(zeta_old.sub(n_t - 1))
-                    b = assemble(action((tau / beta) * self._M_zeta, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_1.sub(n_t - 1).dat.vec as b_1_v:
-                        b_1_v.axpy(1.0, b_v)
-                    del b
-                    del b_help
-                    for bc in bcs_v:
-                        bc.apply(rhs_1.sub(n_t - 1))
-
-                    for i in range(1, n_t - 1):
-                        t = t_0 + i * tau
-                        if not self._Gauss_Newton:
-                            D_v_i = self._forward_form(
-                                v_trial, v_test, v_old.sub(i), t)
-                        else:
-                            D_v_i = ufl.derivative(
-                                self._forward_form(
-                                    v_trial, v_test, v_old.sub(i), t),
-                                v_old.sub(i),
-                                v_trial)
-                        D_zeta_i = adjoint(D_v_i)
-
-                        rhs_0.sub(i).assign(tau * v_d.sub(i))
-                        rhs_1.sub(i).assign(tau * f.sub(i))
-
-                        b_help = Function(space_v)
-                        b_help.assign(v_old.sub(i))
-                        b = assemble(action(tau * self._M_v, b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_0.sub(i).dat.vec as b_0_v:
-                            b_0_v.axpy(-1.0, b_v)
-                        del b
-                        del b_help
-                        b_help = Function(space_v)
-                        b_help.assign(zeta_old.sub(i))
-                        b = assemble(action(tau * D_zeta_i + M_v, b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_0.sub(i).dat.vec as b_0_v:
-                            b_0_v.axpy(-1.0, b_v)
-                        del b
-                        del b_help
-                        b_help = Function(space_v)
-                        b_help.assign(zeta_old.sub(i + 1))
-                        b = assemble(action(M_v, b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_0.sub(i).dat.vec as b_0_v:
-                            b_0_v.axpy(1.0, b_v)
-                        del b
-                        del b_help
-                        for bc in bcs_zeta:
-                            bc.apply(rhs_0.sub(i))
-
-                        b_help = Function(space_v)
-                        b_help.assign(v_old.sub(i))
-                        b = assemble(action(tau * D_v_i + M_v, b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_1.sub(i).dat.vec as b_1_v:
-                            b_1_v.axpy(-1.0, b_v)
-                        del b
-                        del b_help
-                        b_help = Function(space_v)
-                        b_help.assign(v_old.sub(i - 1))
-                        b = assemble(action(M_v, b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_1.sub(i).dat.vec as b_1_v:
-                            b_1_v.axpy(1.0, b_v)
-                        del b
-                        del b_help
-                        b_help = Function(space_v)
-                        b_help.assign(zeta_old.sub(i))
-                        b = assemble(action((tau / beta) * self._M_zeta,
-                                            b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_1.sub(i).dat.vec as b_1_v:
-                            b_1_v.axpy(1.0, b_v)
-                        del b
-                        del b_help
-                        for bc in bcs_v:
-                            bc.apply(rhs_1.sub(i))
-                else:
-                    rhs_0 = Function(full_space_v_help, name="rhs_0")
-                    rhs_1 = Function(full_space_v_help, name="rhs_1")
-
-                    if not self._Gauss_Newton:
-                        D_v_i = self._forward_form(
-                            v_trial, v_test, v_old.sub(0), t_0)
-                        D_v_i_plus = self._forward_form(
-                            v_trial, v_test, v_old.sub(1), t_0 + tau)
-                    else:
-                        D_v_i = ufl.derivative(
-                            self._forward_form(
-                                v_trial, v_test, v_old.sub(0), t_0),
-                            v_old.sub(0),
-                            v_trial)
-                        D_v_i_plus = ufl.derivative(
-                            self._forward_form(
-                                v_trial, v_test, v_old.sub(1), t_0 + tau),
-                            v_old.sub(1),
-                            v_trial)
-                    D_zeta_i = adjoint(D_v_i)
-                    D_zeta_i_plus = adjoint(D_v_i_plus)
-
-                    rhs_0.sub(0).assign(0.5 * tau * (v_d.sub(0) + v_d.sub(1)))
-                    b_help = Function(space_v)
-                    b_help.assign(v_old.sub(0))
-                    b = assemble(action(0.5 * tau * self._M_v, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_0.sub(0).dat.vec as b_0_v:
-                        b_0_v.axpy(-1.0, b_v)
-                    del b
-                    b_help = Function(space_v)
-                    b_help.assign(v_old.sub(1))
-                    b = assemble(action(0.5 * tau * self._M_v, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_0.sub(0).dat.vec as b_0_v:
-                        b_0_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
-                    b_help = Function(space_v)
-                    b_help.assign(zeta_old.sub(0))
-                    b = assemble(action(0.5 * tau * D_zeta_i + M_v, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_0.sub(0).dat.vec as b_0_v:
-                        b_0_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
-                    b_help = Function(space_v)
-                    b_help.assign(zeta_old.sub(1))
-                    b = assemble(action(0.5 * tau * D_zeta_i_plus - M_v,
-                                        b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_0.sub(0).dat.vec as b_0_v:
-                        b_0_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
-                    for bc in bcs_zeta:
-                        bc.apply(rhs_0.sub(0))
-
-                    rhs_1.sub(0).assign(0.5 * tau * (f.sub(0) + f.sub(1)))
-                    b_help = Function(space_v)
-                    b_help.assign(v_old.sub(0))
-                    b = assemble(action(0.5 * tau * D_v_i - M_v, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_1.sub(0).dat.vec as b_1_v:
-                        b_1_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
-                    b_help = Function(space_v)
-                    b_help.assign(v_old.sub(1))
-                    b = assemble(action(0.5 * tau * D_v_i_plus + M_v, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_1.sub(0).dat.vec as b_1_v:
-                        b_1_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
-                    b_help = Function(space_v)
-                    b_help.assign(zeta_old.sub(0))
-                    b = assemble(action(0.5 * (tau / beta) * self._M_zeta,
-                                        b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_1.sub(0).dat.vec as b_1_v:
-                        b_1_v.axpy(1.0, b_v)
-                    del b
-                    del b_help
-                    b_help = Function(space_v)
-                    b_help.assign(zeta_old.sub(1))
-                    b = assemble(action(0.5 * (tau / beta) * self._M_zeta,
-                                        b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_1.sub(0).dat.vec as b_1_v:
-                        b_1_v.axpy(1.0, b_v)
-                    del b
-                    del b_help
-                    for bc in bcs_v:
-                        bc.apply(rhs_1.sub(0))
-
-                    for i in range(1, n_t - 1):
-                        t = t_0 + i * tau
-                        if not self._Gauss_Newton:
-                            D_v_i = self._forward_form(
-                                v_trial, v_test, v_old.sub(i), t)
-                            D_v_i_plus = self._forward_form(
-                                v_trial, v_test, v_old.sub(i + 1), t + tau)
-                        else:
-                            D_v_i = ufl.derivative(
-                                self._forward_form(
-                                    v_trial, v_test, v_old.sub(i), t),
-                                v_old.sub(i),
-                                v_trial)
-                            D_v_i_plus = ufl.derivative(
-                                self._forward_form(
-                                    v_trial, v_test, v_old.sub(i + 1),
-                                    t + tau),
-                                v_old.sub(i + 1),
-                                v_trial)
-                        D_zeta_i = adjoint(D_v_i)
-                        D_zeta_i_plus = adjoint(D_v_i_plus)
-
-                        rhs_0.sub(i).assign(
-                            0.5 * tau * (v_d.sub(i) + v_d.sub(i + 1)))
-                        rhs_1.sub(i).assign(
-                            0.5 * tau * (f.sub(i) + f.sub(i + 1)))
-
-                        b_help = Function(space_v)
-                        b_help.assign(v_old.sub(i))
-                        b = assemble(action(0.5 * tau * self._M_v, b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_0.sub(i).dat.vec as b_0_v:
-                            b_0_v.axpy(-1.0, b_v)
-                        del b
-                        del b_help
-                        b_help = Function(space_v)
-                        b_help.assign(v_old.sub(i + 1))
-                        b = assemble(action(0.5 * tau * self._M_v, b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_0.sub(i).dat.vec as b_0_v:
-                            b_0_v.axpy(-1.0, b_v)
-                        del b
-                        del b_help
-                        b_help = Function(space_v)
-                        b_help.assign(zeta_old.sub(i))
-                        b = assemble(action(0.5 * tau * D_zeta_i + M_v,
-                                            b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_0.sub(i).dat.vec as b_0_v:
-                            b_0_v.axpy(-1.0, b_v)
-                        del b
-                        del b_help
-                        b_help = Function(space_v)
-                        b_help.assign(zeta_old.sub(i + 1))
-                        b = assemble(action(0.5 * tau * D_zeta_i_plus - M_v,
-                                            b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_0.sub(i).dat.vec as b_0_v:
-                            b_0_v.axpy(-1.0, b_v)
-                        del b
-                        del b_help
-                        for bc in bcs_zeta:
-                            bc.apply(rhs_0.sub(i))
-
-                        b_help = Function(space_v)
-                        b_help.assign(v_old.sub(i))
-                        b = assemble(action(0.5 * tau * D_v_i - M_v, b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_1.sub(i).dat.vec as b_1_v:
-                            b_1_v.axpy(-1.0, b_v)
-                        del b
-                        del b_help
-                        b_help = Function(space_v)
-                        b_help.assign(v_old.sub(i + 1))
-                        b = assemble(action(0.5 * tau * D_v_i_plus + M_v,
-                                            b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_1.sub(i).dat.vec as b_1_v:
-                            b_1_v.axpy(-1.0, b_v)
-                        del b
-                        del b_help
-                        b_help = Function(space_v)
-                        b_help.assign(zeta_old.sub(i))
-                        b = assemble(action(0.5 * (tau / beta) * self._M_zeta,
-                                            b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_1.sub(i).dat.vec as b_1_v:
-                            b_1_v.axpy(1.0, b_v)
-                        del b
-                        del b_help
-                        b_help = Function(space_v)
-                        b_help.assign(zeta_old.sub(i + 1))
-                        b = assemble(action(0.5 * (tau / beta) * self._M_zeta,
-                                            b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_1.sub(i).dat.vec as b_1_v:
-                            b_1_v.axpy(1.0, b_v)
-                        del b
-                        del b_help
-                        for bc in bcs_v:
-                            bc.apply(rhs_1.sub(i))
-
-                return rhs_0, rhs_1
-
-            rhs_0, rhs_1 = non_linear_res_eval()
+            if self._CN:
+                rhs_0, rhs_1 = self.non_linear_res_eval(
+                    full_space_v_help, v_old, zeta_old, v_0,
+                    bcs_v, bcs_zeta)
+            else:
+                rhs_0, rhs_1 = self.non_linear_res_eval(
+                    full_space_v, v_old, zeta_old, v_0,
+                    v_d, f, M_v, bcs_v, bcs_zeta)
 
             if not self._CN:
                 rhs = Function(full_space_v * full_space_v, name="rhs")
@@ -3505,7 +3421,9 @@ class Control:
                 self.set_v(v_old)
                 self.set_zeta(zeta_old)
 
-                rhs_0, rhs_1 = non_linear_res_eval()
+                rhs_0, rhs_1 = self.non_linear_res_eval(
+                    full_space_v, v_old, zeta_old, v_0,
+                    v_d, f, M_v, bcs_v, bcs_zeta)
 
                 if not self._CN:
                     for i in range(n_t):
@@ -3532,10 +3450,7 @@ class Control:
                     print('the non-linear iteration did not converge')
                     print('relative non-linear residual: ', norm_k / norm_0)
                     print('absolute non-linear residual: ', norm_k)
-                v_err = self._v - true_v
-                print('estimated error in the L2-norm: ',
-                      sqrt(tau) * sqrt(abs(assemble(
-                          inner(v_err, v_err) * dx))))
+                self.print_error(full_space_v, v_test)
 
             if create_output is True:
                 v_output = File("v.pvd")
@@ -3604,6 +3519,11 @@ class Control:
             tau = (T_f - t_0) / (n_t - 1.0)
 
             beta = self._beta
+
+            if self._CN:
+                epsilon = None
+            else:
+                epsilon = 10.0**-3
 
             inhomogeneous_bcs_v = False
             for (i), bc_i in self._bcs_v.items():
@@ -3689,22 +3609,13 @@ class Control:
 
             if f is None:
                 check_f = True
-                f = Cofunction(full_space_v.dual())
-                for i in range(n_t):
-                    t = t_0 + i * tau
-                    f.sub(i).assign(assemble(self._force_function(v_test, t)))
+                f = self.construct_f(full_space_v, v_test)
             else:
                 check_f = False
 
             if v_d is None:
                 check_v_d = True
-                v_d = Cofunction(full_space_v.dual())
-                true_v = Function(full_space_v, name="true_v")
-                for i in range(n_t):
-                    t = t_0 + i * tau
-                    v_d_i, true_v_i = self._desired_state(v_test, t)
-                    v_d.sub(i).assign(assemble(v_d_i))
-                    true_v.sub(i).assign(true_v_i)
+                v_d, true_v = self.construct_v_d(full_space_v, v_test)
             else:
                 check_v_d = False
                 true_v = Function(full_space_v)
@@ -3725,32 +3636,35 @@ class Control:
             block_10 = {}
             block_11 = {}
 
-            block_00_int = {}
-            block_01_int = {}
-            block_10_int = {}
-            block_11_int = {}
+            if P is None:
+                block_00_int = {}
+                block_01_int = {}
+                block_10_int = {}
+                block_11_int = {}
 
-            if self._CN:
-                if self._M_p is not None:
-                    block_00_p = 0.5 * tau * self._M_p
+                if self._CN:
+                    if self._M_p is not None:
+                        block_00_p = 0.5 * tau * self._M_p
+                    else:
+                        block_00_p = 0.5 * tau * self._J_v(p_trial, p_test)
+                    if self._M_mu is not None:
+                        block_11_p = - 0.5 * (tau / beta) * self._M_mu
+                    else:
+                        block_11_p = - 0.5 * (tau / beta) * self._J_u(p_trial,
+                                                                      p_test)
                 else:
-                    block_00_p = 0.5 * tau * self._J_v(p_trial, p_test)
-                if self._M_mu is not None:
-                    block_11_p = - 0.5 * (tau / beta) * self._M_mu
-                else:
-                    block_11_p = - 0.5 * (tau / beta) * self._J_u(p_trial, p_test)  # noqa: E501
-            else:
-                if self._M_p is not None:
-                    block_00_p = tau * self._M_p
-                else:
-                    block_00_p = tau * self._J_v(p_trial, p_test)
-                if self._M_mu is not None:
-                    block_11_p = - (tau / beta) * self._M_mu
-                else:
-                    block_11_p = - (tau / beta) * self._J_u(p_trial, p_test)
+                    if self._M_p is not None:
+                        block_00_p = tau * self._M_p
+                    else:
+                        block_00_p = tau * self._J_v(p_trial, p_test)
+                    if self._M_mu is not None:
+                        block_11_p = - (tau / beta) * self._M_mu
+                    else:
+                        block_11_p = - (tau / beta) * self._J_u(p_trial,
+                                                                p_test)
 
-            K_p = inner(grad(p_trial), grad(p_test)) * dx
-            M_p = inner(p_trial, p_test) * dx
+                K_p = inner(grad(p_trial), grad(p_test)) * dx
+                M_p = inner(p_trial, p_test) * dx
 
             if not self._CN:
                 for i in range(2 * n_t):
@@ -3777,18 +3691,14 @@ class Control:
                 for j in range(n_t):
                     block_00[(n_t, n_t + j)] = None
 
-                    block_11_int[(0, j)] = None
+                    if P is None:
+                        block_11_int[(0, j)] = None
 
             for i in range(n_t - 1):
                 t = t_0 + i * tau
                 v_n_help.assign(v_old.sub(i))
-                if not self._Gauss_Newton:
-                    D_v_i = self._forward_form(v_trial, v_test, v_n_help, t)
-                else:
-                    D_v_i = ufl.derivative(
-                        self._forward_form(v_trial, v_test, v_n_help, t),
-                        v_n_help,
-                        v_trial)
+
+                D_v_i = self.construct_D_v(v_trial, v_test, v_n_help, t)
                 D_zeta_i = adjoint(D_v_i)
 
                 if not self._CN:
@@ -3799,53 +3709,50 @@ class Control:
                             block_00[(n_t + i, j)] = -M_v
                             block_00[(n_t + i + 1, n_t + j)] = None
 
-                            block_00_int[(i, j)] = None
-                            block_01_int[(i, j)] = None
-                            block_10_int[(i, j)] = -M_v
-                            block_11_int[(i + 1, j)] = None
+                            if P is None:
+                                block_00_int[(i, j)] = None
+                                block_01_int[(i, j)] = None
+                                block_10_int[(i, j)] = -M_v
+                                block_11_int[(i + 1, j)] = None
                         elif j == i:
                             block_00[(i, j)] = tau * self._M_v
                             block_00[(i, n_t + j)] = tau * D_zeta_i + M_v
                             block_00[(n_t + i, j)] = tau * D_v_i + M_v
                             block_00[(n_t + i + 1, n_t + j)] = None
 
-                            block_00_int[(i, j)] = tau * self._M_v
-                            block_01_int[(i, j)] = tau * D_zeta_i + M_v
-                            block_10_int[(i, j)] = tau * D_v_i + M_v
-                            block_11_int[(i + 1, j)] = None
+                            if P is None:
+                                block_00_int[(i, j)] = tau * self._M_v
+                                block_01_int[(i, j)] = tau * D_zeta_i + M_v
+                                block_10_int[(i, j)] = tau * D_v_i + M_v
+                                block_11_int[(i + 1, j)] = None
                         elif j == i + 1:
                             block_00[(i, j)] = None
                             block_00[(i, n_t + j)] = -M_v
                             block_00[(n_t + i, j)] = None
                             block_00[(n_t + i + 1, n_t + j)] = - (tau / beta) * self._M_zeta  # noqa: E501
 
-                            block_00_int[(i, j)] = None
-                            block_01_int[(i, j)] = -M_v
-                            block_10_int[(i, j)] = None
-                            block_11_int[(i + 1, j)] = - (tau / beta) * self._M_zeta  # noqa: E501
+                            if P is None:
+                                block_00_int[(i, j)] = None
+                                block_01_int[(i, j)] = -M_v
+                                block_10_int[(i, j)] = None
+                                block_11_int[(i + 1, j)] = - (tau / beta) * self._M_zeta  # noqa: E501
                         else:
                             block_00[(i, j)] = None
                             block_00[(i, n_t + j)] = None
                             block_00[(n_t + i, j)] = None
                             block_00[(n_t + i + 1, n_t + j)] = None
 
-                            block_00_int[(i, j)] = None
-                            block_01_int[(i, j)] = None
-                            block_10_int[(i, j)] = None
-                            block_11_int[(i + 1, j)] = None
+                            if P is None:
+                                block_00_int[(i, j)] = None
+                                block_01_int[(i, j)] = None
+                                block_10_int[(i, j)] = None
+                                block_11_int[(i + 1, j)] = None
                 else:
                     v_n_help_plus = Function(space_v)
                     v_n_help_plus.assign(v_old.sub(i + 1))
-                    if not self._Gauss_Newton:
-                        D_v_i_plus = self._forward_form(
-                            v_trial, v_test, v_n_help_plus, t + tau)
-                    else:
-                        D_v_i_plus = ufl.derivative(
-                            self._forward_form(
-                                v_trial, v_test, v_n_help_plus, t + tau),
-                            v_n_help_plus,
-                            v_trial)
 
+                    D_v_i_plus = self.construct_D_v(v_trial, v_test,
+                                                    v_n_help_plus, t + tau)
                     D_zeta_i_plus = adjoint(D_v_i_plus)
 
                     for j in range(n_t - 1):
@@ -3855,51 +3762,50 @@ class Control:
                             block_00[(n_t + i - 1, j)] = 0.5 * tau * D_v_i - M_v  # noqa: E501
                             block_00[(n_t + i - 1, n_t + j - 1)] = None
 
-                            block_00_int[(i, j)] = 0.5 * tau * self._M_v
-                            block_01_int[(i, j)] = None
-                            block_10_int[(i, j)] = 0.5 * tau * D_v_i - M_v
-                            block_11_int[(i, j)] = None
+                            if P is None:
+                                block_00_int[(i, j)] = 0.5 * tau * self._M_v
+                                block_01_int[(i, j)] = None
+                                block_10_int[(i, j)] = 0.5 * tau * D_v_i - M_v
+                                block_11_int[(i, j)] = None
                         elif j == i:
                             block_00[(i, j)] = 0.5 * tau * self._M_v
                             block_00[(i, n_t + j - 1)] = 0.5 * tau * D_zeta_i_plus + M_v  # noqa: E501
                             block_00[(n_t + i - 1, j)] = 0.5 * tau * D_v_i_plus + M_v  # noqa: E501
                             block_00[(n_t + i - 1, n_t + j - 1)] = - 0.5 * (tau / beta) * self._M_zeta  # noqa: E501
 
-                            block_00_int[(i, j)] = 0.5 * tau * self._M_v
-                            block_01_int[(i, j)] = 0.5 * tau * D_zeta_i_plus + M_v  # noqa: E501
-                            block_10_int[(i, j)] = 0.5 * tau * D_v_i_plus + M_v
-                            block_11_int[(i, j)] = - 0.5 * (tau / beta) * self._M_zeta  # noqa: E501
+                            if P is None:
+                                block_00_int[(i, j)] = 0.5 * tau * self._M_v
+                                block_01_int[(i, j)] = 0.5 * tau * D_zeta_i_plus + M_v  # noqa: E501
+                                block_10_int[(i, j)] = 0.5 * tau * D_v_i_plus + M_v  # noqa: E501
+                                block_11_int[(i, j)] = - 0.5 * (tau / beta) * self._M_zeta  # noqa: E501
                         elif j == i + 1:
                             block_00[(i, j)] = None
                             block_00[(i, n_t + j - 1)] = 0.5 * tau * D_zeta_i - M_v  # noqa: E501
                             block_00[(n_t + i - 1, j)] = None
                             block_00[(n_t + i - 1, n_t + j - 1)] = - 0.5 * (tau / beta) * self._M_zeta  # noqa: E501
 
-                            block_00_int[(i, j)] = None
-                            block_01_int[(i, j)] = 0.5 * tau * D_zeta_i - M_v
-                            block_10_int[(i, j)] = None
-                            block_11_int[(i, j)] = - 0.5 * (tau / beta) * self._M_zeta  # noqa: E501
+                            if P is None:
+                                block_00_int[(i, j)] = None
+                                block_01_int[(i, j)] = 0.5 * tau * D_zeta_i - M_v  # noqa: E501
+                                block_10_int[(i, j)] = None
+                                block_11_int[(i, j)] = - 0.5 * (tau / beta) * self._M_zeta  # noqa: E501
                         else:
                             block_00[(i, j)] = None
                             block_00[(i, n_t + j - 1)] = None
                             block_00[(n_t + i - 1, j)] = None
                             block_00[(n_t + i - 1, n_t + j - 1)] = None
 
-                            block_00_int[(i, j)] = None
-                            block_01_int[(i, j)] = None
-                            block_10_int[(i, j)] = None
-                            block_11_int[(i, j)] = None
+                            if P is None:
+                                block_00_int[(i, j)] = None
+                                block_01_int[(i, j)] = None
+                                block_10_int[(i, j)] = None
+                                block_11_int[(i, j)] = None
 
             if not self._CN:
                 t = T_f
                 v_n_help.assign(v_old.sub(n_t - 1))
-                if not self._Gauss_Newton:
-                    D_v_i = self._forward_form(v_trial, v_test, v_n_help, t)
-                else:
-                    D_v_i = ufl.derivative(
-                        self._forward_form(v_trial, v_test, v_n_help, t),
-                        v_n_help,
-                        v_trial)
+
+                D_v_i = self.construct_D_v(v_trial, v_test, v_n_help, t)
                 D_zeta_i = adjoint(D_v_i)
 
                 for j in range(n_t - 2):
@@ -3907,9 +3813,10 @@ class Control:
                     block_00[(n_t - 1, n_t + j)] = None
                     block_00[(2 * n_t - 1, j)] = None
 
-                    block_00_int[(n_t - 1, j)] = None
-                    block_01_int[(n_t - 1, j)] = None
-                    block_10_int[(n_t - 1, j)] = None
+                    if P is None:
+                        block_00_int[(n_t - 1, j)] = None
+                        block_01_int[(n_t - 1, j)] = None
+                        block_10_int[(n_t - 1, j)] = None
 
                 block_00[(n_t - 1, n_t - 2)] = None
                 block_00[(n_t - 1, n_t - 1)] = None
@@ -3918,12 +3825,13 @@ class Control:
                 block_00[(2 * n_t - 1, n_t - 2)] = - M_v
                 block_00[(2 * n_t - 1, n_t - 1)] = tau * D_v_i + M_v
 
-                block_00_int[(n_t - 1, n_t - 2)] = None
-                block_00_int[(n_t - 1, n_t - 1)] = None
-                block_01_int[(n_t - 1, n_t - 2)] = None
-                block_01_int[(n_t - 1, n_t - 1)] = tau * D_zeta_i + M_v
-                block_10_int[(n_t - 1, n_t - 2)] = - M_v
-                block_10_int[(n_t - 1, n_t - 1)] = tau * D_v_i + M_v
+                if P is None:
+                    block_00_int[(n_t - 1, n_t - 2)] = None
+                    block_00_int[(n_t - 1, n_t - 1)] = None
+                    block_01_int[(n_t - 1, n_t - 2)] = None
+                    block_01_int[(n_t - 1, n_t - 1)] = tau * D_zeta_i + M_v
+                    block_10_int[(n_t - 1, n_t - 2)] = - M_v
+                    block_10_int[(n_t - 1, n_t - 1)] = tau * D_v_i + M_v
 
             if not self._CN:
                 if check_v_d:
@@ -3944,13 +3852,7 @@ class Control:
                     b_0_0.sub(0).assign(v_d.sub(0))
 
                 if check_f:
-                    if not self._Gauss_Newton:
-                        D_v_i = self._forward_form(v_trial, v_test, v_0, t_0)
-                    else:
-                        D_v_i = ufl.derivative(
-                            self._forward_form(v_trial, v_test, v_0, t_0),
-                            v_0,
-                            v_trial)
+                    D_v_i = self.construct_D_v(v_trial, v_test, v_0, t_0)
                     b_0_1.sub(0).assign(assemble(
                         action(tau * D_v_i + M_v, v_0)))
                     if inhomogeneous_bcs_v:
@@ -3990,16 +3892,11 @@ class Control:
                         b_0_1.sub(i).assign(tau * f.sub(i))
                         if inhomogeneous_bcs_v:
                             t = t_0 + i * tau
+
                             v_n_help.assign(v_old.sub(i))
-                            if not self._Gauss_Newton:
-                                D_v_i = self._forward_form(
-                                    v_trial, v_test, v_n_help, t)
-                            else:
-                                D_v_i = ufl.derivative(
-                                    self._forward_form(
-                                        v_trial, v_test, v_n_help, t),
-                                    v_n_help,
-                                    v_trial)
+                            D_v_i = self.construct_D_v(v_trial, v_test,
+                                                       v_n_help, t)
+
                             v_inhom = Function(space_v)
                             for bc in bcs_v_help[(i)]:
                                 bc.apply(v_inhom)
@@ -4031,15 +3928,10 @@ class Control:
                     b_0_1.sub(n_t - 1).assign(tau * f.sub(n_t - 1))
                     if inhomogeneous_bcs_v:
                         v_n_help.assign(v_old.sub(n_t - 1))
-                        if not self._Gauss_Newton:
-                            D_v_i = self._forward_form(
-                                v_trial, v_test, v_n_help, T_f)
-                        else:
-                            D_v_i = ufl.derivative(
-                                self._forward_form(
-                                    v_trial, v_test, v_n_help, T_f),
-                                v_n_help,
-                                v_trial)
+
+                        D_v_i = self.construct_D_v(v_trial, v_test,
+                                                   v_n_help, T_f)
+
                         v_inhom = Function(space_v)
                         for bc in bcs_v_help[(n_t - 1)]:
                             bc.apply(v_inhom)
@@ -4126,16 +4018,12 @@ class Control:
                             0.5 * tau * (f.sub(i) + f.sub(i + 1)))
                         if inhomogeneous_bcs_v:
                             t = t_0 + (i + 1) * tau
+
                             v_n_help.assign(v_old.sub(i + 1))
-                            if not self._Gauss_Newton:
-                                D_v_i = self._forward_form(
-                                    v_trial, v_test, v_n_help, t)
-                            else:
-                                D_v_i = ufl.derivative(
-                                    self._forward_form(
-                                        v_trial, v_test, v_n_help, t),
-                                    v_n_help,
-                                    v_trial)
+
+                            D_v_i = self.construct_D_v(v_trial, v_test,
+                                                       v_n_help, t)
+
                             v_inhom = Function(space_v)
                             for bc in bcs_v_help[(i + 1)]:
                                 bc.apply(v_inhom)
@@ -4148,16 +4036,12 @@ class Control:
                             del b_help
                             if i > 0:
                                 t = t_0 + i * tau
+
                                 v_n_help.assign(v_old.sub(i))
-                                if not self._Gauss_Newton:
-                                    D_v_i = self._forward_form(
-                                        v_trial, v_test, v_n_help, t)
-                                else:
-                                    D_v_i = ufl.derivative(
-                                        self._forward_form(
-                                            v_trial, v_test, v_n_help, t),
-                                        v_n_help,
-                                        v_trial)
+
+                                D_v_i = self.construct_D_v(v_trial, v_test,
+                                                           v_n_help, t)
+
                                 v_inhom = Function(space_v)
                                 for bc in bcs_v_help[(i)]:
                                     bc.apply(v_inhom)
@@ -4183,13 +4067,8 @@ class Control:
                     del b
 
                 if check_f:
-                    if not self._Gauss_Newton:
-                        D_v_i = self._forward_form(v_trial, v_test, v_0, t_0)
-                    else:
-                        D_v_i = ufl.derivative(
-                            self._forward_form(v_trial, v_test, v_0, t_0),
-                            v_0,
-                            v_trial)
+                    D_v_i = self.construct_D_v(v_trial, v_test, v_0, t_0)
+
                     b = assemble(action(0.5 * tau * D_v_i - M_v, v_0))
                     with b_0_1.sub(0).dat.vec as b_v, \
                             b.dat.vec_ro as b_1_v:
@@ -4264,6 +4143,41 @@ class Control:
                                      "monitor_convergence": print_error}
 
             if P is None:
+                solver_K_p = LinearSolver(
+                    assemble(K_p),
+                    solver_parameters={
+                        "ksp_type": "preonly",
+                        "pc_type": "hypre",
+                        "pc_hypre_type": "boomeramg",
+                        "ksp_max_it": 1,
+                        "pc_hypre_boomeramg_max_iter": 1,
+                        "ksp_atol": 0.0,
+                        "ksp_rtol": 0.0})
+
+                if lambda_p_bounds is not None:
+                    e_min_p = lambda_p_bounds[0]
+                    e_max_p = lambda_p_bounds[1]
+                    solver_M_p = LinearSolver(
+                        assemble(M_p),
+                        solver_parameters={
+                            "ksp_type": "chebyshev",
+                            "pc_type": "jacobi",
+                            "ksp_chebyshev_eigenvalues": f"{e_min_p:.16e}, {e_max_p:.16e}",  # noqa: E501
+                            "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
+                            "ksp_chebyshev_esteig_steps": 0,
+                            "ksp_chebyshev_esteig_noisy": False,
+                            "ksp_max_it": 20,
+                            "ksp_atol": 0.0,
+                            "ksp_rtol": 0.0})
+                else:
+                    solver_M_p = LinearSolver(
+                        assemble(M_p),
+                        solver_parameters={"ksp_type": "preonly",
+                                           "pc_type": "jacobi",
+                                           "ksp_max_it": 1,
+                                           "ksp_atol": 0.0,
+                                           "ksp_rtol": 0.0})
+
                 # definition of preconditioner
                 if self._CN:
                     def pc_fn(u_0, u_1, b_0, b_1):
@@ -4295,243 +4209,10 @@ class Control:
                         v_help = Function(full_space_v_help)
                         zeta_help = Function(full_space_v_help)
 
-                        def inner_pc_fn(u_0_inner, u_1_inner, b_0_inner, b_1_inner):  # noqa: E501
-                            # solving for the (1,1)-block
-                            if Multigrid:
-                                solver_0 = LinearSolver(
-                                    assemble(self._M_v,
-                                             bcs=bcs_v),
-                                    solver_parameters={
-                                        "ksp_type": "preonly",
-                                        "pc_type": "hypre",
-                                        "pc_hypre_type": "boomeramg",
-                                        "ksp_max_it": 1,
-                                        "pc_hypre_boomeramg_max_iter": 2,
-                                        "ksp_atol": 0.0,
-                                        "ksp_rtol": 0.0})
-                            else:
-                                if lambda_v_bounds is not None:
-                                    e_min = lambda_v_bounds[0]
-                                    e_max = lambda_v_bounds[1]
-                                    solver_0 = LinearSolver(
-                                        assemble(self._M_v,
-                                                 bcs=bcs_v),
-                                        solver_parameters={
-                                            "ksp_type": "chebyshev",
-                                            "pc_type": "jacobi",
-                                            "ksp_chebyshev_eigenvalues": f"{e_min:.16e}, {e_max:.16e}",  # noqa: E501
-                                            "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",  # noqa: E501
-                                            "ksp_chebyshev_esteig_steps": 0,
-                                            "ksp_chebyshev_esteig_noisy": False,  # noqa: E501
-                                            "ksp_max_it": 20,
-                                            "ksp_atol": 0.0,
-                                            "ksp_rtol": 0.0})
-                                else:
-                                    solver_0 = LinearSolver(
-                                        assemble(self._M_v,
-                                                 bcs=bcs_v),
-                                        solver_parameters={
-                                            "ksp_type": "preonly",
-                                            "pc_type": "jacobi",
-                                            "ksp_max_it": 1,
-                                            "ksp_atol": 0.0,
-                                            "ksp_rtol": 0.0})
-
-                            b_0_help = apply_T_1_inv(
-                                b_0_inner, space_v, n_t - 1)
-
-                            for i in range(n_t - 1):
-                                b = Cofunction(space_v.dual())
-                                b.assign(b_0_help.sub(i))
-                                try:
-                                    solver_0.solve(
-                                        u_0_inner.sub(i),
-                                        b.copy(deepcopy=True))
-                                except ConvergenceError:
-                                    assert solver_0.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                                del b
-                                with u_0_inner.sub(i).dat.vec as x_v:
-                                    x_v.scale(2.0 / tau)
-
-                            b_0_help = apply_T_2_inv(
-                                u_0_inner, space_v, n_t - 1)
-                            for i in range(n_t - 1):
-                                u_0_inner.sub(i).assign(b_0_help.sub(i))
-                            del b_0_help
-
-                            # u_1 = - b_1 + D_v * u_0
-                            b = Cofunction(full_space_v_help.dual())
-                            block_ii = block_10_int[(0, 0)]
-                            b_help = Function(space_v)
-                            b_help.assign(u_0_inner.sub(0))
-                            b.sub(0).assign(assemble(action(block_ii, b_help)))
-                            for bc in bcs_zeta:
-                                bc.apply(b.sub(0))
-                            del b_help
-                            for i in range(1, n_t - 1):
-                                block_ij = block_10_int[(i, i - 1)]
-                                b_help = Function(space_v)
-                                b_help.assign(u_0_inner.sub(i - 1))
-                                b_help_new = assemble(action(block_ij, b_help))
-                                block_ii = block_10_int[(i, i)]
-                                b_help.assign(u_0_inner.sub(i))
-                                b.sub(i).assign(assemble(action(block_ii,
-                                                                b_help)))
-                                with b.sub(i).dat.vec as b_v, \
-                                        b_help_new.dat.vec_ro as b_1_v:
-                                    b_v.axpy(1.0, b_1_v)
-                                del b_help
-                                del b_help_new
-                                for bc in bcs_zeta:
-                                    bc.apply(b.sub(i))
-
-                            b = apply_T_2(b, space_v, n_t - 1)
-
-                            for i in range(n_t - 1):
-                                with b.sub(i).dat.vec as b_v, \
-                                        b_1_inner.sub(i).dat.vec_ro as b_1_v:
-                                    b_v.axpy(-1.0, b_1_v)
-                                for bc in bcs_zeta:
-                                    bc.apply(b.sub(i))
-
-                            # solving for the Schur complement approximation
-                            b = apply_T_2_inv(b, space_v, n_t - 1)
-                            # first solve
-                            block_ii = block_10_int[(0, 0)]
-                            solver_1 = LinearSolver(
-                                assemble(block_ii
-                                         + (0.5 * tau / (beta**0.5)) * self._M_v,  # noqa: E501
-                                         bcs=bcs_zeta),
-                                solver_parameters={
-                                    "ksp_type": "preonly",
-                                    "pc_type": "hypre",
-                                    "pc_hypre_type": "boomeramg",
-                                    "ksp_max_it": 1,
-                                    "pc_hypre_boomeramg_max_iter": 2,
-                                    "ksp_atol": 0.0,
-                                    "ksp_rtol": 0.0})
-                            b_help = Cofunction(space_v.dual())
-                            b_help.assign(b.sub(0))
-                            try:
-                                solver_1.solve(u_1_inner.sub(0),
-                                               b_help.copy(deepcopy=True))
-                            except ConvergenceError:
-                                assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                            del b_help
-
-                            for i in range(1, n_t - 1):
-                                block_ij = block_10_int[(i, i - 1)]
-                                b_help = Function(space_v)
-                                b_help.assign(u_1_inner.sub(i - 1))
-                                b_help_new = assemble(action(block_ij, b_help))
-                                with b.sub(i).dat.vec as b_v, \
-                                        b_help_new.dat.vec_ro as b_1_v:
-                                    b_v.axpy(-1.0, b_1_v)
-                                b_help_new = assemble(
-                                    action((0.5 * tau / (beta**0.5)) * self._M_v,  # noqa: E501
-                                           b_help))
-                                with b.sub(i).dat.vec as b_v, \
-                                        b_help_new.dat.vec_ro as b_1_v:
-                                    b_v.axpy(-1.0, b_1_v)
-                                del b_help_new
-                                for bc in bcs_zeta:
-                                    bc.apply(b.sub(i))
-                                b_help = Cofunction(space_v.dual())
-                                b_help.assign(b.sub(i))
-
-                                block_ii = block_10_int[(i, i)]
-                                solver_1 = LinearSolver(
-                                    assemble(block_ii
-                                             + (0.5 * tau / beta**0.5) * self._M_v,  # noqa: E501
-                                             bcs=bcs_zeta),
-                                    solver_parameters={
-                                        "ksp_type": "preonly",
-                                        "pc_type": "hypre",
-                                        "pc_hypre_type": "boomeramg",
-                                        "ksp_max_it": 1,
-                                        "pc_hypre_boomeramg_max_iter": 2,
-                                        "ksp_atol": 0.0,
-                                        "ksp_rtol": 0.0})
-                                try:
-                                    solver_1.solve(u_1_inner.sub(i),
-                                                   b_help.copy(deepcopy=True))
-                                except ConvergenceError:
-                                    assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                                del b_help
-                            del b
-
-                            b = apply_T_2(u_1_inner, space_v, n_t - 1)
-                            for i in range(n_t - 1):
-                                u_1_inner.sub(i).assign(b.sub(i))
-                            del b
-
-                            b = Cofunction(full_space_v_help.dual())
-                            for i in range(n_t - 1):
-                                b_help = Function(space_v)
-                                b_help.assign(u_1_inner.sub(i))
-                                b.sub(i).assign(assemble(action(self._M_v,
-                                                                b_help)))
-                                del b_help
-                                with b.sub(i).dat.vec as b_v:
-                                    b_v.scale(0.5 * tau)
-                                for bc in bcs_zeta:
-                                    bc.apply(b.sub(i))
-
-                            # second solve
-                            b_help = Cofunction(space_v.dual())
-                            b_help.assign(b.sub(n_t - 2))
-                            block_ii = block_01_int[(n_t - 2, n_t - 2)]
-                            solver_2 = LinearSolver(
-                                assemble(block_ii
-                                         + (0.5 * tau / beta**0.5) * self._M_zeta,  # noqa: E501
-                                         bcs=bcs_zeta),
-                                solver_parameters={
-                                    "ksp_type": "preonly",
-                                    "pc_type": "hypre",
-                                    "pc_hypre_type": "boomeramg",
-                                    "ksp_max_it": 1,
-                                    "pc_hypre_boomeramg_max_iter": 2,
-                                    "ksp_atol": 0.0,
-                                    "ksp_rtol": 0.0})
-                            try:
-                                solver_2.solve(u_1_inner.sub(n_t - 2),
-                                               b_help.copy(deepcopy=True))
-                            except ConvergenceError:
-                                assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                            del b_help
-
-                            for i in range(n_t - 3, -1, -1):
-                                b_help = Function(space_v)
-                                b_help.assign(u_1_inner.sub(i + 1))
-                                block_ij = block_01_int[(i, i + 1)] + (0.5 * tau / beta**0.5) * self._M_zeta  # noqa: E501
-                                b_help_new = assemble(action(block_ij, b_help))
-                                with b.sub(i).dat.vec as b_v, \
-                                        b_help_new.dat.vec_ro as b_1_v:
-                                    b_v.axpy(-1.0, b_1_v)
-                                del b_help_new
-                                for bc in bcs_zeta:
-                                    bc.apply(b.sub(i))
-                                b_help = Cofunction(space_v.dual())
-                                b_help.assign(b.sub(i))
-                                block_ii = block_01_int[(i, i)]
-                                solver_2 = LinearSolver(
-                                    assemble(block_ii
-                                             + (0.5 * tau / beta**0.5) * self._M_zeta,  # noqa: E501
-                                             bcs=bcs_zeta),
-                                    solver_parameters={
-                                        "ksp_type": "preonly",
-                                        "pc_type": "hypre",
-                                        "pc_hypre_type": "boomeramg",
-                                        "ksp_max_it": 1,
-                                        "pc_hypre_boomeramg_max_iter": 2,
-                                        "ksp_atol": 0.0,
-                                        "ksp_rtol": 0.0})
-                                try:
-                                    solver_2.solve(u_1_inner.sub(i),
-                                                   b_help.copy(deepcopy=True))
-                                except ConvergenceError:
-                                    assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                                del b_help
+                        inner_pc_fn = self.construct_pc(
+                            Multigrid, lambda_v_bounds, full_space_v_help,
+                            bcs_v, bcs_zeta, block_01_int, block_10_int,
+                            epsilon)
 
                         try:
                             inner_ksp_solver = inner_system.solve(
@@ -4581,41 +4262,6 @@ class Control:
                                 b_v.axpy(-1.0, b_1_v)
 
                         # solving for the Schur complement approximation
-                        solver_K_p = LinearSolver(
-                            assemble(K_p),
-                            solver_parameters={
-                                "ksp_type": "preonly",
-                                "pc_type": "hypre",
-                                "pc_hypre_type": "boomeramg",
-                                "ksp_max_it": 1,
-                                "pc_hypre_boomeramg_max_iter": 1,
-                                "ksp_atol": 0.0,
-                                "ksp_rtol": 0.0})
-
-                        if lambda_p_bounds is not None:
-                            e_min_p = lambda_p_bounds[0]
-                            e_max_p = lambda_p_bounds[1]
-                            solver_M_p = LinearSolver(
-                                assemble(M_p),
-                                solver_parameters={
-                                    "ksp_type": "chebyshev",
-                                    "pc_type": "jacobi",
-                                    "ksp_chebyshev_eigenvalues": f"{e_min_p:.16e}, {e_max_p:.16e}",  # noqa: E501
-                                    "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
-                                    "ksp_chebyshev_esteig_steps": 0,
-                                    "ksp_chebyshev_esteig_noisy": False,
-                                    "ksp_max_it": 20,
-                                    "ksp_atol": 0.0,
-                                    "ksp_rtol": 0.0})
-                        else:
-                            solver_M_p = LinearSolver(
-                                assemble(M_p),
-                                solver_parameters={"ksp_type": "preonly",
-                                                   "pc_type": "jacobi",
-                                                   "ksp_max_it": 1,
-                                                   "ksp_atol": 0.0,
-                                                   "ksp_rtol": 0.0})
-
                         for i in range(n_t - 1):
                             with b_0_help.sub(i).dat.vec as b_v:
                                 b_v.scale(1.0 / (tau**2))
@@ -4657,28 +4303,13 @@ class Control:
                             t = t_0 + i * tau
 
                             v_n_help.assign(v_old.sub(i))
-                            if not self._Gauss_Newton:
-                                D_p_i = self._forward_form(
-                                    p_trial, p_test, v_n_help, t)
-                            else:
-                                D_p_i = ufl.derivative(
-                                    self._forward_form(
-                                        p_trial, p_test, v_n_help, t),
-                                    v_n_help,
-                                    p_trial)
+                            D_p_i = self.construct_D_v(p_trial, p_test,
+                                                       v_n_help, t)
                             D_mu_i = adjoint(D_p_i)
 
                             v_n_help_plus.assign(v_old.sub(i + 1))
-                            if not self._Gauss_Newton:
-                                D_p_i_plus = self._forward_form(
-                                    p_trial, p_test, v_n_help_plus, t + tau)
-                            else:
-                                D_p_i_plus = ufl.derivative(
-                                    self._forward_form(
-                                        p_trial, p_test,
-                                        v_n_help_plus, t + tau),
-                                    v_n_help_plus,
-                                    p_trial)
+                            D_p_i_plus = self.construct_D_v(
+                                p_trial, p_test, v_n_help_plus, t + tau)
                             D_mu_i_plus = adjoint(D_p_i_plus)
 
                             p_help.assign(u_1.sub(i))
@@ -4759,8 +4390,6 @@ class Control:
                             index = n_t + i
                             b_1_help.sub(i).assign(b_0.sub(index))
 
-                        epsilon = 10.0**-3
-
                         inner_system = MultiBlockSystem(
                             space_v, space_v,
                             block_00=block_00_int, block_01=block_01_int,
@@ -4781,297 +4410,10 @@ class Control:
                         v_help = Function(full_space_v)
                         zeta_help = Function(full_space_v)
 
-                        def inner_pc_fn(u_0_inner, u_1_inner, b_0_inner, b_1_inner):  # noqa: E501
-                            # solving for the (1,1)-block
-                            if Multigrid:
-                                solver_0 = LinearSolver(
-                                    assemble(self._M_v,
-                                             bcs=bcs_v),
-                                    solver_parameters={
-                                        "ksp_type": "preonly",
-                                        "pc_type": "hypre",
-                                        "pc_hypre_type": "boomeramg",
-                                        "ksp_max_it": 1,
-                                        "pc_hypre_boomeramg_max_iter": 2,
-                                        "ksp_atol": 0.0,
-                                        "ksp_rtol": 0.0})
-                            else:
-                                if lambda_v_bounds is not None:
-                                    e_min = lambda_v_bounds[0]
-                                    e_max = lambda_v_bounds[1]
-                                    solver_0 = LinearSolver(
-                                        assemble(self._M_v,
-                                                 bcs=bcs_v),
-                                        solver_parameters={
-                                            "ksp_type": "chebyshev",
-                                            "pc_type": "jacobi",
-                                            "ksp_chebyshev_eigenvalues": f"{e_min:.16e}, {e_max:.16e}",  # noqa: E501
-                                            "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",  # noqa: E501
-                                            "ksp_chebyshev_esteig_steps": 0,
-                                            "ksp_chebyshev_esteig_noisy": False,  # noqa: E501
-                                            "ksp_max_it": 20,
-                                            "ksp_atol": 0.0,
-                                            "ksp_rtol": 0.0})
-                                else:
-                                    solver_0 = LinearSolver(
-                                        assemble(self._M_v,
-                                                 bcs=bcs_v),
-                                        solver_parameters={
-                                            "ksp_type": "preonly",
-                                            "pc_type": "jacobi",
-                                            "ksp_max_it": 1,
-                                            "ksp_atol": 0.0,
-                                            "ksp_rtol": 0.0})
-
-                            for i in range(n_t):
-                                b = Cofunction(space_v.dual())
-                                b.assign(b_0_inner.sub(i))
-                                try:
-                                    solver_0.solve(u_0_inner.sub(i),
-                                                   b.copy(deepcopy=True))
-                                except ConvergenceError:
-                                    assert solver_0.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                                del b
-                                with u_0_inner.sub(i).dat.vec as x_v:
-                                    x_v.scale(1.0 / tau)
-
-                            with u_0_inner.sub(n_t - 1).dat.vec as x_v:
-                                x_v.scale(1.0 / epsilon)
-
-                            # u_1 = - b_1 + D_v * u_0
-                            b = Cofunction(full_space_v.dual())
-                            block_ii = block_10_int[(0, 0)]
-                            b_help = Function(space_v)
-                            b_help.assign(u_0_inner.sub(0))
-                            b.sub(0).assign(assemble(action(block_ii, b_help)))
-                            with b.sub(0).dat.vec as b_v, \
-                                    b_1_inner.sub(0).dat.vec_ro as b_1_v:
-                                b_v.axpy(-1.0, b_1_v)
-                            for bc in bcs_zeta:
-                                bc.apply(b.sub(0))
-                            del b_help
-                            for i in range(1, n_t):
-                                block_ij = block_10_int[(i, i - 1)]
-                                b_help = Function(space_v)
-                                b_help.assign(u_0_inner.sub(i - 1))
-                                b_help_new = assemble(action(block_ij,
-                                                             b_help))
-                                block_ii = block_10_int[(i, i)]
-                                b_help.assign(u_0_inner.sub(i))
-                                b.sub(i).assign(assemble(action(block_ii,
-                                                                b_help)))
-                                with b.sub(i).dat.vec as b_v, \
-                                        b_help_new.dat.vec_ro as b_1_v:
-                                    b_v.axpy(1.0, b_1_v)
-                                del b_help
-                                del b_help_new
-                                with b.sub(i).dat.vec as b_v, \
-                                        b_1_inner.sub(i).dat.vec_ro as b_1_v:
-                                    b_v.axpy(-1.0, b_1_v)
-                                for bc in bcs_zeta:
-                                    bc.apply(b.sub(i))
-
-                            # solving for the Schur complement approximation
-                            # first solve
-                            block_ii = block_10_int[(0, 0)]
-                            solver_1 = LinearSolver(
-                                assemble(block_ii,
-                                         bcs=bcs_zeta),
-                                solver_parameters={
-                                    "ksp_type": "preonly",
-                                    "pc_type": "hypre",
-                                    "pc_hypre_type": "boomeramg",
-                                    "ksp_max_it": 1,
-                                    "pc_hypre_boomeramg_max_iter": 3,
-                                    "ksp_atol": 0.0,
-                                    "ksp_rtol": 0.0})
-
-                            b_help = Cofunction(space_v.dual())
-                            b_help.assign(b.sub(0))
-                            try:
-                                solver_1.solve(u_1_inner.sub(0),
-                                               b_help.copy(deepcopy=True))
-                            except ConvergenceError:
-                                assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                            del b_help
-
-                            for i in range(1, n_t - 1):
-                                block_ij = block_10_int[(i, i - 1)]
-                                b_help = Function(space_v)
-                                b_help.assign(u_1_inner.sub(i - 1))
-                                b_help_new = assemble(action(block_ij, b_help))
-                                with b.sub(i).dat.vec as b_v, \
-                                        b_help_new.dat.vec_ro as b_1_v:
-                                    b_v.axpy(-1.0, b_1_v)
-                                del b_help_new
-                                for bc in bcs_zeta:
-                                    bc.apply(b.sub(i))
-                                b_help = Cofunction(space_v.dual())
-                                b_help.assign(b.sub(i))
-                                block_ii = block_10_int[(i, i)]
-                                solver_1 = LinearSolver(
-                                    assemble(block_ii
-                                             + (tau / (beta**0.5)) * self._M_v,
-                                             bcs=bcs_zeta),
-                                    solver_parameters={
-                                        "ksp_type": "preonly",
-                                        "pc_type": "hypre",
-                                        "pc_hypre_type": "boomeramg",
-                                        "ksp_max_it": 1,
-                                        "pc_hypre_boomeramg_max_iter": 3,
-                                        "ksp_atol": 0.0,
-                                        "ksp_rtol": 0.0})
-
-                                try:
-                                    solver_1.solve(u_1_inner.sub(i),
-                                                   b_help.copy(deepcopy=True))
-                                except ConvergenceError:
-                                    assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                                del b_help
-
-                            block_ij = block_10_int[(n_t - 1, n_t - 2)]
-                            b_help = Function(space_v)
-                            b_help.assign(u_1_inner.sub(n_t - 2))
-                            b_help_new = assemble(action(block_ij, b_help))
-                            with b.sub(n_t - 1).dat.vec as b_v, \
-                                    b_help_new.dat.vec_ro as b_1_v:
-                                b_v.axpy(-1.0, b_1_v)
-                            for bc in bcs_zeta:
-                                bc.apply(b.sub(n_t - 1))
-                            del b_help_new
-                            b_help = Cofunction(space_v.dual())
-                            b_help.assign(b.sub(n_t - 1))
-                            block_ii = block_10_int[(n_t - 1, n_t - 1)]
-                            solver_1 = LinearSolver(
-                                assemble(block_ii
-                                         + ((epsilon**0.5) * tau / (beta**0.5)) * self._M_v,  # noqa: E501
-                                         bcs=bcs_zeta),
-                                solver_parameters={
-                                    "ksp_type": "preonly",
-                                    "pc_type": "hypre",
-                                    "pc_hypre_type": "boomeramg",
-                                    "ksp_max_it": 1,
-                                    "pc_hypre_boomeramg_max_iter": 3,
-                                    "ksp_atol": 0.0,
-                                    "ksp_rtol": 0.0})
-                            try:
-                                solver_1.solve(u_1_inner.sub(n_t - 1),
-                                               b_help.copy(deepcopy=True))
-                            except ConvergenceError:
-                                assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                            del b_help
-                            del b
-
-                            b = Cofunction(full_space_v.dual())
-                            for i in range(n_t - 1):
-                                b_help = Function(space_v)
-                                b_help.assign(u_1_inner.sub(i))
-                                b.sub(i).assign(assemble(action(self._M_v,
-                                                                b_help)))
-                                del b_help
-                                with b.sub(i).dat.vec as b_v:
-                                    b_v.scale(tau)
-                                for bc in bcs_zeta:
-                                    bc.apply(b.sub(i))
-
-                            b_help = Function(space_v)
-                            b_help.assign(u_1_inner.sub(n_t - 1))
-                            b.sub(n_t - 1).assign(assemble(action(
-                                self._M_v, b_help)))
-                            del b_help
-                            with b.sub(n_t - 1).dat.vec as b_v:
-                                b_v.scale(epsilon * tau)
-                            for bc in bcs_zeta:
-                                bc.apply(b.sub(n_t - 1))
-
-                            # second solve
-                            b_help = Cofunction(space_v.dual())
-                            b_help.assign(b.sub(n_t - 1))
-                            block_ii = block_01_int[(n_t - 1, n_t - 1)]
-                            solver_2 = LinearSolver(
-                                assemble(block_ii
-                                         + ((epsilon**0.5) * tau / (beta**0.5)) * self._M_zeta,  # noqa: E501
-                                         bcs=bcs_zeta),
-                                solver_parameters={
-                                    "ksp_type": "preonly",
-                                    "pc_type": "hypre",
-                                    "pc_hypre_type": "boomeramg",
-                                    "ksp_max_it": 1,
-                                    "pc_hypre_boomeramg_max_iter": 3,
-                                    "ksp_atol": 0.0,
-                                    "ksp_rtol": 0.0})
-                            try:
-                                solver_2.solve(u_1_inner.sub(n_t - 1),
-                                               b_help.copy(deepcopy=True))
-                            except ConvergenceError:
-                                assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                            del b_help
-
-                            for i in range(n_t - 2, 0, -1):
-                                b_help = Function(space_v)
-                                b_help.assign(u_1_inner.sub(i + 1))
-                                block_ij = block_01_int[(i, i + 1)]
-                                b_help_new = assemble(action(block_ij, b_help))
-                                with b.sub(i).dat.vec as b_v, \
-                                        b_help_new.dat.vec_ro as b_1_v:
-                                    b_v.axpy(-1.0, b_1_v)
-                                del b_help_new
-                                for bc in bcs_zeta:
-                                    bc.apply(b.sub(i))
-                                b_help = Cofunction(space_v.dual())
-                                b_help.assign(b.sub(i))
-                                block_ii = block_01_int[(i, i)]
-                                solver_2 = LinearSolver(
-                                    assemble(
-                                        block_ii
-                                        + (tau / (beta**0.5)) * self._M_zeta,
-                                        bcs=bcs_zeta),
-                                    solver_parameters={
-                                        "ksp_type": "preonly",
-                                        "pc_type": "hypre",
-                                        "pc_hypre_type": "boomeramg",
-                                        "ksp_max_it": 1,
-                                        "pc_hypre_boomeramg_max_iter": 3,
-                                        "ksp_atol": 0.0,
-                                        "ksp_rtol": 0.0})
-                                try:
-                                    solver_2.solve(u_1_inner.sub(i),
-                                                   b_help.copy(deepcopy=True))
-                                except ConvergenceError:
-                                    assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                                del b_help
-
-                            b_help = Function(space_v)
-                            b_help.assign(u_1_inner.sub(1))
-                            block_ij = block_01_int[(0, 1)]
-                            b_help_new = assemble(action(block_ij, b_help))
-                            with b.sub(0).dat.vec as b_v, \
-                                    b_help_new.dat.vec_ro as b_1_v:
-                                b_v.axpy(-1.0, b_1_v)
-                            del b_help_new
-                            for bc in bcs_zeta:
-                                bc.apply(b.sub(0))
-                            b_help = Cofunction(space_v.dual())
-                            b_help.assign(b.sub(0))
-                            block_ii = block_01_int[(0, 0)]
-                            solver_2 = LinearSolver(
-                                assemble(block_ii,
-                                         bcs=bcs_zeta),
-                                solver_parameters={
-                                    "ksp_type": "preonly",
-                                    "pc_type": "hypre",
-                                    "pc_hypre_type": "boomeramg",
-                                    "ksp_max_it": 1,
-                                    "pc_hypre_boomeramg_max_iter": 3,
-                                    "ksp_atol": 0.0,
-                                    "ksp_rtol": 0.0})
-                            try:
-                                solver_2.solve(u_1_inner.sub(0),
-                                               b_help.copy(deepcopy=True))
-                            except ConvergenceError:
-                                assert solver_2.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
-                            del b_help
-                            del b
+                        inner_pc_fn = self.construct_pc(
+                            Multigrid, lambda_v_bounds, full_space_v,
+                            bcs_v, bcs_zeta, block_01_int, block_10_int,
+                            epsilon)
 
                         try:
                             inner_ksp_solver = inner_system.solve(
@@ -5119,41 +4461,6 @@ class Control:
                                 b_v.axpy(-1.0, b_1_v)
 
                         # solving for the Schur complement approximation
-                        solver_K_p = LinearSolver(
-                            assemble(K_p),
-                            solver_parameters={
-                                "ksp_type": "preonly",
-                                "pc_type": "hypre",
-                                "pc_hypre_type": "boomeramg",
-                                "ksp_max_it": 1,
-                                "pc_hypre_boomeramg_max_iter": 1,
-                                "ksp_atol": 0.0,
-                                "ksp_rtol": 0.0})
-
-                        if lambda_p_bounds is not None:
-                            e_min_p = lambda_p_bounds[0]
-                            e_max_p = lambda_p_bounds[1]
-                            solver_M_p = LinearSolver(
-                                assemble(M_p),
-                                solver_parameters={
-                                    "ksp_type": "chebyshev",
-                                    "pc_type": "jacobi",
-                                    "ksp_chebyshev_eigenvalues": f"{e_min_p:.16e}, {e_max_p:.16e}",  # noqa: E501
-                                    "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
-                                    "ksp_chebyshev_esteig_steps": 0,
-                                    "ksp_chebyshev_esteig_noisy": False,
-                                    "ksp_max_it": 20,
-                                    "ksp_atol": 0.0,
-                                    "ksp_rtol": 0.0})
-                        else:
-                            solver_M_p = LinearSolver(
-                                assemble(M_p),
-                                solver_parameters={"ksp_type": "preonly",
-                                                   "pc_type": "jacobi",
-                                                   "ksp_max_it": 1,
-                                                   "ksp_atol": 0.0,
-                                                   "ksp_rtol": 0.0})
-
                         for i in range(n_t):
                             with b_0_help.sub(i).dat.vec as b_v:
                                 b_v.scale(1.0 / (tau**2))
@@ -5191,15 +4498,8 @@ class Control:
                             t = t_0 + i * tau
 
                             v_n_help.assign(v_old.sub(i))
-                            if not self._Gauss_Newton:
-                                D_p_i = self._forward_form(
-                                    p_trial, p_test, v_n_help, t)
-                            else:
-                                D_p_i = ufl.derivative(
-                                    self._forward_form(
-                                        p_trial, p_test, v_n_help, t),
-                                    v_n_help,
-                                    p_trial)
+                            D_p_i = self.construct_D_v(p_trial, p_test,
+                                                       v_n_help, t)
                             D_mu_i = adjoint(D_p_i)
 
                             p_help.assign(u_1.sub(i))
@@ -5236,15 +4536,8 @@ class Control:
                                 b_v.axpy(-1.0, b_1_v)
 
                         v_n_help.assign(v_old.sub(n_t - 1))
-                        if not self._Gauss_Newton:
-                            D_p_i = self._forward_form(
-                                p_trial, p_test, v_n_help, T_f)
-                        else:
-                            D_p_i = ufl.derivative(
-                                self._forward_form(
-                                    p_trial, p_test, v_n_help, T_f),
-                                v_n_help,
-                                p_trial)
+                        D_p_i = self.construct_D_v(p_trial, p_test,
+                                                   v_n_help, T_f)
                         D_mu_i = adjoint(D_p_i)
 
                         p_help.assign(u_1.sub(n_t - 1))
@@ -5337,16 +4630,7 @@ class Control:
             self.set_mu(mu)
 
             if print_error:
-                true_v = Function(full_space_v, name="true_v")
-                for i in range(n_t):
-                    t = t_0 + i * tau
-                    v_d_i, true_v_i = self._desired_state(v_test, t)
-                    true_v.sub(i).assign(true_v_i)
-
-                v_err = true_v - self._v
-                error = sqrt(tau) * sqrt(abs(assemble(
-                    inner(v_err, v_err) * dx)))
-                print('estimated error in the L2-norm: ', error)
+                self.print_error(full_space_v, v_test)
 
             if create_output:
                 v_output = File("v.pvd")
@@ -5501,8 +4785,6 @@ class Control:
             T_f = self._time_interval[1]
             tau = (T_f - t_0) / (n_t - 1.0)
 
-            beta = self._beta
-
             inhomogeneous_bcs_v = False
             for (i), bc_i in self._bcs_v.items():
                 for bc in bc_i:
@@ -5565,18 +4847,9 @@ class Control:
 
             zeta_old.sub(n_t - 1).assign(Constant(0.0))
 
-            f = Cofunction(full_space_v.dual())
-            for i in range(n_t):
-                t = t_0 + i * tau
-                f.sub(i).assign(assemble(self._force_function(v_test, t)))
+            f = self.construct_f(full_space_v, v_test)
 
-            v_d = Cofunction(full_space_v.dual())
-            true_v = Function(full_space_v, name="true_v")
-            for i in range(n_t):
-                t = t_0 + i * tau
-                v_d_i, true_v_i = self._desired_state(v_test, t)
-                v_d.sub(i).assign(assemble(v_d_i))
-                true_v.sub(i).assign(true_v_i)
+            v_d, true_v = self.construct_v_d(full_space_v, v_test)
 
             M_v = inner(v_trial, v_test) * dx
 
@@ -5587,65 +4860,46 @@ class Control:
                 rhs_10 = Cofunction(full_space_p.dual(), name="rhs_10")
                 rhs_11 = Cofunction(full_space_p.dual(), name="rhs_11")
 
-                if not self._CN:
+                if self._CN:
+                    rhs_00 = Cofunction(full_space_v_help.dual(),
+                                        name="rhs_00")
+                    rhs_01 = Cofunction(full_space_v_help.dual(),
+                                        name="rhs_01")
+
+                    rhs_0, rhs_1 = self.non_linear_res_eval(
+                        full_space_v_help, v_old, zeta_old, v_0,
+                        v_d, f, M_v, bcs_v, bcs_zeta)
+                else:
                     rhs_00 = Cofunction(full_space_v.dual(), name="rhs_00")
                     rhs_01 = Cofunction(full_space_v.dual(), name="rhs_01")
 
-                    if not self._Gauss_Newton:
-                        D_v_i = self._forward_form(
-                            v_trial, v_test, v_old.sub(0), t_0)
-                    else:
-                        D_v_i = ufl.derivative(
-                            self._forward_form(
-                                v_trial, v_test, v_old.sub(0), t_0),
-                            v_old.sub(0),
-                            v_trial)
-                    D_zeta_i = adjoint(D_v_i)
+                    rhs_0, rhs_1 = self.non_linear_res_eval(
+                        full_space_v, v_old, zeta_old, v_0,
+                        v_d, f, M_v, bcs_v, bcs_zeta)
 
-                    if not self._Gauss_Newton:
-                        D_v_0 = self._forward_form(v_trial, v_test, v_0, t_0)
-                    else:
-                        D_v_0 = ufl.derivative(
-                            self._forward_form(v_trial, v_test, v_0, t_0),
-                            v_0,
-                            v_trial)
+                rhs_00.assign(rhs_0)
+                rhs_01.assign(rhs_1)
 
-                    rhs_00.sub(0).assign(tau * v_d.sub(0))
-                    b_help = Function(space_v)
+                del rhs_0
+                del rhs_1
+
+                if not self._CN:
                     b_p_help = Function(space_p)
-                    b_help.assign(v_old.sub(0))
                     b_p_help.assign(mu_old.sub(0))
-                    b = assemble(action(tau * self._M_v, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_00.sub(0).dat.vec as b_0_v:
-                        b_0_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
-                    b_help = Function(space_v)
-                    b_help.assign(zeta_old.sub(0))
-                    b = assemble(action(tau * D_zeta_i + M_v, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_00.sub(0).dat.vec as b_0_v:
-                        b_0_v.axpy(-1.0, b_v)
-                    del b
-                    b = assemble(action(tau * B, b_help))
-                    rhs_11.sub(0).assign(-b)
-                    del b
-                    del b_help
-                    b_help = Function(space_v)
-                    b_help.assign(zeta_old.sub(1))
-                    b = assemble(action(M_v, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_00.sub(0).dat.vec as b_0_v:
-                        b_0_v.axpy(1.0, b_v)
-                    del b
-                    del b_help
                     b = assemble(action(tau * B_T, b_p_help))
                     with b.dat.vec_ro as b_v, \
                             rhs_00.sub(0).dat.vec as b_0_v:
                         b_0_v.axpy(-1.0, b_v)
                     del b
                     del b_p_help
+
+                    b_help = Function(space_v)
+                    b_help.assign(zeta_old.sub(0))
+                    b = assemble(action(tau * B, b_help))
+                    rhs_11.sub(0).assign(-b)
+                    del b
+                    del b_help
+
                     for bc in bcs_zeta:
                         bc.apply(rhs_00.sub(0))
 
@@ -5655,6 +4909,7 @@ class Control:
                     rhs_10.sub(n_t - 1).assign(-b)
                     del b
                     del b_help
+
                     b_p_help = Function(space_p)
                     b_p_help.assign(mu_old.sub(n_t - 1))
                     b = assemble(action(tau * B_T, b_p_help))
@@ -5663,47 +4918,30 @@ class Control:
                         b_0_v.axpy(-1.0, b_v)
                     del b
                     del b_p_help
+
                     for bc in bcs_zeta:
                         bc.apply(rhs_00.sub(n_t - 1))
 
-                    b = assemble(action(tau * D_v_0 + M_v, v_0))
-                    rhs_01.sub(0).assign(b)
-                    del b
-                    b_help = Function(space_v)
                     b_p_help = Function(space_p)
-                    b_help.assign(v_old.sub(0))
                     b_p_help.assign(p_old.sub(0))
-                    b = assemble(action(tau * D_v_i + M_v, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_01.sub(0).dat.vec as b_1_v:
-                        b_1_v.axpy(-1.0, b_v)
-                    del b
                     b = assemble(action(tau * B_T, b_p_help))
                     with b.dat.vec_ro as b_v, \
                             rhs_01.sub(0).dat.vec as b_1_v:
                         b_1_v.axpy(-1.0, b_v)
                     del b
                     del b_p_help
+
                     for bc in bcs_v:
                         bc.apply(rhs_01.sub(0))
+
+                    b_help = Function(space_v)
+                    b_help.assign(v_old.sub(0))
                     b = assemble(action(tau * B, b_help))
                     rhs_10.sub(0).assign(-b)
                     del b
                     del b_help
 
-                    if not self._Gauss_Newton:
-                        D_v_i = self._forward_form(
-                            v_trial, v_test, v_old.sub(n_t - 1), T_f)
-                    else:
-                        D_v_i = ufl.derivative(
-                            self._forward_form(
-                                v_trial, v_test, v_old.sub(n_t - 1), T_f),
-                            v_old.sub(n_t - 1),
-                            v_trial)
-                    rhs_01.sub(n_t - 1).assign(tau * f.sub(n_t - 1))
-                    b_help = Function(space_v)
                     b_p_help = Function(space_p)
-                    b_help.assign(v_old.sub(n_t - 2))
                     b_p_help.assign(p_old.sub(n_t - 1))
                     b = assemble(action(tau * B_T, b_p_help))
                     with b.dat.vec_ro as b_v, \
@@ -5711,183 +4949,56 @@ class Control:
                         b_1_v.axpy(-1.0, b_v)
                     del b
                     del b_p_help
-                    b = assemble(action(M_v, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_01.sub(n_t - 1).dat.vec as b_1_v:
-                        b_1_v.axpy(1.0, b_v)
-                    del b
-                    del b_help
-                    b_help = Function(space_v)
-                    b_help.assign(v_old.sub(n_t - 1))
-                    b = assemble(action(tau * D_v_i + M_v, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_01.sub(n_t - 1).dat.vec as b_1_v:
-                        b_1_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
-                    b_help = Function(space_v)
-                    b_help.assign(zeta_old.sub(n_t - 1))
-                    b = assemble(action((tau / beta) * self._M_zeta, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_01.sub(n_t - 1).dat.vec as b_1_v:
-                        b_1_v.axpy(1.0, b_v)
-                    del b
-                    del b_help
+
                     for bc in bcs_v:
                         bc.apply(rhs_01.sub(n_t - 1))
 
                     for i in range(1, n_t - 1):
-                        t = t_0 + i * tau
-                        if not self._Gauss_Newton:
-                            D_v_i = self._forward_form(
-                                v_trial, v_test, v_old.sub(i), t)
-                        else:
-                            D_v_i = ufl.derivative(
-                                self._forward_form(
-                                    v_trial, v_test, v_old.sub(i), t),
-                                v_old.sub(i),
-                                v_trial)
-                        D_zeta_i = adjoint(D_v_i)
-
-                        rhs_00.sub(i).assign(tau * v_d.sub(i))
-                        rhs_01.sub(i).assign(tau * f.sub(i))
-
                         b_help = Function(space_v)
                         b_help.assign(v_old.sub(i))
-                        b_p_help = Function(space_p)
-                        b_p_help.assign(mu_old.sub(i))
                         b = assemble(action(tau * B, b_help))
                         rhs_10.sub(i).assign(-b)
                         del b
-                        b = assemble(action(tau * self._M_v, b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_00.sub(i).dat.vec as b_0_v:
-                            b_0_v.axpy(-1.0, b_v)
-                        del b
                         del b_help
-                        b_help = Function(space_v)
-                        b_help.assign(zeta_old.sub(i))
-                        b = assemble(action(tau * D_zeta_i + M_v, b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_00.sub(i).dat.vec as b_0_v:
-                            b_0_v.axpy(-1.0, b_v)
-                        del b
-                        del b_help
-                        b_help = Function(space_v)
-                        b_help.assign(zeta_old.sub(i + 1))
-                        b = assemble(action(M_v, b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_00.sub(i).dat.vec as b_0_v:
-                            b_0_v.axpy(1.0, b_v)
-                        del b
-                        del b_help
+
+                        b_p_help = Function(space_p)
+                        b_p_help.assign(mu_old.sub(i))
                         b = assemble(action(tau * B_T, b_p_help))
                         with b.dat.vec_ro as b_v, \
                                 rhs_00.sub(i).dat.vec as b_0_v:
                             b_0_v.axpy(-1.0, b_v)
                         del b
                         del b_p_help
+
                         for bc in bcs_zeta:
                             bc.apply(rhs_00.sub(i))
 
-                        b_help = Function(space_v)
-                        b_help.assign(v_old.sub(i))
                         b_p_help = Function(space_p)
                         b_p_help.assign(p_old.sub(i))
-                        b = assemble(action(tau * D_v_i + M_v, b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_01.sub(i).dat.vec as b_1_v:
-                            b_1_v.axpy(-1.0, b_v)
-                        del b
-                        del b_help
-                        b_help = Function(space_v)
-                        b_help.assign(v_old.sub(i - 1))
-                        b = assemble(action(M_v, b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_01.sub(i).dat.vec as b_1_v:
-                            b_1_v.axpy(1.0, b_v)
-                        del b
-                        del b_help
                         b = assemble(action(tau * B_T, b_p_help))
                         with b.dat.vec_ro as b_v, \
                                 rhs_01.sub(i).dat.vec as b_0_v:
                             b_0_v.axpy(-1.0, b_v)
                         del b
                         del b_p_help
+
                         b_help = Function(space_v)
                         b_help.assign(zeta_old.sub(i))
                         b = assemble(action(tau * B, b_help))
                         rhs_11.sub(i).assign(-b)
                         del b
-                        b = assemble(action((tau / beta) * self._M_zeta,
-                                            b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_01.sub(i).dat.vec as b_1_v:
-                            b_1_v.axpy(1.0, b_v)
-                        del b
                         del b_help
+
                         for bc in bcs_v:
                             bc.apply(rhs_01.sub(i))
                 else:
-                    rhs_00 = Cofunction(full_space_v_help.dual(), name="rhs_00")  # noqa: E501
-                    rhs_01 = Cofunction(full_space_v_help.dual(), name="rhs_01")  # noqa: E501
-
-                    if not self._Gauss_Newton:
-                        D_v_i = self._forward_form(
-                            v_trial, v_test, v_old.sub(0), t_0)
-                        D_v_i_plus = self._forward_form(
-                            v_trial, v_test, v_old.sub(1), t_0 + tau)
-                    else:
-                        D_v_i = ufl.derivative(
-                            self._forward_form(
-                                v_trial, v_test, v_old.sub(0), t_0),
-                            v_old.sub(0),
-                            v_trial)
-                        D_v_i_plus = ufl.derivative(
-                            self._forward_form(
-                                v_trial, v_test, v_old.sub(1), t_0 + tau),
-                            v_old.sub(1),
-                            v_trial)
-                    D_zeta_i = adjoint(D_v_i)
-                    D_zeta_i_plus = adjoint(D_v_i_plus)
-
-                    rhs_00.sub(0).assign(0.5 * tau * (v_d.sub(0) + v_d.sub(1)))
-                    b_help = Function(space_v)
-                    b_help.assign(v_old.sub(0))
-                    b = assemble(action(0.5 * tau * self._M_v, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_00.sub(0).dat.vec as b_0_v:
-                        b_0_v.axpy(-1.0, b_v)
-                    del b
                     b_help = Function(space_v)
                     b_help.assign(v_old.sub(1))
-                    b = assemble(action(0.5 * tau * self._M_v, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_00.sub(0).dat.vec as b_0_v:
-                        b_0_v.axpy(-1.0, b_v)
-                    del b
                     b = assemble(action(tau * B, b_help))
                     rhs_10.sub(0).assign(-b)
                     del b
                     del b_help
 
-                    b_help = Function(space_v)
-                    b_help.assign(zeta_old.sub(0))
-                    b = assemble(action(0.5 * tau * D_zeta_i + M_v, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_00.sub(0).dat.vec as b_0_v:
-                        b_0_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
-                    b_help = Function(space_v)
-                    b_help.assign(zeta_old.sub(1))
-                    b = assemble(action(
-                        0.5 * tau * D_zeta_i_plus - M_v, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_00.sub(0).dat.vec as b_0_v:
-                        b_0_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
                     b_p_help = Function(space_p)
                     b_p_help.assign(mu_old.sub(0))
                     b = assemble(action(tau * B_T, b_p_help))
@@ -5896,47 +5007,17 @@ class Control:
                         b_0_v.axpy(-1.0, b_v)
                     del b
                     del b_p_help
+
                     for bc in bcs_zeta:
                         bc.apply(rhs_00.sub(0))
 
-                    rhs_01.sub(0).assign(0.5 * tau * (f.sub(0) + f.sub(1)))
-                    b_help = Function(space_v)
-                    b_help.assign(v_old.sub(0))
-                    b = assemble(action(0.5 * tau * D_v_i - M_v, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_01.sub(0).dat.vec as b_1_v:
-                        b_1_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
-                    b_help = Function(space_v)
-                    b_help.assign(v_old.sub(1))
-                    b = assemble(action(0.5 * tau * D_v_i_plus + M_v, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_01.sub(0).dat.vec as b_1_v:
-                        b_1_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
                     b_help = Function(space_v)
                     b_help.assign(zeta_old.sub(0))
-                    b = assemble(action(
-                        0.5 * (tau / beta) * self._M_zeta, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_01.sub(0).dat.vec as b_1_v:
-                        b_1_v.axpy(1.0, b_v)
-                    del b
                     b = assemble(action(tau * B, b_help))
                     rhs_11.sub(0).assign(-b)
                     del b
                     del b_help
-                    b_help = Function(space_v)
-                    b_help.assign(zeta_old.sub(1))
-                    b = assemble(action(
-                        0.5 * (tau / beta) * self._M_zeta, b_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_01.sub(0).dat.vec as b_1_v:
-                        b_1_v.axpy(1.0, b_v)
-                    del b
-                    del b_help
+
                     b_p_help = Function(space_p)
                     b_p_help.assign(p_old.sub(0))
                     b = assemble(action(tau * B_T, b_p_help))
@@ -5945,76 +5026,25 @@ class Control:
                         b_0_v.axpy(-1.0, b_v)
                     del b
                     del b_p_help
+
                     for bc in bcs_v:
                         bc.apply(rhs_01.sub(0))
 
                     for i in range(1, n_t - 1):
-                        t = t_0 + i * tau
-                        if not self._Gauss_Newton:
-                            D_v_i = self._forward_form(
-                                v_trial, v_test, v_old.sub(i), t)
-                            D_v_i_plus = self._forward_form(
-                                v_trial, v_test, v_old.sub(i + 1), t + tau)
-                        else:
-                            D_v_i = ufl.derivative(
-                                self._forward_form(
-                                    v_trial, v_test, v_old.sub(i), t),
-                                v_old.sub(i),
-                                v_trial)
-                            D_v_i_plus = ufl.derivative(
-                                self._forward_form(
-                                    v_trial, v_test,
-                                    v_old.sub(i + 1), t + tau),
-                                v_old.sub(i + 1),
-                                v_trial)
-                        D_zeta_i = adjoint(D_v_i)
-                        D_zeta_i_plus = adjoint(D_v_i_plus)
-
-                        rhs_00.sub(i).assign(
-                            0.5 * tau * (v_d.sub(i) + v_d.sub(i + 1)))
-                        rhs_01.sub(i).assign(
-                            0.5 * tau * (f.sub(i) + f.sub(i + 1)))
-
-                        b_help = Function(space_v)
-                        b_help.assign(v_old.sub(i))
-                        b = assemble(action(0.5 * tau * self._M_v, b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_00.sub(i).dat.vec as b_0_v:
-                            b_0_v.axpy(-1.0, b_v)
-                        del b
-                        del b_help
                         b_help = Function(space_v)
                         b_help.assign(v_old.sub(i + 1))
-                        b = assemble(action(0.5 * tau * self._M_v, b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_00.sub(i).dat.vec as b_0_v:
-                            b_0_v.axpy(-1.0, b_v)
-                        del b
                         b = assemble(action(tau * B, b_help))
                         rhs_10.sub(i).assign(-b)
                         del b
                         del b_help
+
                         b_help = Function(space_v)
                         b_help.assign(zeta_old.sub(i))
-                        b = assemble(action(0.5 * tau * D_zeta_i + M_v,
-                                            b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_00.sub(i).dat.vec as b_0_v:
-                            b_0_v.axpy(-1.0, b_v)
-                        del b
                         b = assemble(action(tau * B, b_help))
                         rhs_11.sub(i).assign(-b)
                         del b
                         del b_help
-                        b_help = Function(space_v)
-                        b_help.assign(zeta_old.sub(i + 1))
-                        b = assemble(action(0.5 * tau * D_zeta_i_plus - M_v,
-                                            b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_00.sub(i).dat.vec as b_0_v:
-                            b_0_v.axpy(-1.0, b_v)
-                        del b
-                        del b_help
+
                         b_p_help = Function(space_p)
                         b_p_help.assign(mu_old.sub(i))
                         b = assemble(action(tau * B_T, b_p_help))
@@ -6023,44 +5053,10 @@ class Control:
                             b_0_v.axpy(-1.0, b_v)
                         del b
                         del b_p_help
+
                         for bc in bcs_zeta:
                             bc.apply(rhs_00.sub(i))
 
-                        b_help = Function(space_v)
-                        b_help.assign(v_old.sub(i))
-                        b = assemble(action(0.5 * tau * D_v_i - M_v, b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_01.sub(i).dat.vec as b_1_v:
-                            b_1_v.axpy(-1.0, b_v)
-                        del b
-                        del b_help
-                        b_help = Function(space_v)
-                        b_help.assign(v_old.sub(i + 1))
-                        b = assemble(action(0.5 * tau * D_v_i_plus + M_v,
-                                            b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_01.sub(i).dat.vec as b_1_v:
-                            b_1_v.axpy(-1.0, b_v)
-                        del b
-                        del b_help
-                        b_help = Function(space_v)
-                        b_help.assign(zeta_old.sub(i))
-                        b = assemble(action(0.5 * (tau / beta) * self._M_zeta,
-                                            b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_01.sub(i).dat.vec as b_1_v:
-                            b_1_v.axpy(1.0, b_v)
-                        del b
-                        del b_help
-                        b_help = Function(space_v)
-                        b_help.assign(zeta_old.sub(i + 1))
-                        b = assemble(action(0.5 * (tau / beta) * self._M_zeta,
-                                            b_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_01.sub(i).dat.vec as b_1_v:
-                            b_1_v.axpy(1.0, b_v)
-                        del b
-                        del b_help
                         b_p_help = Function(space_p)
                         b_p_help.assign(p_old.sub(i))
                         b = assemble(action(tau * B_T, b_p_help))
@@ -6069,6 +5065,7 @@ class Control:
                             b_0_v.axpy(-1.0, b_v)
                         del b
                         del b_p_help
+
                         for bc in bcs_v:
                             bc.apply(rhs_01.sub(i))
 
@@ -6176,7 +5173,6 @@ class Control:
                     print('the non-linear iteration did not converge')
                     print('relative non-linear residual: ', norm_k / norm_0)
                     print('absolute non-linear residual: ', norm_k)
-
                 v_err = self._v - true_v
                 print('estimated error in the L2-norm: ',
                       sqrt(tau) * sqrt(abs(assemble(inner(v_err,
