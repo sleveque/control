@@ -1032,10 +1032,7 @@ def test_MMS_stationary_Navier_Stokes_control():
         return as_vector([X_1 * (X_2 ** 3), (1. / 4.) * (X_1 ** 4 - X_2 ** 4)])  # noqa: E501
 
     def ref_sol_zeta(x, y):
-        X_1 = x - 1.0
-        X_2 = y - 1.0
-
-        return as_vector([beta * 2.0 * X_2 * (X_2 ** 2 - 1.) * (X_1 ** 2 - 1.) ** 2, - beta * 2.0 * X_1 * (X_1 ** 2 - 1.) * (X_2 ** 2 - 1.) ** 2])  # noqa: E501
+        return as_vector([0.0, 0.0])
 
     def forw_diff_operator(trial, test, u):
         # spatial differential for the forward problem
@@ -1047,27 +1044,10 @@ def test_MMS_stationary_Navier_Stokes_control():
         X = SpatialCoordinate(mesh)
 
         v = ref_sol_v(*X)
-        zeta = ref_sol_zeta(*X)
-
-        zeta_0 = zeta[0]
-        zeta_1 = zeta[1]
-        dzeta0dx = zeta_0.dx(0)
-        dzeta0dy = zeta_0.dx(1)
-        dzeta1dx = zeta_1.dx(0)
-        dzeta1dy = zeta_1.dx(1)
-
-        v_0 = v[0]
-        v_1 = v[1]
-
-        wind_0 = v_0 * dzeta0dx + v_1 * dzeta0dy
-        wind_1 = v_0 * dzeta1dx + v_1 * dzeta1dy
-
-        v_d_0 = -nu * (dzeta0dx.dx(0) + dzeta0dy.dx(1)) + v[0] - wind_0
-        v_d_1 = -nu * (dzeta1dx.dx(0) + dzeta1dy.dx(1)) + v[1] - wind_1
 
         # desired state
         v_d = Function(space, name="v_d")
-        v_d.interpolate(as_vector([v_d_0, v_d_1]))
+        v_d.interpolate(v)
 
         return inner(v_d, test) * dx, v
 
@@ -1077,14 +1057,12 @@ def test_MMS_stationary_Navier_Stokes_control():
         X = SpatialCoordinate(mesh)
 
         v = ref_sol_v(*X)
-        zeta = ref_sol_zeta(*X)
 
         # force function
         f = Function(space)
         f.interpolate(
             - 0.5 * nu * div(grad(v) + ufl.transpose(grad(v)))
-            + grad(v) * v
-            - 1.0 / beta * zeta)
+            + grad(v) * v)
 
         return inner(f, test) * dx
 
@@ -4079,10 +4057,7 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
         return v, v_xy
 
     def ref_sol_zeta(x_1, x_2, t):
-        x = x_1 - 1.0
-        y = x_2 - 1.0
-
-        zeta = as_vector([beta * (exp(t_f - t) - 1.) * 2. * y * (x**2 - 1.)**2 * (y**2 - 1.), - beta * (exp(t_f - t) - 1.) * 2. * x * (x**2 - 1.) * (y**2 - 1.)**2])  # noqa: E501
+        zeta = as_vector([0.0, 0.0])  # noqa: E501
 
         return zeta
 
@@ -4112,27 +4087,10 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
         X = SpatialCoordinate(mesh)
 
         v, v_xy = ref_sol_v(*X, t)
-        zeta = ref_sol_zeta(*X, t)
-
-        zeta_0 = zeta[0]
-        zeta_1 = zeta[1]
-        dzeta0dx = zeta_0.dx(0)
-        dzeta0dy = zeta_0.dx(1)
-        dzeta1dx = zeta_1.dx(0)
-        dzeta1dy = zeta_1.dx(1)
-
-        v_0 = v[0]
-        v_1 = v[1]
-
-        wind_0 = v_0 * dzeta0dx + v_1 * dzeta0dy
-        wind_1 = v_0 * dzeta1dx + v_1 * dzeta1dy
-
-        v_d_0 = -nu * (dzeta0dx.dx(0) + dzeta0dy.dx(1)) + v[0] + zeta[0] - wind_0  # noqa: E501
-        v_d_1 = -nu * (dzeta1dx.dx(0) + dzeta1dy.dx(1)) + v[1] + zeta[1] - wind_1  # noqa: E501
 
         # desired state
         v_d = Function(space)
-        v_d.interpolate(as_vector([v_d_0, v_d_1]))
+        v_d.interpolate(v)
 
         true_v = Function(space)
         true_v.interpolate(v)
@@ -4163,15 +4121,13 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
         X = SpatialCoordinate(mesh)
 
         v, v_xy = ref_sol_v(*X, t)
-        zeta = ref_sol_zeta(*X, t)
 
         # force function
         f = Function(space)
         f.interpolate(
             - 0.5 * nu * div(grad(v) + ufl.transpose(grad(v)))
             + grad(v) * v
-            - 0.5 * pi * sin(pi * t / 2.0) * v_xy
-            - 1.0 / beta * zeta)
+            - 0.5 * pi * sin(pi * t / 2.0) * v_xy)
 
         return inner(f, test) * dx
 
@@ -4297,10 +4253,7 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
         return v, v_xy
 
     def ref_sol_zeta(x_1, x_2, t):
-        x = x_1 - 1.0
-        y = x_2 - 1.0
-
-        zeta = as_vector([beta * (exp(t_f - t) - 1.) * 2. * y * (x**2 - 1.)**2 * (y**2 - 1.), - beta * (exp(t_f - t) - 1.) * 2. * x * (x**2 - 1.) * (y**2 - 1.)**2])  # noqa: E501
+        zeta = as_vector([0.0, 0.0])  # noqa: E501
 
         return zeta
 
@@ -4330,27 +4283,10 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
         X = SpatialCoordinate(mesh)
 
         v, v_xy = ref_sol_v(*X, t)
-        zeta = ref_sol_zeta(*X, t)
-
-        zeta_0 = zeta[0]
-        zeta_1 = zeta[1]
-        dzeta0dx = zeta_0.dx(0)
-        dzeta0dy = zeta_0.dx(1)
-        dzeta1dx = zeta_1.dx(0)
-        dzeta1dy = zeta_1.dx(1)
-
-        v_0 = v[0]
-        v_1 = v[1]
-
-        wind_0 = v_0 * dzeta0dx + v_1 * dzeta0dy
-        wind_1 = v_0 * dzeta1dx + v_1 * dzeta1dy
-
-        v_d_0 = -nu * (dzeta0dx.dx(0) + dzeta0dy.dx(1)) + v[0] + zeta[0] - wind_0  # noqa: E501
-        v_d_1 = -nu * (dzeta1dx.dx(0) + dzeta1dy.dx(1)) + v[1] + zeta[1] - wind_1  # noqa: E501
 
         # desired state
         v_d = Function(space)
-        v_d.interpolate(as_vector([v_d_0, v_d_1]))
+        v_d.interpolate(v)
 
         true_v = Function(space)
         true_v.interpolate(v)
@@ -4381,15 +4317,13 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
         X = SpatialCoordinate(mesh)
 
         v, v_xy = ref_sol_v(*X, t)
-        zeta = ref_sol_zeta(*X, t)
 
         # force function
         f = Function(space)
         f.interpolate(
             - 0.5 * nu * div(grad(v) + ufl.transpose(grad(v)))
             + grad(v) * v
-            - 0.5 * pi * sin(pi * t / 2.0) * v_xy
-            - 1.0 / beta * zeta)
+            - 0.5 * pi * sin(pi * t / 2.0) * v_xy)
 
         return inner(f, test) * dx
 
@@ -4515,10 +4449,7 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE():
         return v, v_xy
 
     def ref_sol_zeta(x_1, x_2, t):
-        x = x_1 - 1.0
-        y = x_2 - 1.0
-
-        zeta = as_vector([beta * (exp(t_f - t) - 1.) * 2. * y * (x**2 - 1.)**2 * (y**2 - 1.), - beta * (exp(t_f - t) - 1.) * 2. * x * (x**2 - 1.) * (y**2 - 1.)**2])  # noqa: E501
+        zeta = as_vector([0.0, 0.0])  # noqa: E501
 
         return zeta
 
@@ -4548,27 +4479,10 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE():
         X = SpatialCoordinate(mesh)
 
         v, v_xy = ref_sol_v(*X, t)
-        zeta = ref_sol_zeta(*X, t)
-
-        zeta_0 = zeta[0]
-        zeta_1 = zeta[1]
-        dzeta0dx = zeta_0.dx(0)
-        dzeta0dy = zeta_0.dx(1)
-        dzeta1dx = zeta_1.dx(0)
-        dzeta1dy = zeta_1.dx(1)
-
-        v_0 = v[0]
-        v_1 = v[1]
-
-        wind_0 = v_0 * dzeta0dx + v_1 * dzeta0dy
-        wind_1 = v_0 * dzeta1dx + v_1 * dzeta1dy
-
-        v_d_0 = -nu * (dzeta0dx.dx(0) + dzeta0dy.dx(1)) + v[0] + zeta[0] - wind_0  # noqa: E501
-        v_d_1 = -nu * (dzeta1dx.dx(0) + dzeta1dy.dx(1)) + v[1] + zeta[1] - wind_1  # noqa: E501
 
         # desired state
         v_d = Function(space)
-        v_d.interpolate(as_vector([v_d_0, v_d_1]))
+        v_d.interpolate(v)
 
         true_v = Function(space)
         true_v.interpolate(v)
@@ -4599,15 +4513,13 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE():
         X = SpatialCoordinate(mesh)
 
         v, v_xy = ref_sol_v(*X, t)
-        zeta = ref_sol_zeta(*X, t)
 
         # force function
         f = Function(space)
         f.interpolate(
             - 0.5 * nu * div(grad(v) + ufl.transpose(grad(v)))
             + grad(v) * v
-            - 0.5 * pi * sin(pi * t / 2.0) * v_xy
-            - 1.0 / beta * zeta)
+            - 0.5 * pi * sin(pi * t / 2.0) * v_xy)
 
         return inner(f, test) * dx
 
@@ -4733,10 +4645,7 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
         return v, v_xy
 
     def ref_sol_zeta(x_1, x_2, t):
-        x = x_1 - 1.0
-        y = x_2 - 1.0
-
-        zeta = as_vector([beta * (exp(t_f - t) - 1.) * 2. * y * (x**2 - 1.)**2 * (y**2 - 1.), - beta * (exp(t_f - t) - 1.) * 2. * x * (x**2 - 1.) * (y**2 - 1.)**2])  # noqa: E501
+        zeta = as_vector([0.0, 0.0])  # noqa: E501
 
         return zeta
 
@@ -4766,27 +4675,10 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
         X = SpatialCoordinate(mesh)
 
         v, v_xy = ref_sol_v(*X, t)
-        zeta = ref_sol_zeta(*X, t)
-
-        zeta_0 = zeta[0]
-        zeta_1 = zeta[1]
-        dzeta0dx = zeta_0.dx(0)
-        dzeta0dy = zeta_0.dx(1)
-        dzeta1dx = zeta_1.dx(0)
-        dzeta1dy = zeta_1.dx(1)
-
-        v_0 = v[0]
-        v_1 = v[1]
-
-        wind_0 = v_0 * dzeta0dx + v_1 * dzeta0dy
-        wind_1 = v_0 * dzeta1dx + v_1 * dzeta1dy
-
-        v_d_0 = -nu * (dzeta0dx.dx(0) + dzeta0dy.dx(1)) + v[0] + zeta[0] - wind_0  # noqa: E501
-        v_d_1 = -nu * (dzeta1dx.dx(0) + dzeta1dy.dx(1)) + v[1] + zeta[1] - wind_1  # noqa: E501
 
         # desired state
         v_d = Function(space)
-        v_d.interpolate(as_vector([v_d_0, v_d_1]))
+        v_d.interpolate(v)
 
         true_v = Function(space)
         true_v.interpolate(v)
@@ -4817,15 +4709,13 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
         X = SpatialCoordinate(mesh)
 
         v, v_xy = ref_sol_v(*X, t)
-        zeta = ref_sol_zeta(*X, t)
 
         # force function
         f = Function(space)
         f.interpolate(
             - 0.5 * nu * div(grad(v) + ufl.transpose(grad(v)))
             + grad(v) * v
-            - 0.5 * pi * sin(pi * t / 2.0) * v_xy
-            - 1.0 / beta * zeta)
+            - 0.5 * pi * sin(pi * t / 2.0) * v_xy)
 
         return inner(f, test) * dx
 
