@@ -1559,7 +1559,7 @@ def test_instationary_linear_control_CN():
 def test_MMS_instationary_heat_control_BE_convergence_FE():
     degree_range = (1, 3)
     p_range = (2, 6)
-    beta = 10.0 ** -3
+    beta = 1.0
     t_f = 2.0
 
     def ref_sol_v(x, y, t):
@@ -1706,7 +1706,7 @@ def test_MMS_instationary_heat_control_BE_convergence_FE():
 def test_MMS_instationary_heat_control_BE_convergence_time():
     degree_range = (1, 3)
     p_range = (2, 6)
-    beta = 10.0 ** -3
+    beta = 1.0
     t_f = 2.0
 
     def ref_sol_v(x, y, t):
@@ -1853,7 +1853,7 @@ def test_MMS_instationary_heat_control_BE_convergence_time():
 def test_MMS_instationary_heat_control_CN_convergence_FE():
     degree_range = (1, 3)
     p_range = (2, 6)
-    beta = 10.0 ** -3
+    beta = 1.0
     t_f = 2.0
 
     def ref_sol_v(x, y, t):
@@ -2006,7 +2006,7 @@ def test_MMS_instationary_heat_control_CN_convergence_FE():
 def test_MMS_instationary_heat_control_CN_convergence_time():
     degree_range = (1, 3)
     p_range = (2, 6)
-    beta = 10.0 ** -3
+    beta = 1.0
     t_f = 2.0
 
     def ref_sol_v(x, y, t):
