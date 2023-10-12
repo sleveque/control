@@ -3475,9 +3475,8 @@ def test_MMS_instationary_Stokes_control_CN_convergence_FE():
             my_v.assign(my_control_instationary._v)
             my_zeta.assign(my_control_instationary._zeta)
 
-            for i in range(n_t - 1):
-                my_p.sub(i).assign(my_control_instationary._p.sub(i + 1))
-                my_mu.sub(i).assign(my_control_instationary._mu.sub(i))
+            my_p.assign(my_control_instationary._p)
+            my_mu..assign(my_control_instationary._mu)
 
             v_ref = Function(full_space_v_ref, name="v_ref")
             zeta_ref = Function(full_space_v_ref, name="zeta_ref")
@@ -3756,9 +3755,8 @@ def test_MMS_instationary_Stokes_control_CN_convergence_time():
             my_v.assign(my_control_instationary._v)
             my_zeta.assign(my_control_instationary._zeta)
 
-            for i in range(n_t - 1):
-                my_p.sub(i).assign(my_control_instationary._p.sub(i + 1))
-                my_mu.sub(i).assign(my_control_instationary._mu.sub(i))
+            my_p.assign(my_control_instationary._p)
+            my_mu.assign(my_control_instationary._mu)
 
             v_ref = Function(full_space_v_ref, name="v_ref")
             zeta_ref = Function(full_space_v_ref, name="zeta_ref")
@@ -4589,9 +4587,8 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE():
             my_v.assign(my_control_instationary._v)
             my_zeta.assign(my_control_instationary._zeta)
 
-            for i in range(n_t - 1):
-                my_p.sub(i).assign(my_control_instationary._p.sub(i + 1))
-                my_mu.sub(i).assign(my_control_instationary._mu.sub(i))
+            my_p.assign(my_control_instationary._p)
+            my_mu.assign(my_control_instationary._mu)
 
             v_ref = Function(full_space_v_ref, name="v_ref")
             zeta_ref = Function(full_space_v_ref, name="zeta_ref")
@@ -4785,9 +4782,8 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
             my_v.assign(my_control_instationary._v)
             my_zeta.assign(my_control_instationary._zeta)
 
-            for i in range(n_t - 1):
-                my_p.sub(i).assign(my_control_instationary._p.sub(i + 1))
-                my_mu.sub(i).assign(my_control_instationary._mu.sub(i))
+            my_p..assign(my_control_instationary._p)
+            my_mu.assign(my_control_instationary._mu)
 
             v_ref = Function(full_space_v_ref, name="v_ref")
             zeta_ref = Function(full_space_v_ref, name="zeta_ref")
