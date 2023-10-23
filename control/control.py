@@ -109,7 +109,6 @@ class Control:
         def __init__(self, space_v,
                      forward_form, desired_state, force_function, *,
                      beta=10.0**-3, space_p=None, Gauss_Newton=False,
-                     J_v=None, J_u=None,
                      bcs_v=None):
             if bcs_v is None:
                 bcs_v = ()
@@ -125,25 +124,6 @@ class Control:
                 raise TypeError("Space must be a primal space")
 
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
-            if J_v is None:
-                def J_v(v_trial, v_test):
-                    return inner(v_trial, v_test) * dx
-                J_v = J_v
-
-                M_v = inner(v_trial, v_test) * dx
-            else:
-                M_v = J_v(v_trial, v_test)
-            self._J_v = J_v
-
-            if J_u is None:
-                def J_u(v_trial, v_test):
-                    return inner(v_trial, v_test) * dx
-                J_u = J_u
-
-                M_zeta = inner(v_trial, v_test) * dx
-            else:
-                M_zeta = J_u(v_trial, v_test)
-            self._J_u = J_u
 
             self._space_v = space_v
             self._space_p = space_p
@@ -153,8 +133,8 @@ class Control:
             self._beta = beta
             self._bcs_v = bcs_v
 
-            self._M_v = M_v
-            self._M_zeta = M_zeta
+            self._M_v = inner(v_trial, v_test) * dx
+            self._M_zeta = inner(v_trial, v_test) * dx
             self._M_p = None
             self._M_mu = None
 
@@ -172,11 +152,8 @@ class Control:
             if space_p is not None:
                 p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
 
-                M_p = J_v(p_trial, p_test)
-                M_mu = J_u(p_trial, p_test)
-
-                self._M_p = M_p
-                self._M_mu = M_mu
+                self._M_p = inner(p_trial, p_test) * dx
+                self._M_mu = inner(p_trial, p_test) * dx
 
                 p = Function(space_p, name="p")
                 mu = Function(space_p, name="mu")
@@ -189,11 +166,8 @@ class Control:
             self._space_v = space_v
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
 
-            M_v = self._J_v(v_trial, v_test)
-            M_zeta = self._J_u(v_trial, v_test)
-
-            self._M_v = M_v
-            self._M_zeta = M_zeta
+            self._M_v = inner(v_trial, v_test) * dx
+            self._M_zeta = inner(v_trial, v_test) * dx
 
             if v is None:
                 v = Function(space_v, name="v")
@@ -230,11 +204,8 @@ class Control:
             self._space_p = space_p
             p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
 
-            M_p = self._J_v(p_trial, p_test)
-            M_mu = self._J_u(p_trial, p_test)
-
-            self._M_p = M_p
-            self._M_mu = M_mu
+            self._M_p = inner(p_trial, p_test) * dx
+            self._M_mu = inner(p_trial, p_test) * dx
 
             if p is None:
                 p = Function(space_p, name="p")
@@ -262,28 +233,6 @@ class Control:
 
         def set_beta(self, beta):
             self._beta = beta
-
-        def set_J_v(self, J_v):
-            self._J_v = J_v
-            v_test = TestFunction(self._space_v)
-            v_trial = TrialFunction(self._space_v)
-            self._M_v = J_v(v_trial, v_test)
-
-            if self._space_p is not None:
-                p_test = TestFunction(self._space_p)
-                p_trial = TrialFunction(self._space_p)
-                self._M_p = J_v(p_trial, p_test)
-
-        def set_J_u(self, J_u):
-            self._J_u = J_u
-            v_test = TestFunction(self._space_v)
-            v_trial = TrialFunction(self._space_v)
-            self._M_zeta = J_u(v_trial, v_test)
-
-            if self._space_p is not None:
-                p_test = TestFunction(self._space_p)
-                p_trial = TrialFunction(self._space_p)
-                self._M_mu = J_u(p_trial, p_test)
 
         def set_bcs_v(self, bcs_v, space_v=None):
             if space_v is None:
@@ -949,13 +898,13 @@ class Control:
                 if self._M_p is not None:
                     block_00_p = self._M_p
                 else:
-                    block_00_p = self._J_v(p_trial, p_test)
+                    block_00_p = inner(p_trial, p_test) * dx
                 block_10_p = self.construct_D_v(p_trial, p_test, v_old)
                 block_01_p = adjoint(block_10_p)
                 if self._M_mu is not None:
                     block_11_p = - (1.0 / beta) * self._M_mu
                 else:
-                    block_11_p = - (1.0 / beta) * self._J_u(p_trial, p_test)  # noqa: E501
+                    block_11_p = - (1.0 / beta) * inner(p_trial, p_test) * dx
 
                 def pc_fn(u_0, u_1, b_0, b_1):
                     b_0_help = Cofunction(space_v.dual())
@@ -982,8 +931,7 @@ class Control:
                     zeta_help = Function(space_v)
 
                     inner_pc_fn = self.construct_pc(Multigrid, lambda_v_bounds,
-                                                    bcs_v, bcs_zeta,
-                                                    D_v, D_zeta)
+                                                    bcs_v, bcs_zeta, D_v, D_zeta)  # noqa: E501
 
                     try:
                         inner_ksp_solver = inner_system.solve(
@@ -1397,10 +1345,8 @@ class Control:
         def __init__(self, space_v,
                      forward_form, desired_state, force_function, *,
                      beta=10.0**-3, space_p=None, Gauss_Newton=False,
-                     CN=True, n_t=20,
-                     initial_condition=None, time_interval=None,
-                     J_v=None, J_u=None,
-                     bcs_v=None):
+                     CN=True, n_t=20, initial_condition=None,
+                     time_interval=None, bcs_v=None):
             if not isinstance(space_v, FunctionSpaceBase):
                 raise TypeError("Space must be a primal space")
             if space_p is not None \
@@ -1413,25 +1359,6 @@ class Control:
             full_space_v = FunctionSpace(space_v.mesh(), mixed_element_v)
 
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
-            if J_v is None:
-                def J_v(v_trial, v_test):
-                    return inner(v_trial, v_test) * dx
-                J_v = J_v
-
-                M_v = inner(v_trial, v_test) * dx
-            else:
-                M_v = J_v(v_trial, v_test)
-            self._J_v = J_v
-
-            if J_u is None:
-                def J_u(v_trial, v_test):
-                    return inner(v_trial, v_test) * dx
-                J_u = J_u
-
-                M_zeta = inner(v_trial, v_test) * dx
-            else:
-                M_zeta = J_u(v_trial, v_test)
-            self._J_u = J_u
 
             self._space_v = space_v
             self._space_p = space_p
@@ -1465,8 +1392,8 @@ class Control:
                         full_bcs_v[(i)] = tuple(bcs_v_i)
             self._bcs_v = full_bcs_v
 
-            self._M_v = M_v
-            self._M_zeta = M_zeta
+            self._M_v = inner(v_trial, v_test) * dx
+            self._M_zeta = inner(v_trial, v_test) * dx
             self._M_p = None
             self._M_mu = None
 
@@ -1474,10 +1401,6 @@ class Control:
 
             v = Function(full_space_v, name="v")
             zeta = Function(full_space_v, name="zeta")
-
-            if initial_condition is not None:
-                v_test = TestFunction(space_v)
-                v.sub(0).assign(initial_condition(v_test))
 
             for i in range(n_t):
                 bcs_v_i = full_bcs_v[(i)]
@@ -1490,11 +1413,8 @@ class Control:
             if space_p is not None:
                 p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
 
-                M_p = J_v(p_trial, p_test)
-                M_mu = J_u(p_trial, p_test)
-
-                self._M_p = M_p
-                self._M_mu = M_mu
+                self._M_p = inner(p_trial, p_test) * dx
+                self._M_mu = inner(p_trial, p_test) * dx
 
                 if not CN:
                     flattened_space_p = tuple(space_p for i in range(n_t))
@@ -1520,11 +1440,8 @@ class Control:
             self._space_v = space_v
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
 
-            M_v = self._J_v(v_trial, v_test)
-            M_zeta = self._J_u(v_trial, v_test)
-
-            self._M_v = M_v
-            self._M_zeta = M_zeta
+            self._M_v = inner(v_trial, v_test) * dx
+            self._M_zeta = inner(v_trial, v_test) * dx
 
             n_t = self._n_t
 
@@ -1585,11 +1502,8 @@ class Control:
             self._space_p = space_p
             p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
 
-            M_p = self._J_v(p_trial, p_test)
-            M_mu = self._J_u(p_trial, p_test)
-
-            self._M_p = M_p
-            self._M_mu = M_mu
+            self._M_p = inner(p_trial, p_test) * dx
+            self._M_mu = inner(p_trial, p_test) * dx
 
             if not self._CN:
                 flattened_space_p = tuple(space_p for i in range(self._n_t))
@@ -1707,28 +1621,6 @@ class Control:
 
                 self._p = p
                 self._mu = mu
-
-        def set_J_v(self, J_v):
-            self._J_v = J_v
-            v_test = TestFunction(self._space_v)
-            v_trial = TrialFunction(self._space_v)
-            self._M_v = J_v(v_trial, v_test)
-
-            if self._space_p is not None:
-                p_test = TestFunction(self._space_p)
-                p_trial = TrialFunction(self._space_p)
-                self._M_p = J_v(p_trial, p_test)
-
-        def set_J_u(self, J_u):
-            self._J_u = J_u
-            v_test = TestFunction(self._space_v)
-            v_trial = TrialFunction(self._space_v)
-            self._M_zeta = J_u(v_trial, v_test)
-
-            if self._space_p is not None:
-                p_test = TestFunction(self._space_p)
-                p_trial = TrialFunction(self._space_p)
-                self._M_mu = J_u(p_trial, p_test)
 
         def set_bcs_v(self, bcs_v, space_v=None):
             if space_v is None:
@@ -1874,49 +1766,50 @@ class Control:
 
             tau = (T_f - t_0) / (n_t - 1.0)
 
+            # constructing the solver for the (1,1)-block
+            if Multigrid:
+                solver_0 = LinearSolver(
+                    assemble(self._M_v,
+                             bcs=bcs_v),
+                    solver_parameters={
+                        "ksp_type": "preonly",
+                        "pc_type": "hypre",
+                        "pc_hypre_type": "boomeramg",
+                        "ksp_max_it": 1,
+                        "pc_hypre_boomeramg_max_iter": 2,
+                        "ksp_atol": 0.0,
+                        "ksp_rtol": 0.0})
+            else:
+                if lambda_v_bounds is not None:
+                    e_min = lambda_v_bounds[0]
+                    e_max = lambda_v_bounds[1]
+                    solver_0 = LinearSolver(
+                        assemble(self._M_v,
+                                 bcs=bcs_v),
+                        solver_parameters={
+                            "ksp_type": "chebyshev",
+                            "pc_type": "jacobi",
+                            "ksp_chebyshev_eigenvalues": f"{e_min:.16e}, {e_max:.16e}",  # noqa: E501
+                            "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
+                            "ksp_chebyshev_esteig_steps": 0,
+                            "ksp_chebyshev_esteig_noisy": False,
+                            "ksp_max_it": 20,
+                            "ksp_atol": 0.0,
+                            "ksp_rtol": 0.0})
+                else:
+                    solver_0 = LinearSolver(
+                        assemble(self._M_v,
+                                 bcs=bcs_v),
+                        solver_parameters={"ksp_type": "preonly",
+                                           "pc_type": "jacobi",
+                                           "ksp_max_it": 1,
+                                           "ksp_atol": 0.0,
+                                           "ksp_rtol": 0.0})
+
             # definition of preconditioner
             if self._CN:
                 def pc_linear(u_0, u_1, b_0, b_1):
                     # solving for the (1,1)-block
-                    if Multigrid:
-                        solver_0 = LinearSolver(
-                            assemble(self._M_v,
-                                     bcs=bcs_v),
-                            solver_parameters={
-                                "ksp_type": "preonly",
-                                "pc_type": "hypre",
-                                "pc_hypre_type": "boomeramg",
-                                "ksp_max_it": 1,
-                                "pc_hypre_boomeramg_max_iter": 2,
-                                "ksp_atol": 0.0,
-                                "ksp_rtol": 0.0})
-                    else:
-                        if lambda_v_bounds is not None:
-                            e_min = lambda_v_bounds[0]
-                            e_max = lambda_v_bounds[1]
-                            solver_0 = LinearSolver(
-                                assemble(self._M_v,
-                                         bcs=bcs_v),
-                                solver_parameters={
-                                    "ksp_type": "chebyshev",
-                                    "pc_type": "jacobi",
-                                    "ksp_chebyshev_eigenvalues": f"{e_min:.16e}, {e_max:.16e}",  # noqa: E501
-                                    "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
-                                    "ksp_chebyshev_esteig_steps": 0,
-                                    "ksp_chebyshev_esteig_noisy": False,
-                                    "ksp_max_it": 20,
-                                    "ksp_atol": 0.0,
-                                    "ksp_rtol": 0.0})
-                        else:
-                            solver_0 = LinearSolver(
-                                assemble(self._M_v,
-                                         bcs=bcs_v),
-                                solver_parameters={"ksp_type": "preonly",
-                                                   "pc_type": "jacobi",
-                                                   "ksp_max_it": 1,
-                                                   "ksp_atol": 0.0,
-                                                   "ksp_rtol": 0.0})
-
                     b_0_help = apply_T_1_inv(b_0, space_v, n_t - 1)
 
                     for i in range(n_t - 1):
@@ -2111,45 +2004,6 @@ class Control:
             else:
                 def pc_linear(u_0, u_1, b_0, b_1):
                     # solving for the (1,1)-block
-                    if Multigrid:
-                        solver_0 = LinearSolver(
-                            assemble(self._M_v,
-                                     bcs=bcs_v),
-                            solver_parameters={
-                                "ksp_type": "preonly",
-                                "pc_type": "hypre",
-                                "pc_hypre_type": "boomeramg",
-                                "ksp_max_it": 1,
-                                "pc_hypre_boomeramg_max_iter": 2,
-                                "ksp_atol": 0.0,
-                                "ksp_rtol": 0.0})
-                    else:
-                        if lambda_v_bounds is not None:
-                            e_min = lambda_v_bounds[0]
-                            e_max = lambda_v_bounds[1]
-                            solver_0 = LinearSolver(
-                                assemble(self._M_v,
-                                         bcs=bcs_v),
-                                solver_parameters={
-                                    "ksp_type": "chebyshev",
-                                    "pc_type": "jacobi",
-                                    "ksp_chebyshev_eigenvalues": f"{e_min:.16e}, {e_max:.16e}",  # noqa: E501
-                                    "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
-                                    "ksp_chebyshev_esteig_steps": 0,
-                                    "ksp_chebyshev_esteig_noisy": False,
-                                    "ksp_max_it": 20,
-                                    "ksp_atol": 0.0,
-                                    "ksp_rtol": 0.0})
-                        else:
-                            solver_0 = LinearSolver(
-                                assemble(self._M_v,
-                                         bcs=bcs_v),
-                                solver_parameters={"ksp_type": "preonly",
-                                                   "pc_type": "jacobi",
-                                                   "ksp_max_it": 1,
-                                                   "ksp_atol": 0.0,
-                                                   "ksp_rtol": 0.0})
-
                     for i in range(n_t):
                         b = Cofunction(space_v.dual())
                         b.assign(b_0.sub(i))
@@ -2411,10 +2265,10 @@ class Control:
 
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
 
-            if not self._CN:
-                rhs_0 = Cofunction(full_space_v.dual(), name="rhs_0")
-                rhs_1 = Cofunction(full_space_v.dual(), name="rhs_1")
+            rhs_0 = Cofunction(full_space_v.dual(), name="rhs_0")
+            rhs_1 = Cofunction(full_space_v.dual(), name="rhs_1")
 
+            if not self._CN:
                 D_v_i = self.construct_D_v(v_trial, v_test,
                                            v_old.sub(0), t_0)
                 D_zeta_i = adjoint(D_v_i)
@@ -2468,6 +2322,7 @@ class Control:
 
                 D_v_i = self.construct_D_v(v_trial, v_test,
                                            v_old.sub(n_t - 1), T_f)
+                D_zeta_i = adjoint(D_v_i)
 
                 rhs_1.sub(n_t - 1).assign(tau * f.sub(n_t - 1))
                 b_help = Function(space_v)
@@ -2498,6 +2353,13 @@ class Control:
                 del b_help
                 for bc in bcs_v:
                     bc.apply(rhs_1.sub(n_t - 1))
+
+                b_help = Function(space_v)
+                b_help.assign(zeta_old.sub(n_t - 1))
+                b = assemble(action(tau * D_zeta_i + M_v, b_help))
+                rhs_0.sub(n_t - 1).assign(-b)
+                for bc in bcs_zeta:
+                    bc.apply(rhs_0.sub(n_t - 1))
 
                 for i in range(1, n_t - 1):
                     t = t_0 + i * tau
@@ -2567,9 +2429,6 @@ class Control:
                     for bc in bcs_v:
                         bc.apply(rhs_1.sub(i))
             else:
-                rhs_0 = Cofunction(full_space_v.dual(), name="rhs_0")
-                rhs_1 = Cofunction(full_space_v.dual(), name="rhs_1")
-
                 D_v_i = self.construct_D_v(v_trial, v_test,
                                            v_old.sub(0), t_0)
                 D_v_i_plus = self.construct_D_v(v_trial, v_test,
@@ -3348,7 +3207,8 @@ class Control:
             else:
                 v_0 = Function(space_v, name="v_0")
 
-            v_old.sub(0).assign(v_0)
+            if self._CN:
+                v_old.sub(0).assign(v_0)
             zeta_old.sub(n_t - 1).assign(Constant(0.0))
 
             f = self.construct_f(full_space_v, v_test)
@@ -3367,20 +3227,19 @@ class Control:
             if self._CN:
                 rhs_0, rhs_1 = self.non_linear_res_eval(
                     full_space_v_help, v_old, zeta_old, v_0,
-                    bcs_v, bcs_zeta)
+                    v_d, f, M_v, bcs_v, bcs_zeta)
             else:
                 rhs_0, rhs_1 = self.non_linear_res_eval(
                     full_space_v, v_old, zeta_old, v_0,
                     v_d, f, M_v, bcs_v, bcs_zeta)
 
             if not self._CN:
-                rhs = Function(full_space_v * full_space_v, name="rhs")
+                rhs = Cofunction((full_space_v * full_space_v).dual(), name="rhs")  # noqa: E501
                 for i in range(n_t):
                     rhs.sub(i).assign(rhs_0.sub(i))
                     rhs.sub(n_t + i).assign(rhs_1.sub(i))
             else:
-                rhs = Function(
-                    full_space_v_help * full_space_v_help, name="rhs")
+                rhs = Cofunction((full_space_v_help * full_space_v_help).dual(), name="rhs")  # noqa: E501
                 for i in range(n_t - 1):
                     rhs.sub(i).assign(rhs_0.sub(i))
                     rhs.sub(n_t - 1 + i).assign(rhs_1.sub(i))
@@ -3642,26 +3501,31 @@ class Control:
                 block_10_int = {}
                 block_11_int = {}
 
+                block_00_int_p = {}
+                block_01_int_p = {}
+                block_10_int_p = {}
+                block_11_int_p = {}
+
                 if self._CN:
                     if self._M_p is not None:
                         block_00_p = 0.5 * tau * self._M_p
                     else:
-                        block_00_p = 0.5 * tau * self._J_v(p_trial, p_test)
+                        block_00_p = 0.5 * tau * inner(p_trial, p_test) * dx
                     if self._M_mu is not None:
                         block_11_p = - 0.5 * (tau / beta) * self._M_mu
                     else:
-                        block_11_p = - 0.5 * (tau / beta) * self._J_u(p_trial,
-                                                                      p_test)
+                        block_11_p = - 0.5 * (tau / beta) * inner(p_trial,
+                                                                  p_test) * dx
                 else:
                     if self._M_p is not None:
                         block_00_p = tau * self._M_p
                     else:
-                        block_00_p = tau * self._J_v(p_trial, p_test)
+                        block_00_p = tau * inner(p_trial, p_test) * dx
                     if self._M_mu is not None:
                         block_11_p = - (tau / beta) * self._M_mu
                     else:
-                        block_11_p = - (tau / beta) * self._J_u(p_trial,
-                                                                p_test)
+                        block_11_p = - (tau / beta) * inner(p_trial,
+                                                            p_test) * dx
 
                 K_p = inner(grad(p_trial), grad(p_test)) * dx
                 M_p = inner(p_trial, p_test) * dx
@@ -3701,6 +3565,10 @@ class Control:
                 D_v_i = self.construct_D_v(v_trial, v_test, v_n_help, t)
                 D_zeta_i = adjoint(D_v_i)
 
+                if P is None:
+                    D_p_i = self.construct_D_v(p_trial, p_test, v_n_help, t)
+                    D_mu_i = adjoint(D_p_i)
+
                 if not self._CN:
                     for j in range(n_t):
                         if j == i - 1:
@@ -3714,6 +3582,8 @@ class Control:
                                 block_01_int[(i, j)] = None
                                 block_10_int[(i, j)] = -M_v
                                 block_11_int[(i + 1, j)] = None
+
+                                block_10_int_p[(i, j)] = -M_p
                         elif j == i:
                             block_00[(i, j)] = tau * self._M_v
                             block_00[(i, n_t + j)] = tau * D_zeta_i + M_v
@@ -3725,6 +3595,10 @@ class Control:
                                 block_01_int[(i, j)] = tau * D_zeta_i + M_v
                                 block_10_int[(i, j)] = tau * D_v_i + M_v
                                 block_11_int[(i + 1, j)] = None
+
+                                block_00_int_p[(i, j)] = block_00_p
+                                block_01_int_p[(i, j)] = tau * D_mu_i + M_p
+                                block_10_int_p[(i, j)] = tau * D_p_i + M_p
                         elif j == i + 1:
                             block_00[(i, j)] = None
                             block_00[(i, n_t + j)] = -M_v
@@ -3736,6 +3610,9 @@ class Control:
                                 block_01_int[(i, j)] = -M_v
                                 block_10_int[(i, j)] = None
                                 block_11_int[(i + 1, j)] = - (tau / beta) * self._M_zeta  # noqa: E501
+
+                                block_01_int_p[(i, j)] = -M_p
+                                block_11_int_p[(i + 1, j)] = block_11_p
                         else:
                             block_00[(i, j)] = None
                             block_00[(i, n_t + j)] = None
@@ -3755,6 +3632,11 @@ class Control:
                                                     v_n_help_plus, t + tau)
                     D_zeta_i_plus = adjoint(D_v_i_plus)
 
+                    if P is None:
+                        D_p_i_plus = self.construct_D_v(
+                            p_trial, p_test, v_n_help_plus, t + tau)
+                        D_mu_i_plus = adjoint(D_p_i_plus)
+
                     for j in range(n_t - 1):
                         if j == i - 1:
                             block_00[(i, j)] = 0.5 * tau * self._M_v
@@ -3767,6 +3649,9 @@ class Control:
                                 block_01_int[(i, j)] = None
                                 block_10_int[(i, j)] = 0.5 * tau * D_v_i - M_v
                                 block_11_int[(i, j)] = None
+
+                                block_00_int_p[(i, j)] = block_00_p
+                                block_10_int_p[(i, j)] = 0.5 * tau * D_p_i - M_p  # noqa: E501
                         elif j == i:
                             block_00[(i, j)] = 0.5 * tau * self._M_v
                             block_00[(i, n_t + j - 1)] = 0.5 * tau * D_zeta_i_plus + M_v  # noqa: E501
@@ -3778,6 +3663,11 @@ class Control:
                                 block_01_int[(i, j)] = 0.5 * tau * D_zeta_i_plus + M_v  # noqa: E501
                                 block_10_int[(i, j)] = 0.5 * tau * D_v_i_plus + M_v  # noqa: E501
                                 block_11_int[(i, j)] = - 0.5 * (tau / beta) * self._M_zeta  # noqa: E501
+
+                                block_00_int_p[(i, j)] = block_00_p
+                                block_01_int_p[(i, j)] = 0.5 * tau * D_mu_i_plus + M_p  # noqa: E501
+                                block_10_int_p[(i, j)] = 0.5 * tau * D_p_i_plus + M_p  # noqa: E501
+                                block_11_int_p[(i, j)] = block_11_p
                         elif j == i + 1:
                             block_00[(i, j)] = None
                             block_00[(i, n_t + j - 1)] = 0.5 * tau * D_zeta_i - M_v  # noqa: E501
@@ -3789,6 +3679,9 @@ class Control:
                                 block_01_int[(i, j)] = 0.5 * tau * D_zeta_i - M_v  # noqa: E501
                                 block_10_int[(i, j)] = None
                                 block_11_int[(i, j)] = - 0.5 * (tau / beta) * self._M_zeta  # noqa: E501
+
+                                block_01_int_p[(i, j)] = 0.5 * tau * D_mu_i - M_p  # noqa: E501
+                                block_11_int_p[(i, j)] = block_11_p
                         else:
                             block_00[(i, j)] = None
                             block_00[(i, n_t + j - 1)] = None
@@ -3807,6 +3700,10 @@ class Control:
 
                 D_v_i = self.construct_D_v(v_trial, v_test, v_n_help, t)
                 D_zeta_i = adjoint(D_v_i)
+
+                if P is None:
+                    D_p_i = self.construct_D_v(p_trial, p_test, v_n_help, t)
+                    D_mu_i = adjoint(D_p_i)
 
                 for j in range(n_t - 2):
                     block_00[(n_t - 1, j)] = None
@@ -3833,6 +3730,13 @@ class Control:
                     block_10_int[(n_t - 1, n_t - 2)] = - M_v
                     block_10_int[(n_t - 1, n_t - 1)] = tau * D_v_i + M_v
 
+                    block_01_int_p[(n_t - 1, n_t - 1)] = tau * D_mu_i + M_p
+                    block_10_int_p[(n_t - 1, n_t - 2)] = - M_p
+                    block_10_int_p[(n_t - 1, n_t - 1)] = tau * D_p_i + M_p
+
+            del block_00_p
+            del block_11_p
+
             if not self._CN:
                 if check_v_d:
                     b_0_0.sub(0).assign(tau * v_d.sub(0))
@@ -3846,7 +3750,7 @@ class Control:
                             b_v.axpy(-1.0, b_1_v)
                         del v_inhom
                         del b_help
-                    for bc in bcs_zeta:
+                    for bc in bcs_v:
                         bc.apply(b_0_0.sub(0))
                 else:
                     b_0_0.sub(0).assign(v_d.sub(0))
@@ -3865,7 +3769,7 @@ class Control:
                             b_v.axpy(-1.0, b_1_v)
                         del v_inhom
                         del b_help
-                    for bc in bcs_v:
+                    for bc in bcs_zeta:
                         bc.apply(b_0_1.sub(0))
                 else:
                     b_0_1.sub(0).assign(f.sub(0))
@@ -4293,71 +4197,44 @@ class Control:
                         b_0_help = Cofunction(full_space_p.dual())
                         b_1_help = Cofunction(full_space_p.dual())
 
-                        for i in range(n_t - 1):
-                            v_n_help = Function(space_v)
-                            v_n_help_plus = Function(space_v)
+                        p_help = Function(space_p)
+                        mu_help = Function(space_p)
 
-                            p_help = Function(space_p)
-                            mu_help = Function(space_p)
-
-                            t = t_0 + i * tau
-
-                            v_n_help.assign(v_old.sub(i))
-                            D_p_i = self.construct_D_v(p_trial, p_test,
-                                                       v_n_help, t)
-                            D_mu_i = adjoint(D_p_i)
-
-                            v_n_help_plus.assign(v_old.sub(i + 1))
-                            D_p_i_plus = self.construct_D_v(
-                                p_trial, p_test, v_n_help_plus, t + tau)
-                            D_mu_i_plus = adjoint(D_p_i_plus)
-
-                            p_help.assign(u_1.sub(i))
-                            b_help = assemble(action(block_00_p, p_help))
-                            b_0_help.sub(i).assign(b_help)
-
-                            b_help = assemble(
-                                action(0.5 * tau * D_p_i_plus + M_p, p_help))
-                            b_1_help.sub(i).assign(b_help)
-
-                            if i > 0:
-                                p_help.assign(u_1.sub(i - 1))
-                                b_help = assemble(action(block_00_p, p_help))
+                        for (i, j), block_ij_p in block_00_int_p.items():
+                            if block_ij_p is not None:
+                                p_help.assign(u_1.sub(j))
+                                b_help = assemble(action(block_ij_p, p_help))
                                 with b_0_help.sub(i).dat.vec as b_v, \
-                                        b_help.dat.vec_ro as b_1_v:
-                                    b_v.axpy(1.0, b_1_v)
+                                        b_help.dat.vec_ro as b_v_1:
+                                    b_v.axpy(1.0, b_v_1)
+                                del b_help
 
-                                b_help = assemble(
-                                    action(0.5 * tau * D_p_i - M_p, p_help))
-                                with b_1_help.sub(i).dat.vec as b_v, \
-                                        b_help.dat.vec_ro as b_1_v:
-                                    b_v.axpy(1.0, b_1_v)
-
-                            mu_help.assign(u_1.sub(n_t - 1 + i))
-                            b_help = assemble(action(0.5 * tau * D_mu_i + M_p,
-                                                     mu_help))
-                            with b_0_help.sub(i).dat.vec as b_v, \
-                                    b_help.dat.vec_ro as b_1_v:
-                                b_v.axpy(1.0, b_1_v)
-
-                            b_help = assemble(action(block_11_p, mu_help))
-                            with b_1_help.sub(i).dat.vec as b_v, \
-                                    b_help.dat.vec_ro as b_1_v:
-                                b_v.axpy(1.0, b_1_v)
-
-                            if i < n_t - 2:
-                                mu_help.assign(u_1.sub(n_t + i))
-                                b_help = assemble(
-                                    action(0.5 * tau * D_mu_i_plus - M_p,
-                                           mu_help))
+                        for (i, j), block_ij_p in block_01_int_p.items():
+                            if block_ij_p is not None:
+                                mu_help.assign(u_1.sub(n_t - 1 + j))
+                                b_help = assemble(action(block_ij_p, mu_help))
                                 with b_0_help.sub(i).dat.vec as b_v, \
-                                        b_help.dat.vec_ro as b_1_v:
-                                    b_v.axpy(1.0, b_1_v)
+                                        b_help.dat.vec_ro as b_v_1:
+                                    b_v.axpy(1.0, b_v_1)
+                                del b_help
 
-                                b_help = assemble(action(block_11_p, mu_help))
+                        for (i, j), block_ij_p in block_10_int_p.items():
+                            if block_ij_p is not None:
+                                p_help.assign(u_1.sub(j))
+                                b_help = assemble(action(block_ij_p, p_help))
                                 with b_1_help.sub(i).dat.vec as b_v, \
-                                        b_help.dat.vec_ro as b_1_v:
-                                    b_v.axpy(1.0, b_1_v)
+                                        b_help.dat.vec_ro as b_v_1:
+                                    b_v.axpy(1.0, b_v_1)
+                                del b_help
+
+                        for (i, j), block_ij_p in block_11_int_p.items():
+                            if block_ij_p is not None:
+                                mu_help.assign(u_1.sub(n_t - 1 + j))
+                                b_help = assemble(action(block_ij_p, mu_help))
+                                with b_1_help.sub(i).dat.vec as b_v, \
+                                        b_help.dat.vec_ro as b_v_1:
+                                    b_v.axpy(1.0, b_v_1)
+                                del b_help
 
                         del p_help
                         del mu_help
@@ -4489,77 +4366,45 @@ class Control:
                         b_0_help = Cofunction(full_space_p.dual())
                         b_1_help = Cofunction(full_space_p.dual())
 
-                        for i in range(n_t - 1):
-                            v_n_help = Function(space_v)
+                        p_help = Function(space_p)
+                        mu_help = Function(space_p)
 
-                            p_help = Function(space_p)
-                            mu_help = Function(space_p)
+                        for (i, j), block_ij_p in block_00_int_p.items():
+                            if block_ij_p is not None:
+                                p_help.assign(u_1.sub(j))
+                                b_help = assemble(action(block_ij_p, p_help))
+                                with b_0_help.sub(i).dat.vec as b_v, \
+                                        b_help.dat.vec_ro as b_v_1:
+                                    b_v.axpy(1.0, b_v_1)
+                                del b_help
 
-                            t = t_0 + i * tau
+                        for (i, j), block_ij_p in block_01_int_p.items():
+                            if block_ij_p is not None:
+                                mu_help.assign(u_1.sub(n_t + j))
+                                b_help = assemble(action(block_ij_p, mu_help))
+                                with b_0_help.sub(i).dat.vec as b_v, \
+                                        b_help.dat.vec_ro as b_v_1:
+                                    b_v.axpy(1.0, b_v_1)
+                                del b_help
 
-                            v_n_help.assign(v_old.sub(i))
-                            D_p_i = self.construct_D_v(p_trial, p_test,
-                                                       v_n_help, t)
-                            D_mu_i = adjoint(D_p_i)
-
-                            p_help.assign(u_1.sub(i))
-                            mu_help.assign(u_1.sub(n_t + i))
-                            b_help = assemble(action(block_00_p, p_help))
-                            b_0_help.sub(i).assign(b_help)
-
-                            b_help = assemble(action(tau * D_p_i + M_p,
-                                                     p_help))
-                            b_1_help.sub(i).assign(b_help)
-
-                            if i > 0:
-                                p_help.assign(u_1.sub(i - 1))
-                                b_help = assemble(action(M_p, p_help))
+                        for (i, j), block_ij_p in block_10_int_p.items():
+                            if block_ij_p is not None:
+                                p_help.assign(u_1.sub(j))
+                                b_help = assemble(action(block_ij_p, p_help))
                                 with b_1_help.sub(i).dat.vec as b_v, \
-                                        b_help.dat.vec_ro as b_1_v:
-                                    b_v.axpy(-1.0, b_1_v)
+                                        b_help.dat.vec_ro as b_v_1:
+                                    b_v.axpy(1.0, b_v_1)
+                                del b_help
 
-                                b_help = assemble(action(block_11_p, mu_help))
+                        for (i, j), block_ij_p in block_11_int_p.items():
+                            if block_ij_p is not None:
+                                mu_help.assign(u_1.sub(n_t + j))
+                                b_help = assemble(action(block_ij_p, mu_help))
                                 with b_1_help.sub(i).dat.vec as b_v, \
-                                        b_help.dat.vec_ro as b_1_v:
-                                    b_v.axpy(1.0, b_1_v)
+                                        b_help.dat.vec_ro as b_v_1:
+                                    b_v.axpy(1.0, b_v_1)
+                                del b_help
 
-                            b_help = assemble(action(tau * D_mu_i + M_p,
-                                                     mu_help))
-                            with b_0_help.sub(i).dat.vec as b_v, \
-                                    b_help.dat.vec_ro as b_1_v:
-                                b_v.axpy(1.0, b_1_v)
-
-                            mu_help.assign(u_1.sub(n_t + i + 1))
-                            b_help = assemble(action(M_p, mu_help))
-                            with b_0_help.sub(i).dat.vec as b_v, \
-                                    b_help.dat.vec_ro as b_1_v:
-                                b_v.axpy(-1.0, b_1_v)
-
-                        v_n_help.assign(v_old.sub(n_t - 1))
-                        D_p_i = self.construct_D_v(p_trial, p_test,
-                                                   v_n_help, T_f)
-                        D_mu_i = adjoint(D_p_i)
-
-                        p_help.assign(u_1.sub(n_t - 1))
-                        b_help = assemble(action(tau * D_p_i + M_p, p_help))
-                        b_1_help.sub(n_t - 1).assign(b_help)
-
-                        p_help.assign(u_1.sub(n_t - 2))
-                        b_help = assemble(action(M_p, p_help))
-                        with b_1_help.sub(n_t - 1).dat.vec as b_v, \
-                                b_help.dat.vec_ro as b_1_v:
-                            b_v.axpy(-1.0, b_1_v)
-
-                        mu_help.assign(u_1.sub(2 * n_t - 1))
-                        b_help = assemble(action(block_11_p, mu_help))
-                        with b_1_help.sub(n_t - 1).dat.vec as b_v, \
-                                b_help.dat.vec_ro as b_1_v:
-                            b_v.axpy(1.0, b_1_v)
-
-                        b_help = assemble(action(tau * D_mu_i + M_p, mu_help))
-                        b_0_help.sub(n_t - 1).assign(b_help)
-
-                        del b_help
                         del p_help
                         del mu_help
 
@@ -4843,8 +4688,8 @@ class Control:
             else:
                 v_0 = Function(space_v, name="v_0")
 
-            v_old.sub(0).assign(v_0)
-
+            if self._CN:
+                v_old.sub(0).assign(v_0)
             zeta_old.sub(n_t - 1).assign(Constant(0.0))
 
             f = self.construct_f(full_space_v, v_test)
@@ -4884,76 +4729,31 @@ class Control:
                 del rhs_1
 
                 if not self._CN:
-                    b_p_help = Function(space_p)
-                    b_p_help.assign(mu_old.sub(0))
-                    b = assemble(action(tau * B_T, b_p_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_00.sub(0).dat.vec as b_0_v:
-                        b_0_v.axpy(-1.0, b_v)
-                    del b
-                    del b_p_help
+                    for i in range(n_t):
+                        b_p_help = Function(space_p)
+                        b_p_help.assign(mu_old.sub(i))
+                        b = assemble(action(tau * B_T, b_p_help))
+                        with b.dat.vec_ro as b_v, \
+                                rhs_00.sub(i).dat.vec as b_0_v:
+                            b_0_v.axpy(-1.0, b_v)
+                        del b
+                        del b_p_help
 
-                    b_help = Function(space_v)
-                    b_help.assign(zeta_old.sub(0))
-                    b = assemble(action(tau * B, b_help))
-                    rhs_11.sub(0).assign(-b)
-                    del b
-                    del b_help
+                        for bc in bcs_v:
+                            bc.apply(rhs_00.sub(i))
 
-                    for bc in bcs_zeta:
-                        bc.apply(rhs_00.sub(0))
+                        b_p_help = Function(space_p)
+                        b_p_help.assign(p_old.sub(i))
+                        b = assemble(action(tau * B_T, b_p_help))
+                        with b.dat.vec_ro as b_v, \
+                                rhs_01.sub(i).dat.vec as b_0_v:
+                            b_0_v.axpy(-1.0, b_v)
+                        del b
+                        del b_p_help
 
-                    b_help = Function(space_v)
-                    b_help.assign(v_old.sub(n_t - 1))
-                    b = assemble(action(tau * B, b_help))
-                    rhs_10.sub(n_t - 1).assign(-b)
-                    del b
-                    del b_help
+                        for bc in bcs_zeta:
+                            bc.apply(rhs_01.sub(i))
 
-                    b_p_help = Function(space_p)
-                    b_p_help.assign(mu_old.sub(n_t - 1))
-                    b = assemble(action(tau * B_T, b_p_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_00.sub(n_t - 1).dat.vec as b_0_v:
-                        b_0_v.axpy(-1.0, b_v)
-                    del b
-                    del b_p_help
-
-                    for bc in bcs_zeta:
-                        bc.apply(rhs_00.sub(n_t - 1))
-
-                    b_p_help = Function(space_p)
-                    b_p_help.assign(p_old.sub(0))
-                    b = assemble(action(tau * B_T, b_p_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_01.sub(0).dat.vec as b_1_v:
-                        b_1_v.axpy(-1.0, b_v)
-                    del b
-                    del b_p_help
-
-                    for bc in bcs_v:
-                        bc.apply(rhs_01.sub(0))
-
-                    b_help = Function(space_v)
-                    b_help.assign(v_old.sub(0))
-                    b = assemble(action(tau * B, b_help))
-                    rhs_10.sub(0).assign(-b)
-                    del b
-                    del b_help
-
-                    b_p_help = Function(space_p)
-                    b_p_help.assign(p_old.sub(n_t - 1))
-                    b = assemble(action(tau * B_T, b_p_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_01.sub(n_t - 1).dat.vec as b_1_v:
-                        b_1_v.axpy(-1.0, b_v)
-                    del b
-                    del b_p_help
-
-                    for bc in bcs_v:
-                        bc.apply(rhs_01.sub(n_t - 1))
-
-                    for i in range(1, n_t - 1):
                         b_help = Function(space_v)
                         b_help.assign(v_old.sub(i))
                         b = assemble(action(tau * B, b_help))
@@ -4961,6 +4761,14 @@ class Control:
                         del b
                         del b_help
 
+                        b_help = Function(space_v)
+                        b_help.assign(zeta_old.sub(i))
+                        b = assemble(action(tau * B, b_help))
+                        rhs_11.sub(i).assign(-b)
+                        del b
+                        del b_help
+                else:
+                    for i in range(0, n_t - 1):
                         b_p_help = Function(space_p)
                         b_p_help.assign(mu_old.sub(i))
                         b = assemble(action(tau * B_T, b_p_help))
@@ -4982,55 +4790,9 @@ class Control:
                         del b
                         del b_p_help
 
-                        b_help = Function(space_v)
-                        b_help.assign(zeta_old.sub(i))
-                        b = assemble(action(tau * B, b_help))
-                        rhs_11.sub(i).assign(-b)
-                        del b
-                        del b_help
-
                         for bc in bcs_v:
                             bc.apply(rhs_01.sub(i))
-                else:
-                    b_help = Function(space_v)
-                    b_help.assign(v_old.sub(1))
-                    b = assemble(action(tau * B, b_help))
-                    rhs_10.sub(0).assign(-b)
-                    del b
-                    del b_help
 
-                    b_p_help = Function(space_p)
-                    b_p_help.assign(mu_old.sub(0))
-                    b = assemble(action(tau * B_T, b_p_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_00.sub(0).dat.vec as b_0_v:
-                        b_0_v.axpy(-1.0, b_v)
-                    del b
-                    del b_p_help
-
-                    for bc in bcs_zeta:
-                        bc.apply(rhs_00.sub(0))
-
-                    b_help = Function(space_v)
-                    b_help.assign(zeta_old.sub(0))
-                    b = assemble(action(tau * B, b_help))
-                    rhs_11.sub(0).assign(-b)
-                    del b
-                    del b_help
-
-                    b_p_help = Function(space_p)
-                    b_p_help.assign(p_old.sub(0))
-                    b = assemble(action(tau * B_T, b_p_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_01.sub(0).dat.vec as b_0_v:
-                        b_0_v.axpy(-1.0, b_v)
-                    del b
-                    del b_p_help
-
-                    for bc in bcs_v:
-                        bc.apply(rhs_01.sub(0))
-
-                    for i in range(1, n_t - 1):
                         b_help = Function(space_v)
                         b_help.assign(v_old.sub(i + 1))
                         b = assemble(action(tau * B, b_help))
@@ -5044,30 +4806,6 @@ class Control:
                         rhs_11.sub(i).assign(-b)
                         del b
                         del b_help
-
-                        b_p_help = Function(space_p)
-                        b_p_help.assign(mu_old.sub(i))
-                        b = assemble(action(tau * B_T, b_p_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_00.sub(i).dat.vec as b_0_v:
-                            b_0_v.axpy(-1.0, b_v)
-                        del b
-                        del b_p_help
-
-                        for bc in bcs_zeta:
-                            bc.apply(rhs_00.sub(i))
-
-                        b_p_help = Function(space_p)
-                        b_p_help.assign(p_old.sub(i))
-                        b = assemble(action(tau * B_T, b_p_help))
-                        with b.dat.vec_ro as b_v, \
-                                rhs_01.sub(i).dat.vec as b_0_v:
-                            b_0_v.axpy(-1.0, b_v)
-                        del b
-                        del b_p_help
-
-                        for bc in bcs_v:
-                            bc.apply(rhs_01.sub(i))
 
                 return rhs_00, rhs_01, rhs_10, rhs_11
 
