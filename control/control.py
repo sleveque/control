@@ -127,6 +127,7 @@ class Control:
 
             self._space_v = space_v
             self._space_p = space_p
+            self._comm = space_v.mesh().comm
             self._forward_form = forward_form
             self._desired_state = desired_state
             self._force_function = force_function
@@ -294,6 +295,12 @@ class Control:
             v_err = self._v - true_v
             print('estimated error in the L2-norm: ',
                   sqrt(abs(assemble(inner(v_err, v_err) * dx))))
+
+            del v_d
+            del true_v
+            del v_err
+
+            PETSc.garbage_cleanup(self._comm)
 
         def construct_D_v(self, v_trial, v_test, v_old):
             if not self._Gauss_Newton:
@@ -509,10 +516,16 @@ class Control:
             if f is None:
                 f = self.construct_f(inhomogeneous_bcs_v, v_test,
                                      D_v, v_inhom, bcs_v)
+                check_f = True
+            else:
+                check_f = False
 
             if v_d is None:
                 v_d, true_v = self.construct_v_d(v_test, inhomogeneous_bcs_v,
                                                  v_inhom, bcs_v)
+                check_v_d = True
+            else:
+                check_v_d = False
 
             if P is None:
                 pc_fn = self.construct_pc(Multigrid, lambda_v_bounds,
@@ -559,8 +572,20 @@ class Control:
             self.set_v(v)
             self.set_zeta(zeta)
 
+            del v
+            del zeta
+            if check_v_d:
+                del v_d
+                del true_v
+            if check_f:
+                del f
+            del system
+            del pc_fn
+
             if print_error:
                 self.print_error(v_test)
+
+            PETSc.garbage_cleanup(self._comm)
 
             if create_output:
                 v_output = File("v.pvd")
@@ -677,6 +702,13 @@ class Control:
                     bc.apply(zeta_old)
                 self.set_zeta(zeta_old)
 
+                del D_v
+                del D_zeta
+                del rhs_0
+                del rhs_1
+
+                PETSc.garbage_cleanup(self._comm)
+
                 D_v = self.construct_D_v(v_trial, v_test, v_old)
                 D_zeta = adjoint(D_v)
 
@@ -694,6 +726,20 @@ class Control:
                 if k + 1 > max_non_linear_iter:
                     break
 
+            del v_old
+            del zeta_old
+            del delta_v
+            del delta_zeta
+            del D_v
+            del D_zeta
+            del M_zeta
+            del rhs_0
+            del rhs_1
+            del rhs
+            del f
+            del v_d
+            del true_v
+
             if print_error_non_linear:
                 if norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol:  # noqa: E501
                     print('relative non-linear residual: ', norm_k / norm_0)
@@ -704,6 +750,8 @@ class Control:
                     print('relative non-linear residual: ', norm_k / norm_0)
                     print('absolute non-linear residual: ', norm_k)
                 self.print_error(v_test)
+
+            PETSc.garbage_cleanup(self._comm)
 
             if create_output:
                 v_output = File("v.pvd")
@@ -796,18 +844,30 @@ class Control:
             if f is None:
                 f = self.construct_f(inhomogeneous_bcs_v, v_test,
                                      D_v, v_inhom, bcs_v)
+                check_f = True
+            else:
+                check_f = False
 
             if v_d is None:
                 v_d, true_v = self.construct_v_d(v_test, inhomogeneous_bcs_v,
                                                  v_inhom, bcs_v)
+                check_v_d = True
+            else:
+                check_v_d = False
 
             if div_v is None:
                 div_v = Function(space_p)
                 if inhomogeneous_bcs_v:
                     div_v = assemble(- action(B, v_inhom))
+                check_div_v = True
+            else:
+                check_div_v = False
 
             if div_zeta is None:
                 div_zeta = Cofunction(space_p.dual())
+                check_div_zeta = True
+            else:
+                check_div_zeta = False
 
             b_0 = Cofunction(space_0.dual(), name="b_0")
             b_1 = Cofunction(space_1.dual(), name="b_1")
@@ -941,9 +1001,6 @@ class Control:
                     except ConvergenceError:
                         assert inner_ksp_solver.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
 
-                    del b_0_help
-                    del b_1_help
-
                     u_0.sub(0).assign(v_help)
                     u_0.sub(1).assign(zeta_help)
 
@@ -958,8 +1015,11 @@ class Control:
                     with b_1_help.dat.vec as b_v, \
                             b_1.sub(1).dat.vec_ro as b_1_v:
                         b_v.axpy(-1.0, b_1_v)
+
                     del v_help
                     del zeta_help
+                    del inner_system
+                    del inner_pc_fn
 
                     # solving for the Schur complement approximation
                     try:
@@ -1004,6 +1064,8 @@ class Control:
 
                     del b_0_help
                     del b_1_help
+
+                    PETSc.garbage_cleanup(self._comm)
             else:
                 pc_fn = P
 
@@ -1014,6 +1076,8 @@ class Control:
                                      "relative_tolerance": 1.0e-6,
                                      "absolute_tolerance": 0.0,
                                      "monitor_convergence": print_error}
+
+            PETSc.garbage_cleanup(self._comm)
 
             u_0_sol = Function(space_0)
             u_1_sol = Function(space_1)
@@ -1045,8 +1109,32 @@ class Control:
             self.set_p(p)
             self.set_mu(mu)
 
+            del v
+            del zeta
+            del p
+            del mu
+            del u_0_sol
+            del u_1_sol
+            if check_v_d:
+                del v_d
+                del true_v
+            if check_f:
+                del f
+            if not (check_f and check_v_d):
+                del b_0
+            if check_div_v:
+                del div_v
+            if check_div_zeta:
+                del div_zeta
+            if not (check_div_v and check_div_zeta):
+                del b_1
+            del system
+            del pc_fn
+
             if print_error:
                 self.print_error(v_test)
+
+            PETSc.garbage_cleanup(self._comm)
 
             if create_output:
                 v_output = File("v.pvd")
@@ -1266,6 +1354,15 @@ class Control:
                     b_1_v.axpy(1.0, b_v)
                 self.set_mu(mu_old)
 
+                del D_v
+                del D_zeta
+                del rhs_00
+                del rhs_01
+                del rhs_10
+                del rhs_11
+
+                PETSc.garbage_cleanup(self._comm)
+
                 D_v = self.construct_D_v(v_trial, v_test, v_old)
                 D_zeta = adjoint(D_v)
 
@@ -1283,6 +1380,28 @@ class Control:
                 if k + 1 > max_non_linear_iter:
                     break
 
+            del v_old
+            del zeta_old
+            del p_old
+            del mu_old
+            del delta_v
+            del delta_zeta
+            del delta_p
+            del delta_mu
+            del D_v
+            del D_zeta
+            del M_zeta
+            del B
+            del B_T
+            del f
+            del v_d
+            del true_v
+            del rhs_00
+            del rhs_01
+            del rhs_10
+            del rhs_11
+            del rhs
+
             if print_error_non_linear:
                 if norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol:  # noqa: E501
                     print('relative non-linear residual: ', norm_k / norm_0)
@@ -1293,6 +1412,8 @@ class Control:
                     print('relative non-linear residual: ', norm_k / norm_0)
                     print('absolute non-linear residual: ', norm_k)
                 self.print_error(v_test)
+
+            PETSc.garbage_cleanup(self._comm)
 
             if create_output:
                 v_output = File("v.pvd")
@@ -1362,6 +1483,7 @@ class Control:
 
             self._space_v = space_v
             self._space_p = space_p
+            self._comm = space_v.mesh().comm
             self._forward_form = forward_form
             self._desired_state = desired_state
             self._force_function = force_function
@@ -1711,6 +1833,13 @@ class Control:
             error = sqrt(tau) * sqrt(abs(assemble(
                 inner(v_err, v_err) * dx)))
             print('estimated error in the L2-norm: ', error)
+
+            del v_d_i
+            del true_v_i
+            del true_v
+            del v_err
+
+            PETSc.garbage_cleanup(self._comm)
 
         def construct_D_v(self, v_trial, v_test, v_n_help, t):
             if not self._Gauss_Newton:
@@ -2611,6 +2740,8 @@ class Control:
                     for bc in bcs_v:
                         bc.apply(rhs_1.sub(i))
 
+            PETSc.garbage_cleanup(self._comm)
+
             return rhs_0, rhs_1
 
         def linear_solve(self, *,
@@ -2745,12 +2876,12 @@ class Control:
                             block_11[(i, j)] = None
                         elif j == i:
                             block_00[(i, j)] = 0.5 * tau * self._M_v
-                            block_01[(i, j)] = 0.5 * tau * D_zeta_i_plus + M_v
+                            block_01[(i, j)] = 0.5 * tau * D_zeta_i + M_v
                             block_10[(i, j)] = 0.5 * tau * D_v_i_plus + M_v
                             block_11[(i, j)] = - 0.5 * (tau / beta) * self._M_zeta  # noqa: E501
                         elif j == i + 1:
                             block_00[(i, j)] = None
-                            block_01[(i, j)] = 0.5 * tau * D_zeta_i - M_v
+                            block_01[(i, j)] = 0.5 * tau * D_zeta_i_plus - M_v
                             block_10[(i, j)] = None
                             block_11[(i, j)] = - 0.5 * (tau / beta) * self._M_zeta  # noqa: E501
                         else:
@@ -3100,6 +3231,7 @@ class Control:
 
                 if check_f and check_v_d:
                     v_new.sub(0).assign(v_0)
+                    del v_0
 
                 for i in range(n_t - 1):
                     v_new.sub(i + 1).assign(v.sub(i))
@@ -3110,12 +3242,27 @@ class Control:
             else:
                 if check_f and check_v_d:
                     v.sub(0).assign(v_0)
+                    del v_0
 
                 self.set_v(v)
                 self.set_zeta(zeta)
 
+            del v
+            del zeta
+            if check_v_d:
+                del v_d
+                del true_v
+                del b_0
+            if check_f:
+                del f
+                del b_1
+            del system
+            del pc_fn
+
             if print_error:
                 self.print_error(full_space_v, v_test)
+
+            PETSc.garbage_cleanup(self._comm)
 
             if create_output:
                 v_output = File("v.pvd")
@@ -3280,6 +3427,11 @@ class Control:
                 self.set_v(v_old)
                 self.set_zeta(zeta_old)
 
+                del rhs_0
+                del rhs_1
+
+                PETSc.garbage_cleanup(self._comm)
+
                 rhs_0, rhs_1 = self.non_linear_res_eval(
                     full_space_v, v_old, zeta_old, v_0,
                     v_d, f, M_v, bcs_v, bcs_zeta)
@@ -3300,6 +3452,18 @@ class Control:
                 if k + 1 > max_non_linear_iter:
                     break
 
+            del v_old
+            del zeta_old
+            del delta_v
+            del delta_zeta
+            del v_0
+            del rhs_0
+            del rhs_1
+            del rhs
+            del f
+            del v_d
+            del true_v
+
             if print_error_non_linear is True:
                 if (norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol):  # noqa: E501
                     print('relative non-linear residual: ', norm_k / norm_0)
@@ -3310,6 +3474,8 @@ class Control:
                     print('relative non-linear residual: ', norm_k / norm_0)
                     print('absolute non-linear residual: ', norm_k)
                 self.print_error(full_space_v, v_test)
+
+            PETSc.garbage_cleanup(self._comm)
 
             if create_output is True:
                 v_output = File("v.pvd")
@@ -3654,33 +3820,33 @@ class Control:
                                 block_10_int_p[(i, j)] = 0.5 * tau * D_p_i - M_p  # noqa: E501
                         elif j == i:
                             block_00[(i, j)] = 0.5 * tau * self._M_v
-                            block_00[(i, n_t + j - 1)] = 0.5 * tau * D_zeta_i_plus + M_v  # noqa: E501
+                            block_00[(i, n_t + j - 1)] = 0.5 * tau * D_zeta_i + M_v  # noqa: E501
                             block_00[(n_t + i - 1, j)] = 0.5 * tau * D_v_i_plus + M_v  # noqa: E501
                             block_00[(n_t + i - 1, n_t + j - 1)] = - 0.5 * (tau / beta) * self._M_zeta  # noqa: E501
 
                             if P is None:
                                 block_00_int[(i, j)] = 0.5 * tau * self._M_v
-                                block_01_int[(i, j)] = 0.5 * tau * D_zeta_i_plus + M_v  # noqa: E501
+                                block_01_int[(i, j)] = 0.5 * tau * D_zeta_i + M_v  # noqa: E501
                                 block_10_int[(i, j)] = 0.5 * tau * D_v_i_plus + M_v  # noqa: E501
                                 block_11_int[(i, j)] = - 0.5 * (tau / beta) * self._M_zeta  # noqa: E501
 
                                 block_00_int_p[(i, j)] = block_00_p
-                                block_01_int_p[(i, j)] = 0.5 * tau * D_mu_i_plus + M_p  # noqa: E501
+                                block_01_int_p[(i, j)] = 0.5 * tau * D_mu_i + M_p  # noqa: E501
                                 block_10_int_p[(i, j)] = 0.5 * tau * D_p_i_plus + M_p  # noqa: E501
                                 block_11_int_p[(i, j)] = block_11_p
                         elif j == i + 1:
                             block_00[(i, j)] = None
-                            block_00[(i, n_t + j - 1)] = 0.5 * tau * D_zeta_i - M_v  # noqa: E501
+                            block_00[(i, n_t + j - 1)] = 0.5 * tau * D_zeta_i_plus - M_v  # noqa: E501
                             block_00[(n_t + i - 1, j)] = None
                             block_00[(n_t + i - 1, n_t + j - 1)] = - 0.5 * (tau / beta) * self._M_zeta  # noqa: E501
 
                             if P is None:
                                 block_00_int[(i, j)] = None
-                                block_01_int[(i, j)] = 0.5 * tau * D_zeta_i - M_v  # noqa: E501
+                                block_01_int[(i, j)] = 0.5 * tau * D_zeta_i_plus - M_v  # noqa: E501
                                 block_10_int[(i, j)] = None
                                 block_11_int[(i, j)] = - 0.5 * (tau / beta) * self._M_zeta  # noqa: E501
 
-                                block_01_int_p[(i, j)] = 0.5 * tau * D_mu_i - M_p  # noqa: E501
+                                block_01_int_p[(i, j)] = 0.5 * tau * D_mu_i_plus - M_p  # noqa: E501
                                 block_11_int_p[(i, j)] = block_11_p
                         else:
                             block_00[(i, j)] = None
@@ -3871,13 +4037,18 @@ class Control:
                                 b_v.axpy(-1.0, b_1_v)
                             del v_inhom
                             del b_help
+                    check_div_v = True
                 else:
                     for i in range(n_t):
                         b_1_0.sub(i).assign(div_v.sub(i))
+                    check_div_v = False
 
                 if div_zeta is not None:
                     for i in range(n_t):
                         b_1_1.sub(i).assign(div_zeta.sub(i))
+                    check_div_zeta = False
+                else:
+                    check_div_zeta = True
 
                 for i in range(n_t):
                     b_0.sub(i).assign(b_0_0.sub(i))
@@ -3993,13 +4164,18 @@ class Control:
                                 b_v.axpy(-1.0, b_1_v)
                             del v_inhom
                             del b_help
+                    check_div_v = True
                 else:
                     for i in range(n_t - 1):
                         b_1_0.sub(i).assign(div_v.sub(i))
+                    check_div_v = False
 
                 if div_zeta is not None:
                     for i in range(n_t - 1):
                         b_1_1.sub(i).assign(div_zeta.sub(i))
+                    check_div_zeta = False
+                else:
+                    check_div_zeta = True
 
                 b_0_0 = apply_T_1(b_0_0, space_v, n_t - 1)
                 b_0_1 = apply_T_2(b_0_1, space_v, n_t - 1)
@@ -4126,9 +4302,6 @@ class Control:
                         except ConvergenceError:
                             assert inner_ksp_solver.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
 
-                        del b_0_help
-                        del b_1_help
-
                         for i in range(n_t - 1):
                             u_0.sub(i).assign(v_help.sub(i))
                             index = n_t - 1 + i
@@ -4136,6 +4309,12 @@ class Control:
 
                         del v_help
                         del zeta_help
+                        del b_0_help
+                        del b_1_help
+                        del inner_pc_fn
+                        del inner_system
+
+                        PETSc.garbage_cleanup(self._comm)
 
                         # u_1 = - b_1 + block_10 * u_0
                         b_0_help = Cofunction(full_space_p.dual())
@@ -4257,6 +4436,8 @@ class Control:
                         del p_help
                         del b_0_help
                         del b_1_help
+
+                        PETSc.garbage_cleanup(self._comm)
                 else:
                     def pc_fn(u_0, u_1, b_0, b_1):
                         b_0_help = Cofunction(full_space_v.dual())
@@ -4300,9 +4481,6 @@ class Control:
                         except ConvergenceError:
                             assert inner_ksp_solver.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
 
-                        del b_0_help
-                        del b_1_help
-
                         for i in range(n_t):
                             u_0.sub(i).assign(v_help.sub(i))
                             index = n_t + i
@@ -4310,6 +4488,12 @@ class Control:
 
                         del v_help
                         del zeta_help
+                        del b_0_help
+                        del b_1_help
+                        del inner_pc_fn
+                        del inner_system
+
+                        PETSc.garbage_cleanup(self._comm)
 
                         # u_1 = - b_1 + block_10 * u_0
                         b_0_help = Cofunction(full_space_p.dual())
@@ -4426,6 +4610,8 @@ class Control:
                         del p_help
                         del b_0_help
                         del b_1_help
+
+                        PETSc.garbage_cleanup(self._comm)
             else:
                 pc_fn = P
 
@@ -4474,8 +4660,31 @@ class Control:
             self.set_p(p)
             self.set_mu(mu)
 
+            del v
+            del zeta
+            del p
+            del mu
+            del v_0
+            del u_0_sol
+            del u_1_sol
+            if check_v_d:
+                del v_d
+                del true_v
+            if check_f:
+                del f
+            if check_div_v:
+                del div_v
+            if check_div_zeta:
+                del div_zeta
+            del b_0
+            del b_1
+            del system
+            del pc_fn
+
             if print_error:
                 self.print_error(full_space_v, v_test)
+
+            PETSc.garbage_cleanup(self._comm)
 
             if create_output:
                 v_output = File("v.pvd")
@@ -4778,7 +4987,7 @@ class Control:
                         del b
                         del b_p_help
 
-                        for bc in bcs_zeta:
+                        for bc in bcs_v:
                             bc.apply(rhs_00.sub(i))
 
                         b_p_help = Function(space_p)
@@ -4790,7 +4999,7 @@ class Control:
                         del b
                         del b_p_help
 
-                        for bc in bcs_v:
+                        for bc in bcs_zeta:
                             bc.apply(rhs_01.sub(i))
 
                         b_help = Function(space_v)
@@ -4880,6 +5089,13 @@ class Control:
                 self.set_p(p_old)
                 self.set_mu(mu_old)
 
+                del rhs_00
+                del rhs_01
+                del rhs_10
+                del rhs_11
+
+                PETSc.garbage_cleanup(self._comm)
+
                 rhs_00, rhs_01, rhs_10, rhs_11 = non_linear_res_eval()
 
                 if not self._CN:
@@ -4902,6 +5118,27 @@ class Control:
                 if k + 1 > max_non_linear_iter:
                     break
 
+            del v_old
+            del zeta_old
+            del p_old
+            del mu_old
+            del delta_v
+            del delta_zeta
+            del delta_p
+            del delta_mu
+            del rhs_00
+            del rhs_01
+            del rhs_10
+            del rhs_11
+            del rhs
+            del f
+            del v_d
+            del true_v
+            del v_0
+            del M_v
+            del B
+            del B_T
+
             if print_error_non_linear:
                 if (norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol):  # noqa: E501
                     print('relative non-linear residual: ', norm_k / norm_0)
@@ -4911,10 +5148,9 @@ class Control:
                     print('the non-linear iteration did not converge')
                     print('relative non-linear residual: ', norm_k / norm_0)
                     print('absolute non-linear residual: ', norm_k)
-                v_err = self._v - true_v
-                print('estimated error in the L2-norm: ',
-                      sqrt(tau) * sqrt(abs(assemble(inner(v_err,
-                                                          v_err) * dx))))
+                self.print_error(full_space_v, v_test)
+
+            PETSc.garbage_cleanup(self._comm)
 
             if create_output:
                 v_output = File("v.pvd")
