@@ -376,6 +376,107 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_time():
         print(f"{degree=} {zeta_orders=}")
 
 
+def test_instationary_Navier_Stokes_CN():
+    # defining the mesh
+    mesh_size = 3
+    mesh = RectangleMesh(2 ** mesh_size, 2 ** mesh_size, 2.0, 2.0)
+
+    space_v = VectorFunctionSpace(mesh, "Lagrange", 2)
+    space_p = FunctionSpace(mesh, "Lagrange", 1)
+
+    n_t = 10
+    time_interval = (0.0, 2.0)
+
+    def my_DirichletBC_t_v(space_v, t):
+        if t < 1.0:
+            my_bcs = [DirichletBC(space_v, Constant((t, 0.0)), (4,)),
+                      DirichletBC(space_v, 0.0, (1, 2, 3))]
+        else:
+            my_bcs = [DirichletBC(space_v, Constant((1.0, 0.0)), (4,)),
+                      DirichletBC(space_v, 0.0, (1, 2, 3))]
+
+        return my_bcs
+
+    beta = 10.0**-3
+
+    def forw_diff_operator_v(trial, test, u, t):
+        # spatial differential for the forward problem
+        nu = 1.0 / 100.0
+        return (
+            nu * inner(grad(trial), grad(test)) * dx
+            + inner(dot(grad(trial), u), test) * dx)
+
+    def desired_state_v(test, t):
+        space = test.function_space()
+        mesh = space.mesh()
+        X = SpatialCoordinate(mesh)
+        x = X[0] - 1.0
+        y = X[1] - 1.0
+
+        a = (100.0 / 49.0) ** 2
+        b = (100.0 / 99.0) ** 2
+
+        c_1 = 1.0 - sqrt(a * ((x - 0.5) ** 2)
+                         + b * (y ** 2))
+        c_2 = 1.0 - sqrt(a * ((x + 0.5) ** 2)
+                         + b * (y ** 2))
+        v_d = Function(space, name="v_d")
+        v_d.interpolate(
+            ufl.conditional(
+                c_1 >= 0.0,
+                c_1 * cos(pi * t / 2.0) * as_vector((b * y, -a * (x - 0.5))),
+                ufl.conditional(
+                    c_2 >= 0.0,
+                    c_2 * cos(pi * t / 2.0) * as_vector((-b * y, a * (x + 0.5))),  # noqa: E501
+                    as_vector((0.0, 0.0)))),
+        )
+
+        return inner(v_d, test) * dx, v_d
+
+    def initial_condition_v(test):
+        space = test.function_space()
+
+        v_0 = Function(space)
+        v_0.interpolate(as_vector([0.0, 0.0]))
+
+        return v_0
+
+    def force_f_v(test, t):
+        space = test.function_space()
+
+        # force function
+        f = Function(space)
+        f.interpolate(as_vector([0.0, 0.0]))
+
+        return inner(f, test) * dx
+
+    my_control_instationary = Control.Instationary(
+        space_v, forw_diff_operator_v, desired_state_v, force_f_v,
+        beta=beta, initial_condition=initial_condition_v,
+        time_interval=time_interval, CN=True, n_t=n_t,
+        bcs_v=my_DirichletBC_t_v)
+
+    lambda_v_bounds = (0.3924, 2.0598)
+    lambda_p_bounds = (0.5, 2.0)
+
+    solver_parameters = {"linear_solver": "fgmres",
+                         "fgmres_restart": 10,
+                         "maximum_iterations": 100,
+                         "relative_tolerance": 1.0e-8,
+                         "absolute_tolerance": 0.0,
+                         "monitor_convergence": False}
+
+    my_control_instationary.incompressible_non_linear_solve(
+        ConstantNullspace(), space_p=space_p,
+        solver_parameters=solver_parameters,
+        lambda_v_bounds=lambda_v_bounds, lambda_p_bounds=lambda_p_bounds,
+        relative_non_linear_tol=10**-5, max_non_linear_iter=10,
+        print_error_linear=False, create_output=False)
+
+    del my_control_instationary
+    PETSc.garbage_cleanup(space_v.mesh().comm)
+
+
 def test_MMS_instationary_Stokes_control_CN_convergence_FE():
     degree_range = (2, 4)
     p_range = (2, 6)
@@ -974,107 +1075,6 @@ def test_MMS_instationary_Stokes_control_CN_convergence_time():
         mu_error_norms = np.array(mu_error_norms)
         mu_orders = np.log(mu_error_norms[:-1] / mu_error_norms[1:]) / np.log(2.0)  # noqa: E501
         print(f"{degree=} {mu_orders=}")
-
-
-def test_instationary_Navier_Stokes_CN():
-    # defining the mesh
-    mesh_size = 3
-    mesh = RectangleMesh(2 ** mesh_size, 2 ** mesh_size, 2.0, 2.0)
-
-    space_v = VectorFunctionSpace(mesh, "Lagrange", 2)
-    space_p = FunctionSpace(mesh, "Lagrange", 1)
-
-    n_t = 10
-    time_interval = (0.0, 2.0)
-
-    def my_DirichletBC_t_v(space_v, t):
-        if t < 1.0:
-            my_bcs = [DirichletBC(space_v, Constant((t, 0.0)), (4,)),
-                      DirichletBC(space_v, 0.0, (1, 2, 3))]
-        else:
-            my_bcs = [DirichletBC(space_v, Constant((1.0, 0.0)), (4,)),
-                      DirichletBC(space_v, 0.0, (1, 2, 3))]
-
-        return my_bcs
-
-    beta = 10.0**-3
-
-    def forw_diff_operator_v(trial, test, u, t):
-        # spatial differential for the forward problem
-        nu = 1.0 / 100.0
-        return (
-            nu * inner(grad(trial), grad(test)) * dx
-            + inner(dot(grad(trial), u), test) * dx)
-
-    def desired_state_v(test, t):
-        space = test.function_space()
-        mesh = space.mesh()
-        X = SpatialCoordinate(mesh)
-        x = X[0] - 1.0
-        y = X[1] - 1.0
-
-        a = (100.0 / 49.0) ** 2
-        b = (100.0 / 99.0) ** 2
-
-        c_1 = 1.0 - sqrt(a * ((x - 0.5) ** 2)
-                         + b * (y ** 2))
-        c_2 = 1.0 - sqrt(a * ((x + 0.5) ** 2)
-                         + b * (y ** 2))
-        v_d = Function(space, name="v_d")
-        v_d.interpolate(
-            ufl.conditional(
-                c_1 >= 0.0,
-                c_1 * cos(pi * t / 2.0) * as_vector((b * y, -a * (x - 0.5))),
-                ufl.conditional(
-                    c_2 >= 0.0,
-                    c_2 * cos(pi * t / 2.0) * as_vector((-b * y, a * (x + 0.5))),  # noqa: E501
-                    as_vector((0.0, 0.0)))),
-        )
-
-        return inner(v_d, test) * dx, v_d
-
-    def initial_condition_v(test):
-        space = test.function_space()
-
-        v_0 = Function(space)
-        v_0.interpolate(as_vector([0.0, 0.0]))
-
-        return v_0
-
-    def force_f_v(test, t):
-        space = test.function_space()
-
-        # force function
-        f = Function(space)
-        f.interpolate(as_vector([0.0, 0.0]))
-
-        return inner(f, test) * dx
-
-    my_control_instationary = Control.Instationary(
-        space_v, forw_diff_operator_v, desired_state_v, force_f_v,
-        beta=beta, initial_condition=initial_condition_v,
-        time_interval=time_interval, CN=True, n_t=n_t,
-        bcs_v=my_DirichletBC_t_v)
-
-    lambda_v_bounds = (0.3924, 2.0598)
-    lambda_p_bounds = (0.5, 2.0)
-
-    solver_parameters = {"linear_solver": "fgmres",
-                         "fgmres_restart": 10,
-                         "maximum_iterations": 100,
-                         "relative_tolerance": 1.0e-8,
-                         "absolute_tolerance": 0.0,
-                         "monitor_convergence": False}
-
-    my_control_instationary.incompressible_non_linear_solve(
-        ConstantNullspace(), space_p=space_p,
-        solver_parameters=solver_parameters,
-        lambda_v_bounds=lambda_v_bounds, lambda_p_bounds=lambda_p_bounds,
-        relative_non_linear_tol=10**-5, max_non_linear_iter=10,
-        print_error_linear=False, create_output=False)
-
-    del my_control_instationary
-    PETSc.garbage_cleanup(space_v.mesh().comm)
 
 
 def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE():
