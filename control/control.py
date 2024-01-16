@@ -2398,6 +2398,11 @@ class Control:
             rhs_1 = Cofunction(full_space_v.dual(), name="rhs_1")
 
             if not self._CN:
+                v_0_homog = Function(space_v)
+                v_0_homog.assign(v_0)
+                for bc in bcs_v:
+                    bc.apply(v_0_homog)
+
                 D_v_i = self.construct_D_v(v_trial, v_test,
                                            v_old.sub(0), t_0)
                 D_zeta_i = adjoint(D_v_i)
@@ -2434,9 +2439,10 @@ class Control:
                 for bc in bcs_zeta:
                     bc.apply(rhs_0.sub(0))
 
-                b = assemble(action(tau * D_v_0 + M_v, v_0))
+                b = assemble(action(tau * D_v_0 + M_v, v_0_homog))
                 rhs_1.sub(0).assign(b)
                 del b
+                del v_0_homog
 
                 b_help = Function(space_v)
                 b_help.assign(v_old.sub(0))
@@ -2943,10 +2949,17 @@ class Control:
                     b_0.sub(0).assign(v_d.sub(0))
 
                 if check_f:
+                    v_0_homog = Function(space_v)
+                    v_0_homog.assign(v_0)
+                    for bc in bcs_v:
+                        bc.apply(v_0_homog)
+
                     D_v_i = self.construct_D_v(v_trial, v_test, v_0, t_0)
 
                     b_1.sub(0).assign(assemble(action(tau * D_v_i + M_v,
-                                                      v_0)))
+                                                      v_0_homog)))
+
+                    del v_0_homog
 
                     if inhomogeneous_bcs_v:
                         v_inhom = Function(space_v)
@@ -3240,9 +3253,9 @@ class Control:
                 self.set_v(v_new)
                 self.set_zeta(zeta_new)
             else:
-                if check_f and check_v_d:
-                    v.sub(0).assign(v_0)
-                    del v_0
+#                if check_f and check_v_d:
+#                    v.sub(0).assign(v_0)
+#                    del v_0
 
                 self.set_v(v)
                 self.set_zeta(zeta)
@@ -3922,9 +3935,17 @@ class Control:
                     b_0_0.sub(0).assign(v_d.sub(0))
 
                 if check_f:
+                    v_0_homog = Function(space_v)
+                    v_0_homog.assign(v_0)
+                    for bc in bcs_v:
+                        bc.apply(v_0_homog)
+
                     D_v_i = self.construct_D_v(v_trial, v_test, v_0, t_0)
                     b_0_1.sub(0).assign(assemble(
-                        action(tau * D_v_i + M_v, v_0)))
+                        action(tau * D_v_i + M_v, v_0_homog)))
+
+                    del v_0_homog
+
                     if inhomogeneous_bcs_v:
                         v_inhom = Function(space_v)
                         for bc in bcs_v_help[(0)]:
@@ -4651,8 +4672,8 @@ class Control:
                     zeta.sub(i).assign(u_0_sol.sub(index))
                     mu.sub(i).assign(u_1_sol.sub(i))
 
-                if check_f and check_v_d:
-                    v.sub(0).assign(v_0)
+#                if check_f and check_v_d:
+#                    v.sub(0).assign(v_0)
 
             self.set_v(v)
             self.set_zeta(zeta)
