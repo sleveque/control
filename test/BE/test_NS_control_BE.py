@@ -24,7 +24,7 @@ pytestmark = pytest.mark.skipif(
     reason="tests must be run in serial, or with 4 processes")
 
 
-def MMS_instationary_Stokes_control_BE_convergence_FE():
+def test_MMS_instationary_Stokes_control_BE_convergence_FE():
     degree_range = (2, 3)
     p_range = (2, 3)
     beta = 10.0 ** -3
@@ -332,7 +332,7 @@ def MMS_instationary_Stokes_control_BE_convergence_FE():
         print(f"{degree=} {mu_orders=}")
 
 
-def MMS_instationary_Stokes_control_BE_convergence_time():
+def test_MMS_instationary_Stokes_control_BE_convergence_time():
     degree_range = (2, 4)
     p_range = (2, 5)
     beta = 10.0 ** -3
@@ -630,7 +630,7 @@ def MMS_instationary_Stokes_control_BE_convergence_time():
         print(f"{degree=} {mu_orders=}")
 
 
-def instationary_Navier_Stokes_BE():
+def test_instationary_Navier_Stokes_BE():
     # defining the mesh
     mesh_size = 3
     mesh = RectangleMesh(2 ** mesh_size, 2 ** mesh_size, 2.0, 2.0)
@@ -726,7 +726,7 @@ def instationary_Navier_Stokes_BE():
         print_error_linear=False, create_output=False)
 
 
-def MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
+def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
     degree_range = (2, 3)
     p_range = (2, 3)
     beta = 10.0 ** -3
@@ -909,7 +909,7 @@ def MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
         print(f"{degree=} {zeta_orders=}")
 
 
-def MMS_instationary_Navier_Stokes_control_BE_convergence_time():
+def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
     degree_range = (2, 3)
     p_range = (2, 3)
     beta = 10.0 ** -3
