@@ -921,7 +921,8 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
         x = x_1 - 1.0
         y = x_2 - 1.0
 
-        v_xy = as_vector([x * (y ** 3), (1. / 4.) * (x ** 4 - y ** 4)])
+        v_xy = as_vector([2. * y * (1. - x * x),
+                          -2. * x * (1. - y * y)])
 
         v = cos(pi * Constant(t) / 2.0) * v_xy
 
@@ -942,8 +943,8 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
         my_bcs = DirichletBC(
             space_v,
             as_vector([
-                cos(pi * t / 2.0) * x * (y ** 3),
-                cos(pi * t / 2.0) * (1. / 4.) * (x ** 4 - y ** 4)]),
+                cos(pi * t / 2.0) * 2. * y * (1. - x * x),
+                -cos(pi * t / 2.0) * 2. * x * (1. - y * y)]),
             "on_boundary")
 
         return my_bcs
@@ -976,8 +977,8 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
         y = X[1] - 1.0
 
         v = as_vector([
-            x * (y ** 3),
-            (1. / 4.) * (x ** 4 - y ** 4)])
+            2. * y * (1. - x * x),
+            -2. * x * (1. - y * y)])
 
         v_0 = Function(space)
         v_0.interpolate(v)
@@ -1004,7 +1005,7 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
         v_error_norms = []
         zeta_error_norms = []
         for p in range(*p_range):
-            N = 100
+            N = 20
             n_t = 2 ** p
 
             mesh = RectangleMesh(N, N, 2.0, 2.0)
