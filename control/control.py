@@ -2446,6 +2446,8 @@ class Control:
 
                 b_help = Function(space_v)
                 b_help.assign(v_old.sub(0))
+                for bc in bcs_v:
+                    bc.apply(b_help)
                 b = assemble(action(tau * D_v_i + M_v, b_help))
                 with b.dat.vec_ro as b_v, \
                         rhs_1.sub(0).dat.vec as b_1_v:
@@ -2961,16 +2963,16 @@ class Control:
 
                     del v_0_homog
 
-                    if inhomogeneous_bcs_v:
-                        v_inhom = Function(space_v)
-                        for bc in bcs_v_help[(0)]:
-                            bc.apply(v_inhom)
-                        b_help = assemble(action(tau * D_v_i + M_v, v_inhom))
-                        with b_1.sub(0).dat.vec as b_v, \
-                                b_help.dat.vec_ro as b_1_v:
-                            b_v.axpy(-1.0, b_1_v)
-                        del v_inhom
-                        del b_help
+#                    if inhomogeneous_bcs_v:
+#                        v_inhom = Function(space_v)
+#                        for bc in bcs_v_help[(0)]:
+#                            bc.apply(v_inhom)
+#                        b_help = assemble(action(tau * D_v_i + M_v, v_inhom))
+#                        with b_1.sub(0).dat.vec as b_v, \
+#                                b_help.dat.vec_ro as b_1_v:
+#                            b_v.axpy(-1.0, b_1_v)
+#                        del v_inhom
+#                        del b_help
 
                     for bc in bcs_v:
                         bc.apply(b_1.sub(0))
