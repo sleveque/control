@@ -36,7 +36,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
         y = x_2 - 1.0
 
         v = as_vector([
-            (Constant(t_f) - Constant(t)) * x * y**3,
+            (Constant(t_f) - t) * x * y**3,
             (1. / 4.) * (Constant(t_f) - Constant(t)) * (x**4 - y**4)])
 
         return v
@@ -55,7 +55,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
         x = x_1 - 1.0
         y = x_2 - 1.0
 
-        p = (Constant(t_f) - Constant(t)) * (3. * x**2 * y - y**3)
+        p = (Constant(t_f) - t) * (3. * x**2 * y - y**3)
 
         return p
 
@@ -63,7 +63,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
         x = x_1 - 1.0
         y = x_2 - 1.0
 
-        a = Constant(t_f) - Constant(t)
+        a = Constant(t_f) - t
 
         zeta = as_vector([
             beta * a * 2. * y * (x**2 - 1.)**2 * (y**2 - 1.),
@@ -85,7 +85,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
         x = x_1 - 1.0
         y = x_2 - 1.0
 
-        mu = beta * (Constant(t_f) - Constant(t)) * 4. * x * y
+        mu = beta * (Constant(t_f) - t) * 4. * x * y
 
         return mu
 
@@ -263,11 +263,11 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
             for i in range(n_t - 1):
                 t = i * tau
 
-                v_ref.sub(i).interpolate(v_sol(*X, t))
+                v_ref.sub(i).interpolate(v_sol(*X, Constant(t)))
 
-                zeta_ref.sub(i).interpolate(zeta_sol(*X, t))
+                zeta_ref.sub(i).interpolate(zeta_sol(*X, Constant(t)))
 
-                true_p_i_ref.interpolate(p_sol(*X, t + tau))
+                true_p_i_ref.interpolate(p_sol(*X, Constant(t + tau)))
                 mean = assemble(true_p_i_ref * dx)
                 with true_p_i_ref.dat.vec as b_p:
                     b_p.shift(-mean)
@@ -279,7 +279,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
                     b_p.shift(-mean)
                 my_p.sub(i).assign(p_help)
 
-                true_mu_i_ref.interpolate(mu_sol(*X, t))
+                true_mu_i_ref.interpolate(mu_sol(*X, Constant(t)))
                 mean = assemble(true_mu_i_ref * dx)
                 with true_mu_i_ref.dat.vec as b_p:
                     b_p.shift(-mean)
@@ -291,9 +291,9 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
                     b_p.shift(-mean)
                 my_mu.sub(i).assign(mu_help)
 
-            v_ref.sub(n_t - 1).interpolate(v_sol(*X, t_f))
+            v_ref.sub(n_t - 1).interpolate(v_sol(*X, Constant(t_f)))
 
-            zeta_ref.sub(n_t - 1).interpolate(zeta_sol(*X, t_f))
+            zeta_ref.sub(n_t - 1).interpolate(zeta_sol(*X, Constant(t_f)))
 
             v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
                 inner(my_v - v_ref, my_v - v_ref) * dx)))
@@ -360,12 +360,11 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
     def zeta_sol(x_1, x_2, t):
         x = x_1 - 1.0
         y = x_2 - 1.0
-        a = Constant(t)
-        b = Constant(t_f)
+        a = Constant(t_f)
 
         zeta = as_vector([
-            beta * (exp(b - a) - 1.) * 2. * y * (x**2 - 1.)**2 * (y**2 - 1.),
-            -beta * (exp(b - a) - 1.) * 2. * x * (x**2 - 1.) * (y**2 - 1.)**2])
+            beta * (exp(a - t) - 1.) * 2. * y * (x**2 - 1.)**2 * (y**2 - 1.),
+            -beta * (exp(a - t) - 1.) * 2. * x * (x**2 - 1.) * (y**2 - 1.)**2])
 
         return zeta
 
@@ -561,11 +560,11 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
             for i in range(n_t - 1):
                 t = i * tau
 
-                v_ref.sub(i).interpolate(v_sol(*X, t))
+                v_ref.sub(i).interpolate(v_sol(*X, Constant(t)))
 
-                zeta_ref.sub(i).interpolate(zeta_sol(*X, t))
+                zeta_ref.sub(i).interpolate(zeta_sol(*X, Constant(t)))
 
-                true_p_i_ref.interpolate(p_sol(*X, t + tau))
+                true_p_i_ref.interpolate(p_sol(*X, Constant(t + tau)))
                 mean = assemble(true_p_i_ref * dx)
                 with true_p_i_ref.dat.vec as b_p:
                     b_p.shift(-mean)
@@ -577,7 +576,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
                     b_p.shift(-mean)
                 my_p.sub(i).assign(p_help)
 
-                true_mu_i_ref.interpolate(mu_sol(*X, t))
+                true_mu_i_ref.interpolate(mu_sol(*X, Constant(t)))
                 mean = assemble(true_mu_i_ref * dx)
                 with true_mu_i_ref.dat.vec as b_p:
                     b_p.shift(-mean)
@@ -589,9 +588,9 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
                     b_p.shift(-mean)
                 my_mu.sub(i).assign(mu_help)
 
-            v_ref.sub(n_t - 1).interpolate(v_sol(*X, t_f))
+            v_ref.sub(n_t - 1).interpolate(v_sol(*X, Constant(t_f)))
 
-            zeta_ref.sub(n_t - 1).interpolate(zeta_sol(*X, t_f))
+            zeta_ref.sub(n_t - 1).interpolate(zeta_sol(*X, Constant(t_f)))
 
             v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
                 inner(my_v - v_ref, my_v - v_ref) * dx)))
@@ -665,13 +664,13 @@ def test_instationary_Navier_Stokes_BE():
         x = X[0] - 1.0
         y = X[1] - 1.0
 
-        a = (100.0 / 49.0) ** 2
-        b = (100.0 / 99.0) ** 2
+        a = Constant((100.0 / 49.0) ** 2)
+        b = Constant((100.0 / 99.0) ** 2)
 
-        c_1 = 1.0 - sqrt(a * ((x - 0.5) ** 2)
-                         + b * (y ** 2))
-        c_2 = 1.0 - sqrt(a * ((x + 0.5) ** 2)
-                         + b * (y ** 2))
+        c_1 = Constant(1.0 - sqrt(a * ((x - 0.5) ** 2)
+                                  + b * (y ** 2)))
+        c_2 = Constant(1.0 - sqrt(a * ((x + 0.5) ** 2)
+                                  + b * (y ** 2)))
         v_d = Function(space, name="v_d")
         v_d.interpolate(
             ufl.conditional(
@@ -740,7 +739,7 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
 
         v_xy = as_vector([x * (y ** 3), (1. / 4.) * (x ** 4 - y ** 4)])
 
-        v = (Constant(t_f) - Constant(t)) * v_xy
+        v = (Constant(t_f) - t) * v_xy
 
         return v, v_xy
 
@@ -759,8 +758,8 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
         my_bcs = DirichletBC(
             space_v,
             as_vector([
-                (Constant(t_f) - Constant(t)) * x * (y ** 3),
-                (Constant(t_f) - Constant(t)) * (1. / 4.) * (x ** 4 - y ** 4)]),
+                (Constant(t_f) - t) * x * (y ** 3),
+                (Constant(t_f) - t) * (1. / 4.) * (x ** 4 - y ** 4)]),
             "on_boundary")
 
         return my_bcs
@@ -884,11 +883,11 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
             for i in range(n_t):
                 t = i * tau
 
-                v, v_xy = ref_sol_v(*X, t)
+                v, v_xy = ref_sol_v(*X, Constant(t))
 
                 v_ref.sub(i).interpolate(v)
 
-                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, t))
+                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
 
             v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
                 inner(my_v - v_ref, my_v - v_ref) * dx)))
@@ -924,7 +923,7 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
         v_xy = as_vector([2. * y * (1. - x * x),
                           -2. * x * (1. - y * y)])
 
-        v = cos(pi * Constant(t) / 2.0) * v_xy
+        v = cos(pi * t / 2.0) * v_xy
 
         return v, v_xy
 
@@ -1067,11 +1066,11 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
             for i in range(n_t):
                 t = i * tau
 
-                v, v_xy = ref_sol_v(*X, t)
+                v, v_xy = ref_sol_v(*X, Constant(t))
 
                 v_ref.sub(i).interpolate(v)
 
-                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, t))
+                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
 
             v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
                 inner(my_v - v_ref, my_v - v_ref) * dx)))
