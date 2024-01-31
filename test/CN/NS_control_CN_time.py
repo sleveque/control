@@ -38,7 +38,7 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
         v_xy = as_vector([2. * y * (1. - x * x),
                           -2. * x * (1. - y * y)])
 
-        v = cos(pi * Constant(t) / 2.0) * v_xy
+        v = cos(pi * t / 2.0) * v_xy
 
         return v, v_xy
 
@@ -187,11 +187,11 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
             for i in range(n_t):
                 t = i * tau
 
-                v, v_xy = ref_sol_v(*X, t)
+                v, v_xy = ref_sol_v(*X, Constant(t))
 
                 v_ref.sub(i).interpolate(v)
 
-                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, t))
+                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
 
             del my_control_instationary
             PETSc.garbage_cleanup(space_v.mesh().comm)
