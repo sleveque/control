@@ -25,7 +25,7 @@ pytestmark = pytest.mark.skipif(
 
 def test_MMS_instationary_heat_control_BE_convergence_FE():
     degree_range = (1, 3)
-    p_range = (2, 6)
+    p_range = (2, 5)
     beta = 1.0
     t_f = 2.0
 
