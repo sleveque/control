@@ -35,7 +35,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
         y = x_2 - 1.0
 
         v = as_vector([
-            exp(Constant(t_f) - t) * x * y**3,
+            (Constant(t_f) - t) * x * y**3,
             (1. / 4.) * (Constant(t_f) - t) * (x**4 - y**4)])
 
         return v
