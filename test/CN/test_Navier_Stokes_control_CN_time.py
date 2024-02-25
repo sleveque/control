@@ -7,10 +7,6 @@ from preconditioner.preconditioner import *
 
 from control.control import *
 
-from tlm_adjoint.firedrake import (
-    DirichletBCApplication, Functional, compute_gradient, minimize_scipy,
-    reset_manager, start_manager, stop_manager)
-
 import petsc4py.PETSc as PETSc
 import mpi4py.MPI as MPI
 import numpy as np
@@ -24,12 +20,12 @@ pytestmark = pytest.mark.skipif(
 
 
 def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
-    degree_range = (2, 4)
-    p_range = (2, 6)
+    degree_range = (3, 5)
+    p_range = (0, 4)
     beta = 10.0 ** -3
-    t_f = 2.0
+    t_f = 1.0
     time_interval = (0.0, t_f)
-    nu = 1.0 / 100.0
+    nu = 1.0 / 50.0
 
     def ref_sol_v(x_1, x_2, t):
         x = x_1 - 1.0
@@ -58,7 +54,7 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
             space_v,
             as_vector([
                 cos(pi * t / 2.0) * 2. * y * (1. - x * x),
-                cos(pi * t / 2.0) * 2. * x * (1. - y * y)]),
+                - cos(pi * t / 2.0) * 2. * x * (1. - y * y)]),
             "on_boundary")
 
         return my_bcs
@@ -111,7 +107,7 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
         # force function
         f = Function(space)
         f.interpolate(
-            - 0.5 * nu * div(grad(v) + ufl.transpose(grad(v)))
+            - nu * div(grad(v))
             + grad(v) * v
             - 0.5 * pi * sin(pi * t / 2.0) * v_xy)
 
@@ -121,8 +117,8 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
         v_error_norms = []
         zeta_error_norms = []
         for p in range(*p_range):
-            N = 20
-            n_t = 2 ** p
+            N = 5
+            n_t = (2 ** p) * 15
 
             mesh = RectangleMesh(N, N, 2.0, 2.0)
             X = SpatialCoordinate(mesh)
@@ -148,8 +144,8 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
             solver_parameters = {"linear_solver": "fgmres",
                                  "fgmres_restart": 10,
                                  "maximum_iterations": 200,
-                                 "relative_tolerance": 1.0e-10,
-                                 "absolute_tolerance": 1.0e-10,
+                                 "relative_tolerance": 1.0e-7,
+                                 "absolute_tolerance": 1.0e-7,
                                  "monitor_convergence": False}
 
             my_control_instationary.incompressible_non_linear_solve(
@@ -157,21 +153,16 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
                 solver_parameters=solver_parameters,
                 lambda_v_bounds=lambda_v_bounds,
                 lambda_p_bounds=lambda_p_bounds,
-                max_non_linear_iter=10, relative_non_linear_tol=10.0**-9,
-                absolute_non_linear_tol=10.0**-9,
+                max_non_linear_iter=10, relative_non_linear_tol=10.0**-6,
+                absolute_non_linear_tol=10.0**-6,
                 print_error_linear=False, print_error_non_linear=False,
                 create_output=False, plots=False)
 
             flattened_space_v = tuple(space_v for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_v.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
 
             flattened_space_v_ref = tuple(space_v_ref for i in range(n_t))
-            mixed_element_v_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v_ref])
-            full_space_v_ref = FunctionSpace(
-                space_v_ref.mesh(), mixed_element_v_ref)
+            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
             my_v = Function(full_space_v)
             my_zeta = Function(full_space_v)
