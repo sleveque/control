@@ -25,9 +25,7 @@ _error_flag = [False]
 # definition of application of T_1 and T_2
 def apply_T_1(x_old, space_v, n_blocks):
     flattened_space = tuple(space_v for i in range(n_blocks))
-    mixed_element = ufl.classes.MixedElement(
-        *[space.ufl_element() for space in flattened_space])
-    full_space_v = FunctionSpace(space_v.mesh(), mixed_element)
+    full_space_v = MixedFunctionSpace(flattened_space)
 
     if isinstance(x_old, Function):
         x_new = Function(full_space_v)
@@ -45,9 +43,7 @@ def apply_T_1(x_old, space_v, n_blocks):
 
 def apply_T_2(x_old, space_v, n_blocks):
     flattened_space = tuple(space_v for i in range(n_blocks))
-    mixed_element = ufl.classes.MixedElement(
-        *[space.ufl_element() for space in flattened_space])
-    full_space_v = FunctionSpace(space_v.mesh(), mixed_element)
+    full_space_v = MixedFunctionSpace(flattened_space)
 
     if isinstance(x_old, Function):
         x_new = Function(full_space_v)
@@ -66,9 +62,7 @@ def apply_T_2(x_old, space_v, n_blocks):
 # definition of application of T_1^-1 and T_2^-1
 def apply_T_1_inv(x_old, space_v, n_blocks):
     flattened_space = tuple(space_v for i in range(n_blocks))
-    mixed_element = ufl.classes.MixedElement(
-        *[space.ufl_element() for space in flattened_space])
-    full_space_v = FunctionSpace(space_v.mesh(), mixed_element)
+    full_space_v = MixedFunctionSpace(flattened_space)
 
     if isinstance(x_old, Function):
         x_new = Function(full_space_v)
@@ -86,9 +80,7 @@ def apply_T_1_inv(x_old, space_v, n_blocks):
 
 def apply_T_2_inv(x_old, space_v, n_blocks):
     flattened_space = tuple(space_v for i in range(n_blocks))
-    mixed_element = ufl.classes.MixedElement(
-        *[space.ufl_element() for space in flattened_space])
-    full_space_v = FunctionSpace(space_v.mesh(), mixed_element)
+    full_space_v = MixedFunctionSpace(flattened_space)
 
     if isinstance(x_old, Function):
         x_new = Function(full_space_v)
@@ -290,15 +282,14 @@ class Control:
             else:
                 raise ValueError("Undefined space_p: unable to assign value")
 
-        def print_error(self, v_test):
-            v_d, true_v = self._desired_state(v_test)
+        def print_error(self, true_v):
             v_err = self._v - true_v
-            print('estimated error in the L2-norm: ',
-                  sqrt(abs(assemble(inner(v_err, v_err) * dx))))
 
-            del v_d
-            del true_v
+            error = sqrt(abs(assemble(inner(v_err, v_err) * dx)))
+            print(f'Estimated error in the L2-norm: {error:.16e}')
+
             del v_err
+            del error
 
             PETSc.garbage_cleanup(self._comm)
 
@@ -572,20 +563,12 @@ class Control:
             self.set_v(v)
             self.set_zeta(zeta)
 
-            del v
-            del zeta
             if check_v_d:
                 del v_d
-                del true_v
             if check_f:
                 del f
             del system
             del pc_fn
-
-            if print_error:
-                self.print_error(v_test)
-
-            PETSc.garbage_cleanup(self._comm)
 
             if create_output:
                 v_output = File("v.pvd")
@@ -615,6 +598,17 @@ class Control:
                     plt.show()
                 except Exception as e:
                     warning("Cannot plot figure. Error msg: '%s'" % e)
+
+            del v
+            del zeta
+
+            if print_error:
+                self.print_error(true_v)
+
+            if check_v_d:
+                del true_v
+
+            PETSc.garbage_cleanup(self._comm)
 
         def non_linear_solve(self, *,
                              P=None, solver_parameters=None,
@@ -675,6 +669,8 @@ class Control:
 
             k = 0
 
+            print(f'Initial non-linear residual: {norm_0:.16e}')
+
             while (norm_k > relative_non_linear_tol * norm_0 and norm_k > absolute_non_linear_tol):  # noqa: E501
                 self.linear_solve(P=P, solver_parameters=solver_parameters,
                                   Multigrid=Multigrid,
@@ -723,6 +719,11 @@ class Control:
                     norm_k = b_v.norm()
 
                 k += 1
+
+                print(f'Non-linear solver: '
+                      f'iteration {k:d}, '
+                      f'non-linear residual norm {norm_k:.16e}')
+
                 if k + 1 > max_non_linear_iter:
                     break
 
@@ -738,18 +739,19 @@ class Control:
             del rhs
             del f
             del v_d
-            del true_v
 
             if print_error_non_linear:
                 if norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol:  # noqa: E501
-                    print('relative non-linear residual: ', norm_k / norm_0)
-                    print('absolute non-linear residual: ', norm_k)
-                    print('number of non-linear iterations: ', k)
+                    print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')  # noqa: E501
+                    print(f'Absolute non-linear residual: {norm_k:.16e}')
+                    print(f'Number of non-linear iterations: {k:d}')
                 else:
-                    print('the non-linear iteration did not converge')
-                    print('relative non-linear residual: ', norm_k / norm_0)
-                    print('absolute non-linear residual: ', norm_k)
-                self.print_error(v_test)
+                    print('The non-linear iteration did not converge')
+                    print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')  # noqa: E501
+                    print(f'Absolute non-linear residual: {norm_k:.16e}')
+                self.print_error(true_v)
+
+            del true_v
 
             PETSc.garbage_cleanup(self._comm)
 
@@ -1109,15 +1111,10 @@ class Control:
             self.set_p(p)
             self.set_mu(mu)
 
-            del v
-            del zeta
-            del p
-            del mu
             del u_0_sol
             del u_1_sol
             if check_v_d:
                 del v_d
-                del true_v
             if check_f:
                 del f
             if not (check_f and check_v_d):
@@ -1130,11 +1127,6 @@ class Control:
                 del b_1
             del system
             del pc_fn
-
-            if print_error:
-                self.print_error(v_test)
-
-            PETSc.garbage_cleanup(self._comm)
 
             if create_output:
                 v_output = File("v.pvd")
@@ -1182,6 +1174,19 @@ class Control:
                     plt.show()
                 except Exception as e:
                     warning("Cannot plot figure. Error msg: '%s'" % e)
+
+            del v
+            del zeta
+            del p
+            del mu
+
+            if print_error:
+                self.print_error(true_v)
+
+            if check_v_d:
+                del true_v
+
+            PETSc.garbage_cleanup(self._comm)
 
         def incompressible_non_linear_solve(self, nullspace_p, *, space_p=None,
                                             P=None, solver_parameters=None,
@@ -1314,6 +1319,8 @@ class Control:
 
             k = 0
 
+            print(f'Initial non-linear residual: {norm_0:.16e}')
+
             while (norm_k > relative_non_linear_tol * norm_0 and norm_k > absolute_non_linear_tol):  # noqa: E501
                 self.incompressible_linear_solve(
                     nullspace_p, space_p=space_p, P=P,
@@ -1377,6 +1384,11 @@ class Control:
                     norm_k = b_v.norm()
 
                 k += 1
+
+                print(f'Non-linear solver: '
+                      f'iteration {k:d}, '
+                      f'non-linear residual norm {norm_k:.16e}')
+
                 if k + 1 > max_non_linear_iter:
                     break
 
@@ -1395,7 +1407,6 @@ class Control:
             del B_T
             del f
             del v_d
-            del true_v
             del rhs_00
             del rhs_01
             del rhs_10
@@ -1404,14 +1415,16 @@ class Control:
 
             if print_error_non_linear:
                 if norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol:  # noqa: E501
-                    print('relative non-linear residual: ', norm_k / norm_0)
-                    print('absolute non-linear residual: ', norm_k)
-                    print('number of non-linear iterations: ', k)
+                    print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')  # noqa: E501
+                    print(f'Absolute non-linear residual: {norm_k:.16e}')
+                    print(f'Number of non-linear iterations: {k:d}')
                 else:
-                    print('the non-linear iteration did not converge')
-                    print('relative non-linear residual: ', norm_k / norm_0)
-                    print('absolute non-linear residual: ', norm_k)
-                self.print_error(v_test)
+                    print('The non-linear iteration did not converge')
+                    print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')  # noqa: E501
+                    print(f'Absolute non-linear residual: {norm_k:.16e}')
+                self.print_error(true_v)
+
+            del true_v
 
             PETSc.garbage_cleanup(self._comm)
 
@@ -1475,9 +1488,7 @@ class Control:
                 raise TypeError("Space must be a primal space")
 
             flattened_space_v = tuple(space_v for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_v.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
 
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
 
@@ -1548,16 +1559,10 @@ class Control:
 
                 if not CN:
                     flattened_space_p = tuple(space_p for i in range(n_t))
-                    mixed_element_p = ufl.classes.MixedElement(
-                        *[space.ufl_element() for space in flattened_space_p])
-                    full_space_p = FunctionSpace(space_p.mesh(),
-                                                 mixed_element_p)
                 else:
                     flattened_space_p = tuple(space_p for i in range(n_t - 1))
-                    mixed_element_p = ufl.classes.MixedElement(
-                        *[space.ufl_element() for space in flattened_space_p])
-                    full_space_p = FunctionSpace(space_p.mesh(),
-                                                 mixed_element_p)
+
+                full_space_p = MixedFunctionSpace(flattened_space_p)
 
                 p = Function(full_space_p, name="p")
                 mu = Function(full_space_p, name="mu")
@@ -1576,9 +1581,7 @@ class Control:
             n_t = self._n_t
 
             flattened_space_v = tuple(space_v for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_v.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
 
             if v is None:
                 v = Function(full_space_v, name="v")
@@ -1645,15 +1648,11 @@ class Control:
 
             if not self._CN:
                 flattened_space_p = tuple(space_p for i in range(self._n_t))
-                mixed_element_p = ufl.classes.MixedElement(
-                    *[space.ufl_element() for space in flattened_space_p])
-                full_space_p = FunctionSpace(space_p.mesh(), mixed_element_p)
             else:
                 flattened_space_p = tuple(
                     space_p for i in range(self._n_t - 1))
-                mixed_element_p = ufl.classes.MixedElement(
-                    *[space.ufl_element() for space in flattened_space_p])
-                full_space_p = FunctionSpace(space_p.mesh(), mixed_element_p)
+
+            full_space_p = MixedFunctionSpace(flattened_space_p)
 
             if p is None:
                 p = Function(full_space_p, name="p")
@@ -1684,8 +1683,10 @@ class Control:
 
         def set_initial_condition(self, initial_condition):
             self._initial_condition = initial_condition
+
             v_test = TestFunction(self._space_v)
             self._v.sub(0).assign(initial_condition(v_test))
+
             bcs_v_0 = self._bcs_v[(0)]
             for bc in bcs_v_0:
                 bc.apply(v.sub(0))
@@ -1729,9 +1730,7 @@ class Control:
             self._bcs_v = full_bcs_v
 
             flattened_space_v = tuple(self._space_v for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(self._space_v.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
 
             v = Function(full_space_v, name="v")
             if self._initial_condition is not None:
@@ -1750,17 +1749,11 @@ class Control:
                 if not self._CN:
                     flattened_space_p = tuple(
                         self._space_p for i in range(n_t))
-                    mixed_element_p = ufl.classes.MixedElement(
-                        *[space.ufl_element() for space in flattened_space_p])
-                    full_space_p = FunctionSpace(self._space_p.mesh(),
-                                                 mixed_element_p)
                 else:
                     flattened_space_p = tuple(
                         self._space_p for i in range(n_t - 1))
-                    mixed_element_p = ufl.classes.MixedElement(
-                        *[space.ufl_element() for space in flattened_space_p])
-                    full_space_p = FunctionSpace(self._space_p.mesh(),
-                                                 mixed_element_p)
+
+                full_space_p = MixedFunctionSpace(flattened_space_p)
 
                 p = Function(full_space_p, name="p")
                 mu = Function(full_space_p, name="mu")
@@ -1771,6 +1764,7 @@ class Control:
         def set_bcs_v(self, bcs_v, space_v=None):
             if space_v is None:
                 self._f_bcs_v = bcs_v
+
                 full_bcs_v = {}
                 if bcs_v is None:
                     for i in range(self._n_t):
@@ -1849,33 +1843,14 @@ class Control:
             else:
                 raise ValueError("Undefined space_p: unable to assign value")
 
-        def print_error(self, full_space_v, v_test):
-            n_t = self._n_t
-            t_0 = self._time_interval[0]
-            T_f = self._time_interval[1]
-
-            tau = (T_f - t_0) / (n_t - 1.0)
-
-            true_v = Function(full_space_v, name="true_v")
-
-            t = t_0
-            v_d_i, true_v_i = self._desired_state(v_test, Constant(t))
-            true_v.sub(0).assign(true_v_i)
-
-            for i in range(1, n_t):
-                t += tau
-                v_d_i, true_v_i = self._desired_state(v_test, Constant(t))
-                true_v.sub(i).assign(true_v_i)
-
+        def print_error(self, true_v, tau):
             v_err = true_v - self._v
-            error = sqrt(Constant(tau)) * sqrt(abs(assemble(
-                inner(v_err, v_err) * dx)))
-            print('estimated error in the L2-norm: ', error)
+            error = sqrt(tau) * sqrt(abs(assemble(inner(v_err, v_err) * dx)))
 
-            del v_d_i
-            del true_v_i
-            del true_v
+            print(f'Estimated error in the L2-norm: {error:.16e}')
+
             del v_err
+            del error
 
             PETSc.garbage_cleanup(self._comm)
 
@@ -2448,11 +2423,6 @@ class Control:
             rhs_1 = Cofunction(full_space_v.dual(), name="rhs_1")
 
             if not self._CN:
-                v_0_homog = Function(space_v)
-                v_0_homog.assign(v_0)
-                for bc in bcs_v:
-                    bc.apply(v_0_homog)
-
                 D_v_i = self.construct_D_v(v_trial, v_test,
                                            v_old.sub(0), Constant(t_0))
                 D_zeta_i = adjoint(D_v_i)
@@ -2460,7 +2430,7 @@ class Control:
                 D_v_0 = self.construct_D_v(v_trial, v_test,
                                            v_0, Constant(t_0))
 
-                rhs_0.sub(0).assign(Constant(tau) * v_d.sub(0))
+                rhs_0.sub(0).assign(tau * v_d.sub(0))
                 b_help = Function(space_v)
                 b_help.assign(v_old.sub(0))
                 b = assemble(action(Constant(tau) * self._M_v, b_help))
@@ -2490,15 +2460,12 @@ class Control:
                 for bc in bcs_zeta:
                     bc.apply(rhs_0.sub(0))
 
-                b = assemble(action(Constant(tau) * D_v_0 + M_v, v_0_homog))
+                b = assemble(action(Constant(tau) * D_v_0 + M_v, v_0))
                 rhs_1.sub(0).assign(b)
                 del b
-                del v_0_homog
 
                 b_help = Function(space_v)
                 b_help.assign(v_old.sub(0))
-                for bc in bcs_v:
-                    bc.apply(b_help)
                 b = assemble(action(Constant(tau) * D_v_i + M_v, b_help))
                 with b.dat.vec_ro as b_v, \
                         rhs_1.sub(0).dat.vec as b_1_v:
@@ -2512,7 +2479,7 @@ class Control:
                                            v_old.sub(n_t - 1), Constant(T_f))
                 D_zeta_i = adjoint(D_v_i)
 
-                rhs_1.sub(n_t - 1).assign(Constant(tau) * f.sub(n_t - 1))
+                rhs_1.sub(n_t - 1).assign(tau * f.sub(n_t - 1))
                 b_help = Function(space_v)
                 b_help.assign(v_old.sub(n_t - 2))
                 b = assemble(action(M_v, b_help))
@@ -2557,8 +2524,8 @@ class Control:
                                                v_old.sub(i), Constant(t))
                     D_zeta_i = adjoint(D_v_i)
 
-                    rhs_0.sub(i).assign(Constant(tau) * v_d.sub(i))
-                    rhs_1.sub(i).assign(Constant(tau) * f.sub(i))
+                    rhs_0.sub(i).assign(tau * v_d.sub(i))
+                    rhs_1.sub(i).assign(tau * f.sub(i))
 
                     b_help = Function(space_v)
                     b_help.assign(v_old.sub(i))
@@ -2628,8 +2595,7 @@ class Control:
                 D_zeta_i = adjoint(D_v_i)
                 D_zeta_i_plus = adjoint(D_v_i_plus)
 
-                rhs_0.sub(0).assign(
-                    Constant(0.5 * tau) * (v_d.sub(0) + v_d.sub(1)))
+                rhs_0.sub(0).assign(0.5 * tau * (v_d.sub(0) + v_d.sub(1)))
                 b_help = Function(space_v)
                 b_help.assign(v_old.sub(0))
                 b = assemble(action(Constant(0.5 * tau) * self._M_v, b_help))
@@ -2669,8 +2635,7 @@ class Control:
                 for bc in bcs_zeta:
                     bc.apply(rhs_0.sub(0))
 
-                rhs_1.sub(0).assign(
-                    Constant(0.5 * tau) * (f.sub(0) + f.sub(1)))
+                rhs_1.sub(0).assign(0.5 * tau * (f.sub(0) + f.sub(1)))
                 b_help = Function(space_v)
                 b_help.assign(v_old.sub(0))
                 b = assemble(
@@ -2725,9 +2690,9 @@ class Control:
                     D_zeta_i_plus = adjoint(D_v_i_plus)
 
                     rhs_0.sub(i).assign(
-                        Constant(0.5 * tau) * (v_d.sub(i) + v_d.sub(i + 1)))
+                        0.5 * tau * (v_d.sub(i) + v_d.sub(i + 1)))
                     rhs_1.sub(i).assign(
-                        Constant(0.5 * tau) * (f.sub(i) + f.sub(i + 1)))
+                        0.5 * tau * (f.sub(i) + f.sub(i + 1)))
 
                     b_help = Function(space_v)
                     b_help.assign(v_old.sub(i))
@@ -2761,8 +2726,9 @@ class Control:
 
                     b_help = Function(space_v)
                     b_help.assign(zeta_old.sub(i + 1))
-                    b = assemble(action(Constant(0.5 * tau) * D_zeta_i_plus - M_v,  # noqa: E501
-                                        b_help))
+                    b = assemble(action(
+                        Constant(0.5 * tau) * D_zeta_i_plus - M_v,
+                        b_help))
                     with b.dat.vec_ro as b_v, \
                             rhs_0.sub(i).dat.vec as b_0_v:
                         b_0_v.axpy(-1.0, b_v)
@@ -2793,8 +2759,9 @@ class Control:
 
                     b_help = Function(space_v)
                     b_help.assign(zeta_old.sub(i))
-                    b = assemble(action(Constant(0.5 * tau / beta) * self._M_zeta,  # noqa: E501
-                                        b_help))
+                    b = assemble(action(
+                        Constant(0.5 * tau / beta) * self._M_zeta,
+                        b_help))
                     with b.dat.vec_ro as b_v, \
                             rhs_1.sub(i).dat.vec as b_1_v:
                         b_1_v.axpy(1.0, b_v)
@@ -2803,8 +2770,9 @@ class Control:
 
                     b_help = Function(space_v)
                     b_help.assign(zeta_old.sub(i + 1))
-                    b = assemble(action(Constant(0.5 * tau / beta) * self._M_zeta,  # noqa: E501
-                                        b_help))
+                    b = assemble(action(
+                        Constant(0.5 * tau / beta) * self._M_zeta,
+                        b_help))
                     with b.dat.vec_ro as b_v, \
                             rhs_1.sub(i).dat.vec as b_1_v:
                         b_1_v.axpy(1.0, b_v)
@@ -2836,7 +2804,7 @@ class Control:
                 epsilon = Constant(10.0**-3)
 
             inhomogeneous_bcs_v = False
-            for (i), bc_i in self._bcs_v.items():
+            for i, bc_i in self._bcs_v.items():
                 for bc in bc_i:
                     if not isinstance(bc.function_arg, ufl.classes.Zero):
                         inhomogeneous_bcs_v = True
@@ -2862,9 +2830,7 @@ class Control:
                 full_nullspace_zeta = full_nullspace_zeta + (nullspace_zeta, )
 
             flattened_space_v = tuple(space_v for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_v.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
 
             if self._initial_condition is not None:
                 v_0 = self._initial_condition(v_test)
@@ -2993,17 +2959,14 @@ class Control:
                 b_1 = Cofunction(full_space_v.dual(), name="b_1")
             else:
                 flattened_space_v_help = tuple(space_v for i in range(n_t - 1))
-                mixed_element_v_help = ufl.classes.MixedElement(
-                    *[space.ufl_element() for space in flattened_space_v_help])
-                full_space_v_help = FunctionSpace(space_v.mesh(),
-                                                  mixed_element_v_help)
+                full_space_v_help = MixedFunctionSpace(flattened_space_v_help)
 
                 b_0 = Cofunction(full_space_v_help.dual(), name="b_0")
                 b_1 = Cofunction(full_space_v_help.dual(), name="b_1")
 
             if not self._CN:
                 if check_v_d:
-                    b_0.sub(0).assign(Constant(tau) * v_d.sub(0))
+                    b_0.sub(0).assign(tau * v_d.sub(0))
 
                     if inhomogeneous_bcs_v:
                         v_inhom = Function(space_v)
@@ -3022,29 +2985,22 @@ class Control:
                     b_0.sub(0).assign(v_d.sub(0))
 
                 if check_f:
-                    v_0_homog = Function(space_v)
-                    v_0_homog.assign(v_0)
-                    for bc in bcs_v:
-                        bc.apply(v_0_homog)
-
                     D_v_i = self.construct_D_v(v_trial, v_test,
                                                v_0, Constant(t_0))
 
-                    b_1.sub(0).assign(
-                        assemble(action(Constant(tau) * D_v_i + M_v, v_0_homog)))  # noqa: E501
+                    b_1.sub(0).assign(assemble(action(
+                        Constant(tau) * D_v_i + M_v, v_0)))
 
-                    del v_0_homog
-
-#                    if inhomogeneous_bcs_v:
-#                        v_inhom = Function(space_v)
-#                        for bc in bcs_v_help[(0)]:
-#                            bc.apply(v_inhom)
-#                        b_help = assemble(action(tau * D_v_i + M_v, v_inhom))
-#                        with b_1.sub(0).dat.vec as b_v, \
-#                                b_help.dat.vec_ro as b_1_v:
-#                            b_v.axpy(-1.0, b_1_v)
-#                        del v_inhom
-#                        del b_help
+                    if inhomogeneous_bcs_v:
+                        v_inhom = Function(space_v)
+                        for bc in bcs_v_help[(0)]:
+                            bc.apply(v_inhom)
+                        b_help = assemble(action(tau * D_v_i + M_v, v_inhom))
+                        with b_1.sub(0).dat.vec as b_v, \
+                                b_help.dat.vec_ro as b_1_v:
+                            b_v.axpy(-1.0, b_1_v)
+                        del v_inhom
+                        del b_help
 
                     for bc in bcs_v:
                         bc.apply(b_1.sub(0))
@@ -3054,7 +3010,7 @@ class Control:
                 t = t_0
                 for i in range(1, n_t - 1):
                     if check_v_d:
-                        b_0.sub(i).assign(Constant(tau) * v_d.sub(i))
+                        b_0.sub(i).assign(tau * v_d.sub(i))
 
                         if inhomogeneous_bcs_v:
                             v_inhom = Function(space_v)
@@ -3074,7 +3030,7 @@ class Control:
                         b_0.sub(i).assign(v_d.sub(i))
 
                     if check_f:
-                        b_1.sub(i).assign(Constant(tau) * f.sub(i))
+                        b_1.sub(i).assign(tau * f.sub(i))
 
                         if inhomogeneous_bcs_v:
                             t += tau
@@ -3086,8 +3042,8 @@ class Control:
                             v_inhom = Function(space_v)
                             for bc in bcs_v_help[(i)]:
                                 bc.apply(v_inhom)
-                            b_help = assemble(action(Constant(tau) * D_v_i + M_v,  # noqa: E501
-                                                     v_inhom))
+                            b_help = assemble(action(
+                                Constant(tau) * D_v_i + M_v, v_inhom))
                             with b_1.sub(i).dat.vec as b_v, \
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
@@ -3115,7 +3071,7 @@ class Control:
                     b_0.sub(n_t - 1).assign(v_d.sub(n_t - 1))
 
                 if check_f:
-                    b_1.sub(n_t - 1).assign(Constant(tau) * f.sub(n_t - 1))
+                    b_1.sub(n_t - 1).assign(tau * f.sub(n_t - 1))
                     if inhomogeneous_bcs_v:
                         v_n_help.assign(v_old.sub(n_t - 1))
 
@@ -3153,14 +3109,14 @@ class Control:
                 for i in range(n_t - 1):
                     if check_v_d:
                         b_0.sub(i).assign(
-                            Constant(0.5 * tau) * (v_d.sub(i) + v_d.sub(i + 1)))  # noqa: E501
+                            0.5 * tau * (v_d.sub(i) + v_d.sub(i + 1)))
 
                         if inhomogeneous_bcs_v:
                             v_inhom = Function(space_v)
                             for bc in bcs_v_help[(i + 1)]:
                                 bc.apply(v_inhom)
-                            b_help = assemble(action(Constant(0.5 * tau) * self._M_v,  # noqa: E501
-                                                     v_inhom))
+                            b_help = assemble(action(
+                                Constant(0.5 * tau) * self._M_v, v_inhom))
                             with b_0.sub(i).dat.vec as b_v, \
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
@@ -3174,8 +3130,8 @@ class Control:
                                 for bc in bcs_v_help[(i)]:
                                     bc.apply(v_inhom)
 
-                                b_help = assemble(action(Constant(0.5 * tau) * self._M_v,  # noqa: E501
-                                                         v_inhom))
+                                b_help = assemble(action(
+                                    Constant(0.5 * tau) * self._M_v, v_inhom))
 
                                 with b_0.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_1_v:
@@ -3191,7 +3147,7 @@ class Control:
 
                     if check_f:
                         b_1.sub(i).assign(
-                            Constant(0.5 * tau) * (f.sub(i) + f.sub(i + 1)))
+                            0.5 * tau * (f.sub(i) + f.sub(i + 1)))
 
                         if inhomogeneous_bcs_v:
                             t = t_0 + (i + 1) * tau
@@ -3204,8 +3160,8 @@ class Control:
                             for bc in bcs_v_help[(i + 1)]:
                                 bc.apply(v_inhom)
 
-                            b_help = assemble(action(Constant(0.5 * tau) * D_v_i + M_v,  # noqa: E501
-                                                     v_inhom))
+                            b_help = assemble(action(
+                                Constant(0.5 * tau) * D_v_i + M_v, v_inhom))
                             with b_1.sub(i).dat.vec as b_v, \
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
@@ -3217,14 +3173,14 @@ class Control:
                                 t = t_0 + i * tau
                                 v_n_help.assign(v_old.sub(i))
 
-                                D_v_i = self.construct_D_v(v_trial, v_test,
-                                                           v_n_help, Constant(t))  # noqa: E501
+                                D_v_i = self.construct_D_v(
+                                    v_trial, v_test, v_n_help, Constant(t))
 
                                 v_inhom = Function(space_v)
                                 for bc in bcs_v_help[(i)]:
                                     bc.apply(v_inhom)
-                                b_help = assemble(
-                                    action(Constant(0.5 * tau) * D_v_i - M_v, v_inhom))  # noqa: E501
+                                b_help = assemble(action(
+                                    Constant(0.5 * tau) * D_v_i - M_v, v_inhom))  # noqa: E501
                                 with b_1.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_1_v:
                                     b_v.axpy(-1.0, b_1_v)
@@ -3250,7 +3206,8 @@ class Control:
                     D_v_i = self.construct_D_v(v_trial, v_test,
                                                v_0, Constant(t_0))
 
-                    b = assemble(action(Constant(0.5 * tau) * D_v_i - M_v, v_0))  # noqa: E501
+                    b = assemble(action(
+                        Constant(0.5 * tau) * D_v_i - M_v, v_0))
                     with b_1.sub(0).dat.vec as b_v, \
                             b.dat.vec_ro as b_1_v:
                         b_v.axpy(-1.0, b_1_v)
@@ -3331,18 +3288,11 @@ class Control:
                 self.set_v(v_new)
                 self.set_zeta(zeta_new)
             else:
-#                if check_f and check_v_d:
-#                    v.sub(0).assign(v_0)
-#                    del v_0
-
                 self.set_v(v)
                 self.set_zeta(zeta)
 
-            del v
-            del zeta
             if check_v_d:
                 del v_d
-                del true_v
                 del b_0
             if check_f:
                 del f
@@ -3350,10 +3300,13 @@ class Control:
             del system
             del pc_fn
 
-            if print_error:
-                self.print_error(full_space_v, v_test)
-
             PETSc.garbage_cleanup(self._comm)
+
+            if print_error:
+                self.print_error(true_v, tau)
+
+            if check_v_d:
+                del true_v
 
             if create_output:
                 v_output = File("v.pvd")
@@ -3396,6 +3349,11 @@ class Control:
                     except Exception as e:
                         warning("Cannot plot figure. Error msg: '%s'" % e)
 
+            del v
+            del zeta
+
+            PETSc.garbage_cleanup(self._comm)
+
         def non_linear_solve(self, *,
                              P=None, solver_parameters=None,
                              Multigrid=False,
@@ -3416,7 +3374,7 @@ class Control:
             tau = (T_f - t_0) / (n_t - 1.0)
 
             inhomogeneous_bcs_v = False
-            for (i), bc_i in self._bcs_v.items():
+            for i, bc_i in self._bcs_v.items():
                 for bc in bc_i:
                     if not isinstance(bc.function_arg, ufl.classes.Zero):
                         inhomogeneous_bcs_v = True
@@ -3429,9 +3387,7 @@ class Control:
             bcs_zeta = bcs_v
 
             flattened_space_v = tuple(space_v for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_v.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
 
             v_old = Function(full_space_v, name="v_old")
             zeta_old = Function(full_space_v, name="zeta_old")
@@ -3458,10 +3414,7 @@ class Control:
 
             if self._CN:
                 flattened_space_v_help = tuple(space_v for i in range(n_t - 1))
-                mixed_element_v_help = ufl.classes.MixedElement(
-                    *[space.ufl_element() for space in flattened_space_v_help])
-                full_space_v_help = FunctionSpace(
-                    space_v.mesh(), mixed_element_v_help)
+                full_space_v_help = MixedFunctionSpace(flattened_space_v_help)
 
             if self._CN:
                 rhs_0, rhs_1 = self.non_linear_res_eval(
@@ -3488,6 +3441,8 @@ class Control:
             norm_k = norm_0
 
             k = 0
+
+            print(f'Initial non-linear residual: {norm_0:.16e}')
 
             while (norm_k > relative_non_linear_tol * norm_0 and norm_k > absolute_non_linear_tol):  # noqa: E501
                 self.linear_solve(P=P, solver_parameters=solver_parameters,
@@ -3541,6 +3496,11 @@ class Control:
                     norm_k = b_v.norm()
 
                 k += 1
+
+                print(f'Non-linear solver: '
+                      f'iteration {k:d}, '
+                      f'non-linear residual norm {norm_k:.16e}')
+
                 if k + 1 > max_non_linear_iter:
                     break
 
@@ -3554,18 +3514,19 @@ class Control:
             del rhs
             del f
             del v_d
-            del true_v
 
             if print_error_non_linear is True:
                 if (norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol):  # noqa: E501
-                    print('relative non-linear residual: ', norm_k / norm_0)
-                    print('absolute non-linear residual: ', norm_k)
-                    print('number of non-linear iterations: ', k)
+                    print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')  # noqa: E501
+                    print(f'Absolute non-linear residual: {norm_k:.16e}')
+                    print(f'Number of non-linear iterations: {k:d}')
                 else:
-                    print('the non-linear iteration did not converge')
-                    print('relative non-linear residual: ', norm_k / norm_0)
-                    print('absolute non-linear residual: ', norm_k)
-                self.print_error(full_space_v, v_test)
+                    print('The non-linear iteration did not converge')
+                    print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')  # noqa: E501
+                    print(f'Absolute non-linear residual: {norm_k:.16e}')
+                self.print_error(true_v, tau)
+
+            del true_v
 
             PETSc.garbage_cleanup(self._comm)
 
@@ -3642,7 +3603,7 @@ class Control:
                 epsilon = Constant(10.0**-3)
 
             inhomogeneous_bcs_v = False
-            for (i), bc_i in self._bcs_v.items():
+            for i, bc_i in self._bcs_v.items():
                 for bc in bc_i:
                     if not isinstance(bc.function_arg, ufl.classes.Zero):
                         inhomogeneous_bcs_v = True
@@ -3673,38 +3634,25 @@ class Control:
             full_nullspace_1 = full_nullspace_p + full_nullspace_p
 
             flattened_space_v = tuple(space_v for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_v.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
             if not self._CN:
-                space_0 = FunctionSpace(
-                    space_v.mesh(),
-                    full_space_v.ufl_element() * full_space_v.ufl_element())
+                full_flattened_space_v = flattened_space_v + flattened_space_v
+                space_0 = MixedFunctionSpace(full_flattened_space_v)
             else:
                 flattened_space_v_help = tuple(
                     space_v for i in range(n_t - 1))
-                mixed_element_v_help = ufl.classes.MixedElement(
-                    *[space.ufl_element() for space in flattened_space_v_help])
-                full_space_v_help = FunctionSpace(
-                    space_v.mesh(),
-                    mixed_element_v_help)
-                space_0 = FunctionSpace(
-                    space_v.mesh(),
-                    full_space_v_help.ufl_element() * full_space_v_help.ufl_element())  # noqa: E501
+                full_space_v_help = MixedFunctionSpace(flattened_space_v_help)
+                space_0 = MixedFunctionSpace(
+                    flattened_space_v_help + flattened_space_v_help)
 
             if not self._CN:
                 flattened_space_p = tuple(space_p for i in range(n_t))
-                mixed_element_p = ufl.classes.MixedElement(
-                    *[space.ufl_element() for space in flattened_space_p])
-                full_space_p = FunctionSpace(space_p.mesh(), mixed_element_p)
             else:
                 flattened_space_p = tuple(space_p for i in range(n_t - 1))
-                mixed_element_p = ufl.classes.MixedElement(
-                    *[space.ufl_element() for space in flattened_space_p])
-                full_space_p = FunctionSpace(space_p.mesh(), mixed_element_p)
-            space_1 = FunctionSpace(
-                space_p.mesh(),
-                full_space_p.ufl_element() * full_space_p.ufl_element())
+            full_space_p = MixedFunctionSpace(flattened_space_p)
+
+            full_flattened_space_p = flattened_space_p + flattened_space_p
+            space_1 = MixedFunctionSpace(full_flattened_space_p)
 
             b_0 = Cofunction(space_0.dual(), name="b_0")
             b_1 = Cofunction(space_1.dual(), name="b_1")
@@ -4004,7 +3952,7 @@ class Control:
 
             if not self._CN:
                 if check_v_d:
-                    b_0_0.sub(0).assign(Constant(tau) * v_d.sub(0))
+                    b_0_0.sub(0).assign(tau * v_d.sub(0))
                     if inhomogeneous_bcs_v:
                         v_inhom = Function(space_v)
                         for bc in bcs_v_help[(0)]:
@@ -4021,28 +3969,22 @@ class Control:
                     b_0_0.sub(0).assign(v_d.sub(0))
 
                 if check_f:
-                    v_0_homog = Function(space_v)
-                    v_0_homog.assign(v_0)
-                    for bc in bcs_v:
-                        bc.apply(v_0_homog)
-
                     D_v_i = self.construct_D_v(v_trial, v_test,
                                                v_0, Constant(t_0))
+
                     b_0_1.sub(0).assign(assemble(
-                        action(Constant(tau) * D_v_i + M_v, v_0_homog)))
+                        action(Constant(tau) * D_v_i + M_v, v_0)))
 
-                    del v_0_homog
-
-#                    if inhomogeneous_bcs_v:
-#                        v_inhom = Function(space_v)
-#                        for bc in bcs_v_help[(0)]:
-#                            bc.apply(v_inhom)
-#                        b_help = assemble(action(Constant(tau) * D_v_i + M_v, v_inhom))  # noqa: E501
-#                        with b_0_1.sub(0).dat.vec as b_v, \
-#                                b_help.dat.vec_ro as b_1_v:
-#                            b_v.axpy(-1.0, b_1_v)
-#                        del v_inhom
-#                        del b_help
+                    if inhomogeneous_bcs_v:
+                        v_inhom = Function(space_v)
+                        for bc in bcs_v_help[(0)]:
+                            bc.apply(v_inhom)
+                        b_help = assemble(action(Constant(tau) * D_v_i + M_v, v_inhom))  # noqa: E501
+                        with b_0_1.sub(0).dat.vec as b_v, \
+                                b_help.dat.vec_ro as b_1_v:
+                            b_v.axpy(-1.0, b_1_v)
+                        del v_inhom
+                        del b_help
 
                     for bc in bcs_zeta:
                         bc.apply(b_0_1.sub(0))
@@ -4052,7 +3994,7 @@ class Control:
                 t = t_0
                 for i in range(1, n_t - 1):
                     if check_v_d:
-                        b_0_0.sub(i).assign(Constant(tau) * v_d.sub(i))
+                        b_0_0.sub(i).assign(tau * v_d.sub(i))
                         if inhomogeneous_bcs_v:
                             v_inhom = Function(space_v)
                             for bc in bcs_v_help[(i)]:
@@ -4070,7 +4012,7 @@ class Control:
                         b_0_0.sub(i).assign(v_d.sub(i))
 
                     if check_f:
-                        b_0_1.sub(i).assign(Constant(tau) * f.sub(i))
+                        b_0_1.sub(i).assign(tau * f.sub(i))
                         if inhomogeneous_bcs_v:
                             t += tau
 
@@ -4107,7 +4049,7 @@ class Control:
 
                 if check_f:
                     b_0_1.sub(n_t - 1).assign(
-                        Constant(tau) * f.sub(n_t - 1))
+                        tau * f.sub(n_t - 1))
                     if inhomogeneous_bcs_v:
                         v_n_help.assign(v_old.sub(n_t - 1))
 
@@ -4140,7 +4082,7 @@ class Control:
 
                 if div_v is None:
                     if inhomogeneous_bcs_v:
-                        for i in range(1, n_t):
+                        for i in range(0, n_t):
                             v_inhom = Function(space_v)
                             for bc in bcs_v_help[(i)]:
                                 bc.apply(v_inhom)
@@ -4174,7 +4116,7 @@ class Control:
                 for i in range(n_t - 1):
                     if check_v_d:
                         b_0_0.sub(i).assign(
-                            Constant(0.5 * tau) * (v_d.sub(i) + v_d.sub(i + 1)))  # noqa: E501
+                            0.5 * tau * (v_d.sub(i) + v_d.sub(i + 1)))
                         if inhomogeneous_bcs_v:
                             v_inhom = Function(space_v)
                             for bc in bcs_v_help[(i + 1)]:
@@ -4206,7 +4148,7 @@ class Control:
 
                     if check_f:
                         b_0_1.sub(i).assign(
-                            Constant(0.5 * tau) * (f.sub(i) + f.sub(i + 1)))
+                            0.5 * tau * (f.sub(i) + f.sub(i + 1)))
                         if inhomogeneous_bcs_v:
                             t = t_0 + (i + 1) * tau
 
@@ -4306,11 +4248,12 @@ class Control:
                 b_1_1 = apply_T_1(b_1_1, space_p, n_t - 1)
 
                 for i in range(n_t - 1):
+                    index = n_t - 1 + i
+
                     b_0.sub(i).assign(b_0_0.sub(i))
-                    index = n_t - 1 + i
                     b_0.sub(index).assign(b_0_1.sub(i))
+
                     b_1.sub(i).assign(b_1_0.sub(i))
-                    index = n_t - 1 + i
                     b_1.sub(index).assign(b_1_1.sub(i))
 
             del b_0_0
@@ -4772,25 +4715,17 @@ class Control:
                     zeta.sub(i).assign(u_0_sol.sub(index))
                     mu.sub(i).assign(u_1_sol.sub(i))
 
-#                if check_f and check_v_d:
-#                    v.sub(0).assign(v_0)
-
             self.set_v(v)
             self.set_zeta(zeta)
 
             self.set_p(p)
             self.set_mu(mu)
 
-            del v
-            del zeta
-            del p
-            del mu
             del v_0
             del u_0_sol
             del u_1_sol
             if check_v_d:
                 del v_d
-                del true_v
             if check_f:
                 del f
             if check_div_v:
@@ -4803,9 +4738,10 @@ class Control:
             del pc_fn
 
             if print_error:
-                self.print_error(full_space_v, v_test)
+                self.print_error(true_v, tau)
 
-            PETSc.garbage_cleanup(self._comm)
+            if check_v_d:
+                del true_v
 
             if create_output:
                 v_output = File("v.pvd")
@@ -4932,6 +4868,13 @@ class Control:
                     except Exception as e:
                         warning("Cannot plot figure. Error msg: '%s'" % e)
 
+            del v
+            del zeta
+            del p
+            del mu
+
+            PETSc.garbage_cleanup(self._comm)
+
         def incompressible_non_linear_solve(self, nullspace_p, *,
                                             space_p=None, P=None,
                                             solver_parameters=None,
@@ -4962,7 +4905,7 @@ class Control:
             tau = (T_f - t_0) / (n_t - 1.0)
 
             inhomogeneous_bcs_v = False
-            for (i), bc_i in self._bcs_v.items():
+            for i, bc_i in self._bcs_v.items():
                 for bc in bc_i:
                     if not isinstance(bc.function_arg, ufl.classes.Zero):
                         inhomogeneous_bcs_v = True
@@ -4975,28 +4918,18 @@ class Control:
             bcs_zeta = bcs_v
 
             flattened_space_v = tuple(space_v for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_v.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
+
             if self._CN:
                 flattened_space_v_help = tuple(
                     space_v for i in range(n_t - 1))
-                mixed_element_v_help = ufl.classes.MixedElement(
-                    *[space.ufl_element() for space in flattened_space_v_help])
-                full_space_v_help = FunctionSpace(
-                    space_v.mesh(),
-                    mixed_element_v_help)
+                full_space_v_help = MixedFunctionSpace(flattened_space_v_help)
 
             if not self._CN:
                 flattened_space_p = tuple(space_p for i in range(n_t))
-                mixed_element_p = ufl.classes.MixedElement(
-                    *[space.ufl_element() for space in flattened_space_p])
-                full_space_p = FunctionSpace(space_p.mesh(), mixed_element_p)
             else:
                 flattened_space_p = tuple(space_p for i in range(n_t - 1))
-                mixed_element_p = ufl.classes.MixedElement(
-                    *[space.ufl_element() for space in flattened_space_p])
-                full_space_p = FunctionSpace(space_p.mesh(), mixed_element_p)
+            full_space_p = MixedFunctionSpace(flattened_space_p)
 
             v_old = Function(full_space_v, name="v_old")
             zeta_old = Function(full_space_v, name="zeta_old")
@@ -5087,17 +5020,14 @@ class Control:
 
                         b_help = Function(space_v)
                         b_help.assign(v_old.sub(i))
-                        if i == 0:
-                            for bc in bcs_v:
-                                bc.apply(b_help)
-                        b = assemble(action(Constant(tau) * B, b_help))
+                        b = assemble(action(B, b_help))
                         rhs_10.sub(i).assign(-b)
                         del b
                         del b_help
 
                         b_help = Function(space_v)
                         b_help.assign(zeta_old.sub(i))
-                        b = assemble(action(Constant(tau) * B, b_help))
+                        b = assemble(action(B, b_help))
                         rhs_11.sub(i).assign(-b)
                         del b
                         del b_help
@@ -5129,14 +5059,14 @@ class Control:
 
                         b_help = Function(space_v)
                         b_help.assign(v_old.sub(i + 1))
-                        b = assemble(action(Constant(tau) * B, b_help))
+                        b = assemble(action(B, b_help))
                         rhs_10.sub(i).assign(-b)
                         del b
                         del b_help
 
                         b_help = Function(space_v)
                         b_help.assign(zeta_old.sub(i))
-                        b = assemble(action(Constant(tau) * B, b_help))
+                        b = assemble(action(B, b_help))
                         rhs_11.sub(i).assign(-b)
                         del b
                         del b_help
@@ -5164,7 +5094,14 @@ class Control:
                 norm_0 = b_v.norm()
             norm_k = norm_0
 
+            with rhs_10.dat.vec as b_v:
+                b_v.scale(tau)
+            with rhs_11.dat.vec as b_v:
+                b_v.scale(tau)
+
             k = 0
+
+            print(f'Initial non-linear residual: {norm_0:.16e}')
 
             while (norm_k > relative_non_linear_tol * norm_0 and norm_k > absolute_non_linear_tol):  # noqa: E501
                 self.incompressible_linear_solve(
@@ -5239,7 +5176,17 @@ class Control:
                 with rhs.dat.vec_ro as b_v:
                     norm_k = b_v.norm()
 
+                with rhs_10.dat.vec as b_v:
+                    b_v.scale(tau)
+                with rhs_11.dat.vec as b_v:
+                    b_v.scale(tau)
+
                 k += 1
+
+                print(f'Non-linear solver: '
+                      f'iteration {k:d}, '
+                      f'non-linear residual norm {norm_k:.16e}')
+
                 if k + 1 > max_non_linear_iter:
                     break
 
@@ -5258,7 +5205,6 @@ class Control:
             del rhs
             del f
             del v_d
-            del true_v
             del v_0
             del M_v
             del B
@@ -5266,14 +5212,16 @@ class Control:
 
             if print_error_non_linear:
                 if (norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol):  # noqa: E501
-                    print('relative non-linear residual: ', norm_k / norm_0)
-                    print('absolute non-linear residual: ', norm_k)
-                    print('number of non-linear iterations: ', k)
+                    print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')  # noqa: E501
+                    print(f'Absolute non-linear residual: {norm_k:.16e}')
+                    print(f'Number of non-linear iterations: {k:d}')
                 else:
-                    print('the non-linear iteration did not converge')
-                    print('relative non-linear residual: ', norm_k / norm_0)
-                    print('absolute non-linear residual: ', norm_k)
-                self.print_error(full_space_v, v_test)
+                    print('The non-linear iteration did not converge')
+                    print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')  # noqa: E501
+                    print(f'Absolute non-linear residual: {norm_k:.16e}')
+                self.print_error(true_v, tau)
+
+            del true_v
 
             PETSc.garbage_cleanup(self._comm)
 
@@ -5327,6 +5275,8 @@ class Control:
 
                 del b_help_v
                 del b_help_p
+
+                PETSc.garbage_cleanup(self._comm)
 
                 with CheckpointFile("v.h5", "w") as h:
                     h.save_function(self._v)
