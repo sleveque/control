@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from firedrake import (
-    Cofunction, ConvergenceError, DirichletBC, Function, FunctionSpace,
-    assemble)
+    Cofunction, ConvergenceError, DirichletBC, Function,
+    MixedFunctionSpace, assemble)
 from firedrake.functionspaceimpl import WithGeometry as FunctionSpaceBase
 
 import petsc4py.PETSc as PETSc
@@ -32,9 +32,7 @@ _error_flag = [False]
 # definition of application of T_1 and T_2
 def apply_T_1(x_old, space_v, n_blocks):
     flattened_space = tuple(space_v for i in range(n_blocks))
-    mixed_element = ufl.classes.MixedElement(
-        *[space.ufl_element() for space in flattened_space])
-    full_space_v = FunctionSpace(space_v.mesh(), mixed_element)
+    full_space_v = MixedFunctionSpace(flattened_space)
 
     x_new = Function(full_space_v)
     x_new.assign(x_old)
@@ -49,9 +47,7 @@ def apply_T_1(x_old, space_v, n_blocks):
 
 def apply_T_2(x_old, space_v, n_blocks):
     flattened_space = tuple(space_v for i in range(n_blocks))
-    mixed_element = ufl.classes.MixedElement(
-        *[space.ufl_element() for space in flattened_space])
-    full_space_v = FunctionSpace(space_v.mesh(), mixed_element)
+    full_space_v = MixedFunctionSpace(flattened_space)
 
     x_new = Function(full_space_v)
     x_new.assign(x_old)
@@ -278,24 +274,18 @@ class MultiBlockSystem:
         self._space_1 = space_1
 
         if n_blocks_00 == 1:
-            space_help_0 = space_0
+            flattened_space_0 = (space_0, )
         else:
             flattened_space_0 = tuple(space_0 for i in range(n_blocks_00))
-            mixed_element_0 = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_0])
-            space_help_0 = FunctionSpace(space_0.mesh(), mixed_element_0)
 
         if n_blocks_11 == 1:
-            space_help_1 = space_1
+            flattened_space_1 = (space_1, )
         else:
             flattened_space_1 = tuple(space_1 for i in range(n_blocks_11))
-            mixed_element_1 = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_1])
-            space_help_1 = FunctionSpace(space_1.mesh(), mixed_element_1)
 
-        self._spaces = FunctionSpace(
-            space_0.mesh(),
-            space_help_0.ufl_element() * space_help_1.ufl_element())
+        full_flattened_space = flattened_space_0 + flattened_space_1
+        self._spaces = MixedFunctionSpace(full_flattened_space)
+
         self._n_blocks_00 = n_blocks_00
         self._n_blocks_11 = n_blocks_11
         if sub_n_blocks_00_0 is not None:
@@ -450,17 +440,13 @@ class MultiBlockSystem:
                             space_0_help = self._space_0
                         else:
                             flattened_space_0 = tuple(self._space_0 for i in range(self._n_blocks_00))  # noqa: E501
-                            mixed_element_0 = ufl.classes.MixedElement(
-                                *[space.ufl_element() for space in flattened_space_0])  # noqa: E501
-                            space_0_help = FunctionSpace(self._space_0.mesh(), mixed_element_0)  # noqa: E501
+                            space_0_help = MixedFunctionSpace(flattened_space_0)  # noqa: E501
 
                         if self._n_blocks_11 == 1:
                             space_1_help = self._space_1
                         else:
                             flattened_space_1 = tuple(self._space_1 for i in range(self._n_blocks_11))  # noqa: E501
-                            mixed_element_1 = ufl.classes.MixedElement(
-                                *[space.ufl_element() for space in flattened_space_1])  # noqa: E501
-                            space_1_help = FunctionSpace(self._space_1.mesh(), mixed_element_1)  # noqa: E501
+                            space_1_help = MixedFunctionSpace(flattened_space_1)  # noqa: E501
 
                         y_help_0 = Function(space_0_help)
                         y_help_1 = Function(space_1_help)
@@ -484,23 +470,20 @@ class MultiBlockSystem:
                         del y_help_1
                     else:
                         flattened_space_0_0 = tuple(self._space_0 for i in range(self._sub_n_blocks_00_0))  # noqa: E501
-                        mixed_element_0_0 = ufl.classes.MixedElement(
-                            *[space.ufl_element() for space in flattened_space_0_0])  # noqa: E501
-                        space_0_0_help = FunctionSpace(self._space_0.mesh(), mixed_element_0_0)  # noqa: E501
+                        space_0_0_help = MixedFunctionSpace(
+                            flattened_space_0_0)
 
                         flattened_space_0_1 = tuple(self._space_0 for i in range(self._sub_n_blocks_00_1))  # noqa: E501
-                        mixed_element_0_1 = ufl.classes.MixedElement(
-                            *[space.ufl_element() for space in flattened_space_0_1])  # noqa: E501
-                        space_0_1_help = FunctionSpace(self._space_0.mesh(), mixed_element_0_1)  # noqa: E501
+                        space_0_1_help = MixedFunctionSpace(
+                            flattened_space_0_1)
 
                         flattened_space_1_0 = tuple(self._space_1 for i in range(self._sub_n_blocks_11_0))  # noqa: E501
-                        mixed_element_1_0 = ufl.classes.MixedElement(
-                            *[space.ufl_element() for space in flattened_space_1_0])  # noqa: E501
-                        space_1_0_help = FunctionSpace(self._space_1.mesh(), mixed_element_1_0)  # noqa: E501
+                        space_1_0_help = MixedFunctionSpace(
+                            flattened_space_1_0)
+
                         flattened_space_1_1 = tuple(self._space_1 for i in range(self._sub_n_blocks_11_1))  # noqa: E501
-                        mixed_element_1_1 = ufl.classes.MixedElement(
-                            *[space.ufl_element() for space in flattened_space_1_1])  # noqa: E501
-                        space_1_1_help = FunctionSpace(self._space_1.mesh(), mixed_element_1_1)  # noqa: E501
+                        space_1_1_help = MixedFunctionSpace(
+                            flattened_space_1_1)
 
                         y_help_0_0 = Function(space_0_0_help)
                         y_help_0_1 = Function(space_0_1_help)
@@ -588,17 +571,13 @@ class MultiBlockSystem:
                     space_help_0 = self._space_0
                 else:
                     flattened_space_0 = tuple(space_0 for i in range(self._n_blocks_00))  # noqa: E501
-                    mixed_element_0 = ufl.classes.MixedElement(
-                        *[space.ufl_element() for space in flattened_space_0])
-                    space_help_0 = FunctionSpace(space_0.mesh(), mixed_element_0)  # noqa: E501
+                    space_help_0 = MixedFunctionSpace(flattened_space_0)
 
                 if self._n_blocks_11 == 1:
                     space_help_1 = self._space_1
                 else:
                     flattened_space_1 = tuple(space_1 for i in range(self._n_blocks_11))  # noqa: E501
-                    mixed_element_1 = ufl.classes.MixedElement(
-                        *[space.ufl_element() for space in flattened_space_1])
-                    space_help_1 = FunctionSpace(space_1.mesh(), mixed_element_1)  # noqa: E501
+                    space_help_1 = MixedFunctionSpace(flattened_space_1)
 
                 b_0 = Cofunction(space_help_0.dual(), name="b_0")
                 b_1 = Cofunction(space_help_1.dual(), name="b_1")
