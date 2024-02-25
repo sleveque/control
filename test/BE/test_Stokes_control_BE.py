@@ -7,10 +7,6 @@ from preconditioner.preconditioner import *
 
 from control.control import *
 
-from tlm_adjoint.firedrake import (
-    DirichletBCApplication, Functional, compute_gradient, minimize_scipy,
-    reset_manager, start_manager, stop_manager)
-
 import petsc4py.PETSc as PETSc
 import mpi4py.MPI as MPI
 import numpy as np
@@ -122,14 +118,14 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
 
         zeta_space = zeta_sol_space(*X)
 
-        lapl_zeta = div(grad(zeta) + ufl.transpose(grad(zeta)))
+        lapl_zeta = div(grad(zeta))
         grad_mu = grad(mu)
 
         # desired state
-        v_d = Function(space)
+        v_d = Function(space, name="v_d")
         v_d.interpolate(v + zeta_space - lapl_zeta + grad_mu)
 
-        true_v = Function(space)
+        true_v = Function(space, name="true_v")
         true_v.interpolate(as_vector([
             (a - t) * x * y**3,
             (1. / 4.) * (a - t) * (x**4 - y**4)]))
@@ -164,7 +160,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
 
         v_space = v_sol_space(*X)
 
-        lapl_v = div(grad(v) + ufl.transpose(grad(v)))
+        lapl_v = div(grad(v))
         grad_p = grad(p)
 
         # force function
@@ -220,26 +216,16 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
                 print_error=False, create_output=False)
 
             flattened_space_v = tuple(space_v for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_v.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
 
             flattened_space_p = tuple(space_p for i in range(n_t - 1))
-            mixed_element_p = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_p])
-            full_space_p = FunctionSpace(space_p.mesh(), mixed_element_p)
+            full_space_p = MixedFunctionSpace(flattened_space_p)
 
             flattened_space_v_ref = tuple(space_v_ref for i in range(n_t))
-            mixed_element_v_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v_ref])
-            full_space_v_ref = FunctionSpace(
-                space_v_ref.mesh(), mixed_element_v_ref)
+            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
             flattened_space_p_ref = tuple(space_p_ref for i in range(n_t - 1))
-            mixed_element_p_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_p_ref])
-            full_space_p_ref = FunctionSpace(
-                space_p_ref.mesh(), mixed_element_p_ref)
+            full_space_p_ref = MixedFunctionSpace(flattened_space_p_ref)
 
             my_v = Function(full_space_v)
             my_p = Function(full_space_p)
@@ -356,7 +342,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
         a = Constant(t_f)
 
         v = as_vector([
-            exp(t_f - t) * x * y**3,
+            exp(a - t) * x * y**3,
             (1. / 4.) * exp(a - t) * (x**4 - y**4)])
 
         return v
@@ -418,13 +404,13 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
         y = X[1] - 1.0
         a = Constant(t_f)
 
-        v_d_help = Function(space)
+        v_d_help = Function(space, name="v_d_help")
         v_d_help.interpolate(as_vector([
             4. * beta * y * (2. * (3. * x * x - 1.) * (y * y - 1.) + 3. * (x * x - 1.)**2),  # noqa: E501
             -4. * beta * x * (3. * (y * y - 1.)**2 + 2. * (x * x - 1.) * (3. * y * y - 1.))]))  # noqa: E501
 
         # desired state
-        v_d = Function(space)
+        v_d = Function(space, name="v_d")
         v_d.interpolate(as_vector([
             exp(a - t) * (x * y**3 + 2. * beta * y * (((x * x - 1.)**2) * (y * y - 7.) - 4. * (3. * x * x - 1.) * (y * y - 1.) + 2.)),  # noqa: E501
             exp(a - t) * ((1. / 4.) * (x**4 - y**4) - 2. * beta * x * (((y * y - 1.)**2) * (x * x - 7.) - 4. * (x * x - 1.) * (3. * y * y - 1.) - 2.))]))  # noqa: E501
@@ -433,7 +419,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
                 v_d_help.dat.vec_ro as b_1_v:
             b_v.axpy(1.0, b_1_v)
 
-        true_v = Function(space)
+        true_v = Function(space, name="true_v")
         true_v.interpolate(as_vector([
             exp(a - t) * x * y**3,
             (1. / 4.) * exp(a - t) * (x**4 - y**4)]))
@@ -464,13 +450,13 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
         a = Constant(t_f)
 
         # force function
-        f_help = Function(space)
+        f_help = Function(space, name="f_help")
         f_help.interpolate(as_vector([
             2. * y * (x**2 - 1.)**2 * (y**2 - 1.),
             -2. * x * (x**2 - 1.) * (y**2 - 1.)**2]))
 
         # force function
-        f = Function(space)
+        f = Function(space, name="f")
         f.interpolate(as_vector([
             exp(a - t) * (-x * y**3 - 2. * y * (x * x - 1.)**2 * (y * y - 1.)),  # noqa: E501
             exp(a - t) * ((1. / 4.) * (y**4 - x**4) + 2. * x * (x * x - 1.) * (y * y - 1.)**2)]))  # noqa: E501
@@ -527,26 +513,16 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
                 print_error=False, create_output=False)
 
             flattened_space_v = tuple(space_v for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_v.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
 
             flattened_space_p = tuple(space_p for i in range(n_t - 1))
-            mixed_element_p = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_p])
-            full_space_p = FunctionSpace(space_p.mesh(), mixed_element_p)
+            full_space_p = MixedFunctionSpace(flattened_space_p)
 
             flattened_space_v_ref = tuple(space_v_ref for i in range(n_t))
-            mixed_element_v_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v_ref])
-            full_space_v_ref = FunctionSpace(
-                space_v_ref.mesh(), mixed_element_v_ref)
+            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
             flattened_space_p_ref = tuple(space_p_ref for i in range(n_t - 1))
-            mixed_element_p_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_p_ref])
-            full_space_p_ref = FunctionSpace(
-                space_p_ref.mesh(), mixed_element_p_ref)
+            full_space_p_ref = MixedFunctionSpace(flattened_space_p_ref)
 
             my_v = Function(full_space_v)
             my_p = Function(full_space_p)
@@ -580,7 +556,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
 
                 v_ref.sub(i).interpolate(v_sol(*X, Constant(t)))
 
-                zeta_ref.sub(i).interpolate(zeta_sol(*X, Constant(t))_
+                zeta_ref.sub(i).interpolate(zeta_sol(*X, Constant(t)))
 
                 true_p_i_ref.interpolate(p_sol(*X, Constant(t + tau)))
                 mean = assemble(true_p_i_ref * dx)
