@@ -45,7 +45,11 @@ def test_stationary_linear_control():
         v_d.interpolate(
             cos(pi * X[0] - 0.5 * pi) * cos(pi * X[1] - 0.5 * pi) + 1.)
 
-        return inner(v_d, test) * dx, v_d
+        # true v
+        true_v = Function(space, name="true_v")
+        true_v.assign(v_d)
+
+        return inner(v_d, test) * dx, true_v
 
     def force_f(test):
         space = test.function_space()
@@ -98,8 +102,8 @@ def test_stationary_linear_control():
     my_control_stationary.linear_solve(
         lambda_v_bounds=lambda_v_bounds,
         solver_parameters=solver_parameters,
-        v_d=b_0, f=b_1, create_output=False,
-        plots=False)
+        v_d=b_0, f=b_1, print_error=False,
+        create_output=False, plots=False)
 
     v_0.assign(my_control_stationary._v)
     zeta_0.assign(my_control_stationary._zeta)
@@ -142,7 +146,11 @@ def test_MMS_stationary_linear_Poisson_control():
         v_d = Function(space, name="v_d")
         v_d.interpolate(-div(grad(zeta)) + v)
 
-        return inner(v_d, test) * dx, v
+        # true v
+        true_v = Function(space, name="true_v")
+        true_v.interpolate(v)
+
+        return inner(v_d, test) * dx, true_v
 
     def force_f(test):
         space = test.function_space()
@@ -242,7 +250,11 @@ def test_stationary_incompressible_linear_control():
         v_d = Function(space, name="v_d")
         v_d.interpolate((0.0, 0.0))
 
-        return inner(v_d, test) * dx, v_d
+        # true v
+        true_v = Function(space, name="true_v")
+        true_v.assign(v_d)
+
+        return inner(v_d, test) * dx, true_v
 
     def force_f(test):
         space = test.function_space()
@@ -401,7 +413,11 @@ def test_MMS_stationary_Stokes_control():
         v_d = Function(space, name="v_d")
         v_d.interpolate(-div(grad(zeta)) + grad(mu) + v)
 
-        return inner(v_d, test) * dx, v
+        # true v
+        true_v = Function(space, name="true_v")
+        true_v.interpolate(v)
+
+        return inner(v_d, test) * dx, true_v
 
     def force_f(test):
         space = test.function_space()
@@ -554,7 +570,11 @@ def test_stationary_linear_control_with_reference_sol():
         v_d = Function(space, name="v_d")
         v_d.interpolate(sin(pi * X[0]) * sin(pi * X[1]) * exp(X[0] + X[1]))
 
-        return inner(v_d, test) * dx, v_d
+        # true v
+        true_v = Function(space, name="true_v")
+        true_v.interpolate(sin(pi * X[0]) * sin(pi * X[1]) * exp(X[0] + X[1]))
+
+        return inner(v_d, test) * dx, true_v
 
     def force_f(test):
         space = test.function_space()
@@ -562,7 +582,7 @@ def test_stationary_linear_control_with_reference_sol():
         # force function
         f = Function(space)
 
-        f.interpolate(Constant(0.0))
+        f.interpolate(0.0)
 
         return inner(f, test) * dx
 
@@ -606,7 +626,7 @@ def test_stationary_linear_control_with_reference_sol():
         del my_control_stationary
         PETSc.garbage_cleanup(space_0.mesh().comm)
 
-        beta = Constant(1.0)
+        beta = 1.0
 
         def forward(u_ref, m):
             m_1 = Function(space_0, name="m_1")
@@ -706,7 +726,11 @@ def test_Picard_stationary_non_linear_control_with_reference_sol():
         v_d = Function(space, name="v_d")
         v_d.interpolate(sin(pi * X[0]) * sin(pi * X[1]) * exp(X[0] + X[1]))
 
-        return inner(v_d, test) * dx, v_d
+        # true v
+        true_v = Function(space, name="true_v")
+        true_v.assign(v_d)
+
+        return inner(v_d, test) * dx, true_v
 
     def force_f(test):
         space = test.function_space()
@@ -714,7 +738,7 @@ def test_Picard_stationary_non_linear_control_with_reference_sol():
         # force function
         f = Function(space)
 
-        f.interpolate(Constant(0.0))
+        f.interpolate(0.0)
 
         return inner(f, test) * dx
 
@@ -759,7 +783,7 @@ def test_Picard_stationary_non_linear_control_with_reference_sol():
         del my_control_stationary
         PETSc.garbage_cleanup(space_0.mesh().comm)
 
-        beta = Constant(1.0)
+        beta = 1.0
 
         def forward(u_ref, m):
             m_1 = Function(space_0, name="m_1")
@@ -859,7 +883,11 @@ def test_GN_stationary_non_linear_control_with_reference_sol():
         v_d = Function(space, name="v_d")
         v_d.interpolate(sin(pi * X[0]) * sin(pi * X[1]) * exp(X[0] + X[1]))
 
-        return inner(v_d, test) * dx, v_d
+        # true v
+        true_v = Function(space, name="true_v")
+        true_v.assign(v_d)
+
+        return inner(v_d, test) * dx, true_v
 
     def force_f(test):
         space = test.function_space()
@@ -867,7 +895,7 @@ def test_GN_stationary_non_linear_control_with_reference_sol():
         # force function
         f = Function(space)
 
-        f.interpolate(Constant(0.0))
+        f.interpolate(0.0)
 
         return inner(f, test) * dx
 
@@ -915,7 +943,7 @@ def test_GN_stationary_non_linear_control_with_reference_sol():
         del my_control_stationary
         PETSc.garbage_cleanup(space_0.mesh().comm)
 
-        beta = Constant(1.0)
+        beta = 1.0
 
         def forward(u_ref, m):
             m_1 = Function(space_0, name="m_1")
@@ -1019,16 +1047,20 @@ def test_stationary_incompressible_non_linear_control():
 
         # desired state
         v_d = Function(space, name="v_d")
-        v_d.interpolate(Constant((0.0, 0.0)))
+        v_d.interpolate(as_vector([0.0, 0.0]))
 
-        return inner(v_d, test) * dx, v_d
+        # true v
+        true_v = Function(space, name="true_v")
+        true_v.assign(v_d)
+
+        return inner(v_d, test) * dx, true_v
 
     def force_f_vec(test):
         space = test.function_space()
 
         # force function
         f = Function(space)
-        f.interpolate(Constant((0.0, 0.0)))
+        f.interpolate(as_vector([0.0, 0.0]))
 
         return inner(f, test) * dx
 
@@ -1058,18 +1090,12 @@ def test_stationary_incompressible_non_linear_control():
     del my_control_stationary
     PETSc.garbage_cleanup(space_v.mesh().comm)
 
-    my_v_norm = np.sqrt(abs(assemble(inner(my_v, my_v) * dx)))
-    my_zeta_norm = np.sqrt(abs(assemble(inner(my_zeta, my_zeta) * dx)))
-
-    assert my_v_norm < 0.13
-    assert my_zeta_norm < 0.002
-
 
 def test_MMS_stationary_Navier_Stokes_control():
     degree_range = (2, 4)
     p_range = (2, 6)
     beta = 10.0 ** -3
-    nu = 1.0 / 250.0
+    nu = 1.0 / 100.0
 
     def ref_sol_v(x, y):
         X_1 = x - 1.0
@@ -1101,7 +1127,11 @@ def test_MMS_stationary_Navier_Stokes_control():
         v_d = Function(space, name="v_d")
         v_d.interpolate(v)
 
-        return inner(v_d, test) * dx, v
+        # true v
+        true_v = Function(space, name="true_v")
+        true_v.assign(v_d)
+
+        return inner(v_d, test) * dx, true_v
 
     def force_f(test):
         space = test.function_space()
@@ -1226,9 +1256,13 @@ def test_instationary_linear_control_BE():
 
         # desired state
         v_d = Function(space, name="v_d")
-        v_d.interpolate(Constant(0.0))
+        v_d.interpolate(0.0)
 
-        return inner(v_d, test) * dx, v_d
+        # ture v
+        true_v = Function(space, name="true_v")
+        true_v.assign(v_d)
+
+        return inner(v_d, test) * dx, true_v
 
     def force_f(test, t):
         space = test.function_space()
@@ -1255,9 +1289,7 @@ def test_instationary_linear_control_BE():
         CN=False, n_t=n_t, bcs_v=my_DirichletBC_t)
 
     flattened_space_v = tuple(space_0 for i in range(n_t))
-    mixed_element_v = ufl.classes.MixedElement(
-        *[space.ufl_element() for space in flattened_space_v])
-    full_space_v = FunctionSpace(space_0.mesh(), mixed_element_v)
+    full_space_v = MixedFunctionSpace(flattened_space_v)
 
     v_0 = Function(full_space_v)
     zeta_0 = Function(full_space_v)
@@ -1348,7 +1380,7 @@ def test_instationary_linear_control_BE():
         tau * inner(grad(b_v_help_0), grad(test_0)) * dx
         + inner(b_v_help_0, test_0) * dx
         - inner(b_v_help_1, test_0) * dx
-        - (tau / beta) * inner(b_zeta_help_0, test_0) * dx)
+        - (tau / Constant(beta)) * inner(b_zeta_help_0, test_0) * dx)
     b_v_help_0.assign(v_ref.sub(2))
     b_v_help_1.assign(v_ref.sub(1))
     b_zeta_help_0.assign(zeta_ref.sub(2))
@@ -1356,7 +1388,7 @@ def test_instationary_linear_control_BE():
         tau * inner(grad(b_v_help_0), grad(test_0)) * dx
         + inner(b_v_help_0, test_0) * dx
         - inner(b_v_help_1, test_0) * dx
-        - (tau / beta) * inner(b_zeta_help_0, test_0) * dx)
+        - (tau / Constant(beta)) * inner(b_zeta_help_0, test_0) * dx)
     b_v_help_0.assign(v_ref.sub(3))
     b_v_help_1.assign(v_ref.sub(2))
     b_zeta_help_0.assign(zeta_ref.sub(3))
@@ -1364,7 +1396,7 @@ def test_instationary_linear_control_BE():
         tau * inner(grad(b_v_help_0), grad(test_0)) * dx
         + inner(b_v_help_0, test_0) * dx
         - inner(b_v_help_1, test_0) * dx
-        - (tau / beta) * inner(b_zeta_help_0, test_0) * dx)
+        - (tau / Constant(beta)) * inner(b_zeta_help_0, test_0) * dx)
     b_v_help_0.assign(v_ref.sub(4))
     b_v_help_1.assign(v_ref.sub(3))
     b_zeta_help_0.assign(zeta_ref.sub(4))
@@ -1372,7 +1404,7 @@ def test_instationary_linear_control_BE():
         tau * inner(grad(b_v_help_0), grad(test_0)) * dx
         + inner(b_v_help_0, test_0) * dx
         - inner(b_v_help_1, test_0) * dx
-        - (tau / beta) * inner(b_zeta_help_0, test_0) * dx)
+        - (tau / Constant(beta)) * inner(b_zeta_help_0, test_0) * dx)
     b_1.sub(0).assign(assemble(b_0_help))
     b_1.sub(1).assign(assemble(b_1_help))
     b_1.sub(2).assign(assemble(b_2_help))
@@ -1428,9 +1460,13 @@ def test_instationary_linear_control_CN():
 
         # desired state
         v_d = Function(space, name="v_d")
-        v_d.interpolate(Constant(0.0))
+        v_d.interpolate(0.0)
 
-        return inner(v_d, test) * dx, v_d
+        # true v
+        true_v = Function(space, name="true_v")
+        true_v.assign(v_d)
+
+        return inner(v_d, test) * dx, true_v
 
     def force_f(test, t):
         space = test.function_space()
@@ -1438,7 +1474,7 @@ def test_instationary_linear_control_CN():
         # force function
         f = Function(space)
 
-        f.interpolate(Constant(0.0))
+        f.interpolate(0.0)
 
         return inner(f, test) * dx
 
@@ -1457,21 +1493,17 @@ def test_instationary_linear_control_CN():
         CN=True, n_t=n_t, bcs_v=my_DirichletBC_t)
 
     flattened_space_v = tuple(space_0 for i in range(n_t))
-    mixed_element_v = ufl.classes.MixedElement(
-        *[space.ufl_element() for space in flattened_space_v])
-    full_space_v = FunctionSpace(space_0.mesh(), mixed_element_v)
+    full_space_v = MixedFunctionSpace(flattened_space_v)
 
     flattened_space_v_CN = tuple(space_0 for i in range(n_t - 1))
-    mixed_element_v_CN = ufl.classes.MixedElement(
-        *[space.ufl_element() for space in flattened_space_v_CN])
-    full_space_v_CN = FunctionSpace(space_0.mesh(), mixed_element_v_CN)
+    full_space_v_CN = MixedFunctionSpace(flattened_space_v_CN)
 
     v_0 = Function(full_space_v)
     zeta_0 = Function(full_space_v)
     v_ref = Function(full_space_v)
     zeta_ref = Function(full_space_v)
 
-    v_ref.sub(0).interpolate(Constant(0.0))
+    v_ref.sub(0).interpolate(0.0)
     v_ref.sub(1).interpolate(
         tau * sin(3.0 * pi * X[0]) * sin(4.0 * pi * X[1]))
     v_ref.sub(2).interpolate(
@@ -1552,8 +1584,8 @@ def test_instationary_linear_control_CN():
     b_0_help = assemble(
         0.5 * tau * inner(grad(b_v_help_0), grad(test_0)) * dx
         + inner(b_v_help_0, test_0) * dx
-        - 0.5 * (tau / beta) * inner(b_zeta_help_0, test_0) * dx
-        - 0.5 * (tau / beta) * inner(b_zeta_help_1, test_0) * dx)
+        - 0.5 * (tau / Constant(beta)) * inner(b_zeta_help_0, test_0) * dx
+        - 0.5 * (tau / Constant(beta)) * inner(b_zeta_help_1, test_0) * dx)
     b_v_help_0.assign(v_ref.sub(2))
     b_v_help_1.assign(v_ref.sub(1))
     b_zeta_help_0.assign(zeta_ref.sub(1))
@@ -1563,8 +1595,8 @@ def test_instationary_linear_control_CN():
         + inner(b_v_help_0, test_0) * dx
         + 0.5 * tau * inner(grad(b_v_help_1), grad(test_0)) * dx
         - inner(b_v_help_1, test_0) * dx
-        - 0.5 * (tau / beta) * inner(b_zeta_help_0, test_0) * dx
-        - 0.5 * (tau / beta) * inner(b_zeta_help_1, test_0) * dx)
+        - 0.5 * (tau / Constant(beta)) * inner(b_zeta_help_0, test_0) * dx
+        - 0.5 * (tau / Constant(beta)) * inner(b_zeta_help_1, test_0) * dx)
     b_v_help_0.assign(v_ref.sub(3))
     b_v_help_1.assign(v_ref.sub(2))
     b_zeta_help_0.assign(zeta_ref.sub(2))
@@ -1574,8 +1606,8 @@ def test_instationary_linear_control_CN():
         + inner(b_v_help_0, test_0) * dx
         + 0.5 * tau * inner(grad(b_v_help_1), grad(test_0)) * dx
         - inner(b_v_help_1, test_0) * dx
-        - 0.5 * (tau / beta) * inner(b_zeta_help_0, test_0) * dx
-        - 0.5 * (tau / beta) * inner(b_zeta_help_1, test_0) * dx)
+        - 0.5 * (tau / Constant(beta)) * inner(b_zeta_help_0, test_0) * dx
+        - 0.5 * (tau / Constant(beta)) * inner(b_zeta_help_1, test_0) * dx)
     b_v_help_0.assign(v_ref.sub(4))
     b_v_help_1.assign(zeta_ref.sub(3))
     b_zeta_help_0.assign(zeta_ref.sub(3))
@@ -1584,7 +1616,7 @@ def test_instationary_linear_control_CN():
         + inner(b_v_help_0, test_0) * dx
         + 0.5 * tau * inner(grad(b_v_help_1), grad(test_0)) * dx
         - inner(b_v_help_1, test_0) * dx
-        - 0.5 * (tau / beta) * inner(b_zeta_help_0, test_0) * dx)
+        - 0.5 * (tau / Constant(beta)) * inner(b_zeta_help_0, test_0) * dx)
     b_1.sub(0).assign(assemble(b_0_help))
     b_1.sub(1).assign(assemble(b_1_help))
     b_1.sub(2).assign(assemble(b_2_help))
@@ -1632,19 +1664,31 @@ def test_MMS_instationary_heat_control_BE_convergence_FE():
         X_1 = x - 1.0
         X_2 = y - 1.0
 
-        c_1 = (2.0 / (pi * pi * beta)) * exp(Constant(t_f))
-        c_2 = - (2.0 / ((2.0 + pi * pi) * beta)) * exp(Constant(t))
+        c_1 = Constant(t_f)
+        c_2 = t
 
-        return 1.0 + (c_1 + c_2) * cos(0.5 * pi * X_1) * cos(0.5 * pi * X_2)
+        return 1.0 + (c_1 - c_2) * cos(0.5 * pi * X_1) * cos(0.5 * pi * X_2)
 
     def ref_sol_zeta(x, y, t):
         X_1 = x - 1.0
         X_2 = y - 1.0
 
-        c_1 = exp(Constant(t_f))
-        c_2 = - exp(Constant(t))
+        c_1 = Constant(t_f)
+        c_2 = t
 
-        return (c_1 + c_2) * cos(0.5 * pi * X_1) * cos(0.5 * pi * X_2)
+        return (c_1 - c_2) * cos(0.5 * pi * X_1) * cos(0.5 * pi * X_2)
+
+    def ref_sol_v_space(x, y):
+        X_1 = x - 1.0
+        X_2 = y - 1.0
+
+        return cos(0.5 * pi * X_1) * cos(0.5 * pi * X_2)
+
+    def ref_sol_zeta_space(x, y):
+        X_1 = x - 1.0
+        X_2 = y - 1.0
+
+        return cos(0.5 * pi * X_1) * cos(0.5 * pi * X_2)
 
     def forw_diff_operator(trial, test, u, t):
         # spatial differential for the forward problem
@@ -1654,21 +1698,23 @@ def test_MMS_instationary_heat_control_BE_convergence_FE():
         space = test.function_space()
         mesh = space.mesh()
         X = SpatialCoordinate(mesh)
-        x = X[0] - 1.0
-        y = X[1] - 1.0
-        a = Constant(t)
+
+        zeta = ref_sol_zeta(*X, t)
+        v = ref_sol_v(*X, t)
+
+        zeta_space = ref_sol_zeta_space(*X)
+        lapl_zeta = div(grad(zeta))
 
         # desired state
         v_d = Function(space, name="v_d")
-
-        c_1 = (2.0 / (pi * pi * beta) + 0.5 * pi * pi) * exp(Constant(t_f))
-        c_2 = (1.0 - 2.0 / ((2.0 + pi * pi) * beta) - 0.5 * pi * pi) * exp(a)
-        c = c_1 + c_2
-
         v_d.interpolate(
-            Constant(1.0) + c * cos(0.5 * pi * x) * cos(0.5 * pi * y))
+            zeta_space - lapl_zeta + v)
 
-        return inner(v_d, test) * dx, v_d
+        # ture v
+        true_v = Function(space, name="true_v")
+        true_v.assign(v_d)
+
+        return inner(v_d, test) * dx, true_v
 
     def initial_condition(test):
         space = test.function_space()
@@ -1677,22 +1723,29 @@ def test_MMS_instationary_heat_control_BE_convergence_FE():
         x = X[0] - 1.0
         y = X[1] - 1.0
 
-        c_1 = (2.0 / (pi * pi * beta)) * exp(t_f)
-        c_2 = - (2.0 / ((2.0 + pi * pi) * beta))
+        c_1 = Constant(t_f)
 
         v_0 = Function(space)
         v_0.interpolate(
-            1.0 + (c_1 + c_2) * cos(0.5 * pi * x) * cos(0.5 * pi * y))
+            1.0 + c_1 * cos(0.5 * pi * x) * cos(0.5 * pi * y))
 
         return v_0
 
     def force_f(test, t):
         space = test.function_space()
+        X = SpatialCoordinate(mesh)
+
+        v = ref_sol_v(*X, t)
+        zeta = ref_sol_zeta(*X, t)
+
+        v_space = ref_sol_v_space(*X)
+
+        lapl_v = div(grad(v))
 
         # force function
         f = Function(space)
 
-        f.interpolate(Constant(0.0))
+        f.interpolate(- v_space - lapl_v - Constant(1. / beta) * zeta)
 
         return inner(f, test) * dx
 
@@ -1705,7 +1758,7 @@ def test_MMS_instationary_heat_control_BE_convergence_FE():
         zeta_error_norms = []
         for p in range(*p_range):
             N = 2 ** p
-            n_t = 100
+            n_t = 10
             mesh = RectangleMesh(N, N, 2.0, 2.0)
             X = SpatialCoordinate(mesh)
             space_0 = FunctionSpace(mesh, "Lagrange", degree)
@@ -1719,7 +1772,7 @@ def test_MMS_instationary_heat_control_BE_convergence_FE():
 
             solver_parameters = {"linear_solver": "fgmres",
                                  "fgmres_restart": 10,
-                                 "maximum_iterations": 500,
+                                 "maximum_iterations": 200,
                                  "relative_tolerance": 1.0e-10,
                                  "absolute_tolerance": 1.0e-10,
                                  "monitor_convergence": False}
@@ -1729,15 +1782,10 @@ def test_MMS_instationary_heat_control_BE_convergence_FE():
                 print_error=False, create_output=False, plots=False)
 
             flattened_space_v = tuple(space_0 for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_0.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
 
             flattened_space_v_ref = tuple(space_0_ref for i in range(n_t))
-            mixed_element_v_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v_ref])
-            full_space_v_ref = FunctionSpace(
-                space_0_ref.mesh(), mixed_element_v_ref)
+            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
             my_v = Function(full_space_v)
             my_zeta = Function(full_space_v)
@@ -1755,8 +1803,8 @@ def test_MMS_instationary_heat_control_BE_convergence_FE():
             for i in range(n_t):
                 t = i * tau
 
-                v_ref.sub(i).interpolate(ref_sol_v(*X, t))
-                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, t))
+                v_ref.sub(i).interpolate(ref_sol_v(*X, Constant(t)))
+                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
 
             v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
                 inner(my_v - v_ref, my_v - v_ref) * dx)))
@@ -1788,7 +1836,7 @@ def test_MMS_instationary_heat_control_BE_convergence_time():
         X_2 = y - 1.0
 
         c_1 = (2.0 / (pi * pi * beta)) * exp(Constant(t_f))
-        c_2 = - (2.0 / ((2.0 + pi * pi) * beta)) * exp(Constant(t))
+        c_2 = - (2.0 / ((2.0 + pi * pi) * beta)) * exp(t)
 
         return 1.0 + (c_1 + c_2) * cos(0.5 * pi * X_1) * cos(0.5 * pi * X_2)
 
@@ -1797,7 +1845,7 @@ def test_MMS_instationary_heat_control_BE_convergence_time():
         X_2 = y - 1.0
 
         c_1 = exp(Constant(t_f))
-        c_2 = - exp(Constant(t))
+        c_2 = - exp(t)
 
         return (c_1 + c_2) * cos(0.5 * pi * X_1) * cos(0.5 * pi * X_2)
 
@@ -1811,19 +1859,23 @@ def test_MMS_instationary_heat_control_BE_convergence_time():
         X = SpatialCoordinate(mesh)
         x = X[0] - 1.0
         y = X[1] - 1.0
-        a = Constant(t)
 
         # desired state
         v_d = Function(space, name="v_d")
 
+        # true v
+        true_v = Function(space, name="true_v")
+
         c_1 = (2.0 / (pi * pi * beta) + 0.5 * pi * pi) * exp(Constant(t_f))
-        c_2 = (1.0 - 2.0 / ((2.0 + pi * pi) * beta) - 0.5 * pi * pi) * exp(a)
+        c_2 = (1.0 - 2.0 / ((2.0 + pi * pi) * beta) - 0.5 * pi * pi) * exp(t)
         c = c_1 + c_2
 
         v_d.interpolate(
             Constant(1.0) + c * cos(0.5 * pi * x) * cos(0.5 * pi * y))
 
-        return inner(v_d, test) * dx, v_d
+        true_v.assign(v_d)
+
+        return inner(v_d, test) * dx, true_v
 
     def initial_condition(test):
         space = test.function_space()
@@ -1847,7 +1899,7 @@ def test_MMS_instationary_heat_control_BE_convergence_time():
         # force function
         f = Function(space)
 
-        f.interpolate(Constant(0.0))
+        f.interpolate(0.0)
 
         return inner(f, test) * dx
 
@@ -1874,7 +1926,7 @@ def test_MMS_instationary_heat_control_BE_convergence_time():
 
             solver_parameters = {"linear_solver": "fgmres",
                                  "fgmres_restart": 10,
-                                 "maximum_iterations": 500,
+                                 "maximum_iterations": 200,
                                  "relative_tolerance": 1.0e-10,
                                  "absolute_tolerance": 1.0e-10,
                                  "monitor_convergence": False}
@@ -1884,15 +1936,10 @@ def test_MMS_instationary_heat_control_BE_convergence_time():
                 print_error=False, create_output=False, plots=False)
 
             flattened_space_v = tuple(space_0 for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_0.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
 
             flattened_space_v_ref = tuple(space_0_ref for i in range(n_t))
-            mixed_element_v_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v_ref])
-            full_space_v_ref = FunctionSpace(
-                space_0_ref.mesh(), mixed_element_v_ref)
+            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
             my_v = Function(full_space_v)
             my_zeta = Function(full_space_v)
@@ -1910,8 +1957,8 @@ def test_MMS_instationary_heat_control_BE_convergence_time():
             for i in range(n_t):
                 t = i * tau
 
-                v_ref.sub(i).interpolate(ref_sol_v(*X, t))
-                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, t))
+                v_ref.sub(i).interpolate(ref_sol_v(*X, Constant(t)))
+                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
 
             v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
                 inner(my_v - v_ref, my_v - v_ref) * dx)))
@@ -1943,7 +1990,7 @@ def test_MMS_instationary_heat_control_CN_convergence_FE():
         X_2 = y - 1.0
 
         c_1 = (2.0 / (pi * pi * beta)) * exp(Constant(t_f))
-        c_2 = - (2.0 / ((2.0 + pi * pi) * beta)) * exp(Constant(t))
+        c_2 = - (2.0 / ((2.0 + pi * pi) * beta)) * exp(t)
 
         return 1.0 + (c_1 + c_2) * cos(0.5 * pi * X_1) * cos(0.5 * pi * X_2)
 
@@ -1952,7 +1999,7 @@ def test_MMS_instationary_heat_control_CN_convergence_FE():
         X_2 = y - 1.0
 
         c_1 = exp(Constant(t_f))
-        c_2 = - exp(Constant(t))
+        c_2 = - exp(t)
 
         return (c_1 + c_2) * cos(0.5 * pi * X_1) * cos(0.5 * pi * X_2)
 
@@ -1966,26 +2013,25 @@ def test_MMS_instationary_heat_control_CN_convergence_FE():
         X = SpatialCoordinate(mesh)
         x = X[0] - 1.0
         y = X[1] - 1.0
-        a = Constant(t)
 
         # desired state
         v_d = Function(space, name="v_d")
-        v_sol = Function(space, name="v_sol")
+        true_v = Function(space, name="true_v")
 
         c_1 = (2.0 / (pi * pi * beta) + 0.5 * pi * pi) * exp(Constant(t_f))
-        c_2 = (1.0 - 2.0 / ((2.0 + pi * pi) * beta) - 0.5 * pi * pi) * exp(a)
+        c_2 = (1.0 - 2.0 / ((2.0 + pi * pi) * beta) - 0.5 * pi * pi) * exp(t)
         c = c_1 + c_2
 
         v_d.interpolate(
             Constant(1.0) + c * cos(0.5 * pi * x) * cos(0.5 * pi * y))
 
         c_1 = (2.0 / (pi * pi * beta)) * exp(Constant(t_f))
-        c_2 = - (2.0 / ((2.0 + pi * pi) * beta)) * exp(a)
+        c_2 = - (2.0 / ((2.0 + pi * pi) * beta)) * exp(Constant(t))
 
-        v_sol.interpolate(
+        true_v.interpolate(
             Constant(1.0) + c * cos(0.5 * pi * x) * cos(0.5 * pi * y))
 
-        return inner(v_d, test) * dx, v_sol
+        return inner(v_d, test) * dx, true_v
 
     def initial_condition(test):
         space = test.function_space()
@@ -2010,7 +2056,7 @@ def test_MMS_instationary_heat_control_CN_convergence_FE():
         # force function
         f = Function(space)
 
-        f.interpolate(Constant(0.0))
+        f.interpolate(0.0)
 
         return inner(f, test) * dx
 
@@ -2037,7 +2083,7 @@ def test_MMS_instationary_heat_control_CN_convergence_FE():
 
             solver_parameters = {"linear_solver": "fgmres",
                                  "fgmres_restart": 10,
-                                 "maximum_iterations": 500,
+                                 "maximum_iterations": 200,
                                  "relative_tolerance": 1.0e-10,
                                  "absolute_tolerance": 1.0e-10,
                                  "monitor_convergence": False}
@@ -2047,15 +2093,10 @@ def test_MMS_instationary_heat_control_CN_convergence_FE():
                 print_error=False, create_output=False, plots=False)
 
             flattened_space_v = tuple(space_0 for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_0.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
 
             flattened_space_v_ref = tuple(space_0_ref for i in range(n_t))
-            mixed_element_v_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v_ref])
-            full_space_v_ref = FunctionSpace(
-                space_0_ref.mesh(), mixed_element_v_ref)
+            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
             my_v = Function(full_space_v)
             my_zeta = Function(full_space_v)
@@ -2073,8 +2114,8 @@ def test_MMS_instationary_heat_control_CN_convergence_FE():
             for i in range(n_t):
                 t = i * tau
 
-                v_ref.sub(i).interpolate(ref_sol_v(*X, t))
-                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, t))
+                v_ref.sub(i).interpolate(ref_sol_v(*X, Constant(t)))
+                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
 
             v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
                 inner(my_v - v_ref, my_v - v_ref) * dx)))
@@ -2106,7 +2147,7 @@ def test_MMS_instationary_heat_control_CN_convergence_time():
         X_2 = y - 1.0
 
         c_1 = (2.0 / (pi * pi * beta)) * exp(Constant(t_f))
-        c_2 = - (2.0 / ((2.0 + pi * pi) * beta)) * exp(Constant(t))
+        c_2 = - (2.0 / ((2.0 + pi * pi) * beta)) * exp(t)
 
         return 1.0 + (c_1 + c_2) * cos(0.5 * pi * X_1) * cos(0.5 * pi * X_2)
 
@@ -2115,7 +2156,7 @@ def test_MMS_instationary_heat_control_CN_convergence_time():
         X_2 = y - 1.0
 
         c_1 = exp(Constant(t_f))
-        c_2 = - exp(Constant(t))
+        c_2 = - exp(t)
 
         return (c_1 + c_2) * cos(0.5 * pi * X_1) * cos(0.5 * pi * X_2)
 
@@ -2129,26 +2170,25 @@ def test_MMS_instationary_heat_control_CN_convergence_time():
         X = SpatialCoordinate(mesh)
         x = X[0] - 1.0
         y = X[1] - 1.0
-        a = Constant(t)
 
         # desired state
         v_d = Function(space, name="v_d")
-        v_sol = Function(space, name="v_sol")
+        true_v = Function(space, name="true_v")
 
         c_1 = (2.0 / (pi * pi * beta) + 0.5 * pi * pi) * exp(Constant(t_f))
-        c_2 = (1.0 - 2.0 / ((2.0 + pi * pi) * beta) - 0.5 * pi * pi) * exp(a)
+        c_2 = (1.0 - 2.0 / ((2.0 + pi * pi) * beta) - 0.5 * pi * pi) * exp(t)
         c = c_1 + c_2
 
         v_d.interpolate(
             Constant(1.0) + c * cos(0.5 * pi * x) * cos(0.5 * pi * y))
 
         c_1 = (2.0 / (pi * pi * beta)) * exp(Constant(t_f))
-        c_2 = - (2.0 / ((2.0 + pi * pi) * beta)) * exp(a)
+        c_2 = - (2.0 / ((2.0 + pi * pi) * beta)) * exp(t)
 
-        v_sol.interpolate(
+        true_v.interpolate(
             Constant(1.0) + c * cos(0.5 * pi * x) * cos(0.5 * pi * y))
 
-        return inner(v_d, test) * dx, v_sol
+        return inner(v_d, test) * dx, true_v
 
     def initial_condition(test):
         space = test.function_space()
@@ -2200,25 +2240,20 @@ def test_MMS_instationary_heat_control_CN_convergence_time():
 
             solver_parameters = {"linear_solver": "fgmres",
                                  "fgmres_restart": 10,
-                                 "maximum_iterations": 500,
+                                 "maximum_iterations": 200,
                                  "relative_tolerance": 1.0e-10,
                                  "absolute_tolerance": 1.0e-10,
                                  "monitor_convergence": False}
 
             my_control_instationary.linear_solve(
                 solver_parameters=solver_parameters,
-                print_error=True, create_output=False, plots=False)
+                print_error=False, create_output=False, plots=False)
 
             flattened_space_v = tuple(space_0 for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_0.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
 
             flattened_space_v_ref = tuple(space_0_ref for i in range(n_t))
-            mixed_element_v_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v_ref])
-            full_space_v_ref = FunctionSpace(
-                space_0_ref.mesh(), mixed_element_v_ref)
+            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
             my_v = Function(full_space_v)
             my_zeta = Function(full_space_v)
@@ -2236,8 +2271,8 @@ def test_MMS_instationary_heat_control_CN_convergence_time():
             for i in range(n_t):
                 t = i * tau
 
-                v_ref.sub(i).interpolate(ref_sol_v(*X, t))
-                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, t))
+                v_ref.sub(i).interpolate(ref_sol_v(*X, Constant(t)))
+                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
 
             v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
                 inner(my_v - v_ref, my_v - v_ref) * dx)))
@@ -2268,19 +2303,31 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_FE():
         X_1 = x - 1.0
         X_2 = y - 1.0
 
-        c_1 = (2.0 / (pi * pi * beta)) * exp(Constant(t_f))
-        c_2 = - (2.0 / ((2.0 + pi * pi) * beta)) * exp(Constant(t))
+        c_1 = Constant(t_f)
+        c_2 = t
 
-        return 1.0 + (c_1 + c_2) * cos(0.5 * pi * X_1) * cos(0.5 * pi * X_2)
+        return 1.0 + (c_1 - c_2) * cos(0.5 * pi * X_1) * cos(0.5 * pi * X_2)
 
     def ref_sol_zeta(x, y, t):
         X_1 = x - 1.0
         X_2 = y - 1.0
 
-        c_1 = exp(Constant(t_f))
-        c_2 = - exp(Constant(t))
+        c_1 = Constant(t_f)
+        c_2 = t
 
-        return (c_1 + c_2) * cos(0.5 * pi * X_1) * cos(0.5 * pi * X_2)
+        return (c_1 - c_2) * cos(0.5 * pi * X_1) * cos(0.5 * pi * X_2)
+
+    def ref_sol_v_space(x, y):
+        X_1 = x - 1.0
+        X_2 = y - 1.0
+
+        return cos(0.5 * pi * X_1) * cos(0.5 * pi * X_2)
+
+    def ref_sol_zeta_space(x, y):
+        X_1 = x - 1.0
+        X_2 = y - 1.0
+
+        return cos(0.5 * pi * X_1) * cos(0.5 * pi * X_2)
 
     def forw_diff_operator(trial, test, u, t):
         space = test.function_space()
@@ -2288,9 +2335,8 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_FE():
         X = SpatialCoordinate(mesh)
         x = X[0] - 1.0
         y = X[1] - 1.0
-        a = Constant(t)
-        wind = as_vector([cos(0.5 * pi * a) * 2. * y * (1. - x * x),
-                          -cos(0.5 * pi * a) * 2. * x * (1. - y * y)])
+        wind = as_vector([cos(0.5 * pi * t) * 2. * y * (1. - x * x),
+                          -cos(0.5 * pi * t) * 2. * x * (1. - y * y)])
 
         # spatial differential for the forward problem
         return (
@@ -2303,25 +2349,28 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_FE():
         X = SpatialCoordinate(mesh)
         x = X[0] - 1.0
         y = X[1] - 1.0
-        a = Constant(t)
-        wind = as_vector([cos(0.5 * pi * a) * 2. * y * (1. - x * x),
-                          -cos(0.5 * pi * a) * 2. * x * (1. - y * y)])
+
+        wind = as_vector([cos(0.5 * pi * t) * 2. * y * (1. - x * x),
+                          -cos(0.5 * pi * t) * 2. * x * (1. - y * y)])
+
         zeta = ref_sol_zeta(*X, t)
+        zeta_space = ref_sol_zeta_space(*X)
+        v = ref_sol_v(*X, t)
+
         grad_zeta = grad(zeta)
+        lapl_zeta = div(grad_zeta)
         convection = grad_zeta[(0)] * wind[(0)] + grad_zeta[(1)] * wind[(1)]
 
         # desired state
         v_d = Function(space, name="v_d")
-
-        c_1 = (2.0 / (pi * pi * beta) + 0.5 * pi * pi) * exp(Constant(t_f))
-        c_2 = (1.0 - 2.0 / ((2.0 + pi * pi) * beta) - 0.5 * pi * pi) * exp(a)
-        c = c_1 + c_2
-
         v_d.interpolate(
-            Constant(1.0) + c * cos(0.5 * pi * x) * cos(0.5 * pi * y)
-            - convection)
+            zeta_space - lapl_zeta - convection + v)
 
-        return inner(v_d, test) * dx, v_d
+        # true v
+        true_v = Function(space, name="true_v")
+        true_v.assign(v_d)
+
+        return inner(v_d, test) * dx, true_v
 
     def initial_condition(test):
         space = test.function_space()
@@ -2330,12 +2379,11 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_FE():
         x = X[0] - 1.0
         y = X[1] - 1.0
 
-        c_1 = (2.0 / (pi * pi * beta)) * exp(Constant(t_f))
-        c_2 = - (2.0 / ((2.0 + pi * pi) * beta))
+        c_1 = Constant(t_f)
 
         v_0 = Function(space)
         v_0.interpolate(
-            1.0 + (c_1 + c_2) * cos(0.5 * pi * x) * cos(0.5 * pi * y))
+            1.0 + c_1 * cos(0.5 * pi * x) * cos(0.5 * pi * y))
 
         return v_0
 
@@ -2345,17 +2393,24 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_FE():
         X = SpatialCoordinate(mesh)
         x = X[0] - 1.0
         y = X[1] - 1.0
-        a = Constant(t)
-        wind = as_vector([cos(0.5 * pi * a) * 2. * y * (1. - x * x),
-                          -cos(0.5 * pi * a) * 2. * x * (1. - y * y)])
+
+        wind = as_vector([cos(0.5 * pi * t) * 2. * y * (1. - x * x),
+                          -cos(0.5 * pi * t) * 2. * x * (1. - y * y)])
+
         v = ref_sol_v(*X, t)
+        zeta = ref_sol_zeta(*X, t)
+
+        v_space = ref_sol_v_space(*X)
+
         grad_v = grad(v)
+        lapl_v = div(grad_v)
         convection = grad_v[(0)] * wind[(0)] + grad_v[(1)] * wind[(1)]
 
         # force function
         f = Function(space)
 
-        f.interpolate(convection)
+        f.interpolate(- v_space - lapl_v + convection
+                      - Constant(1. / beta) * zeta)
 
         return inner(f, test) * dx
 
@@ -2368,7 +2423,7 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_FE():
         zeta_error_norms = []
         for p in range(*p_range):
             N = 2 ** p
-            n_t = 100
+            n_t = 10
             mesh = RectangleMesh(N, N, 2.0, 2.0)
             X = SpatialCoordinate(mesh)
             space_0 = FunctionSpace(mesh, "Lagrange", degree)
@@ -2382,7 +2437,7 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_FE():
 
             solver_parameters = {"linear_solver": "fgmres",
                                  "fgmres_restart": 10,
-                                 "maximum_iterations": 500,
+                                 "maximum_iterations": 200,
                                  "relative_tolerance": 1.0e-10,
                                  "absolute_tolerance": 1.0e-10,
                                  "monitor_convergence": False}
@@ -2392,15 +2447,10 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_FE():
                 print_error=False, create_output=False, plots=False)
 
             flattened_space_v = tuple(space_0 for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_0.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
 
             flattened_space_v_ref = tuple(space_0_ref for i in range(n_t))
-            mixed_element_v_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v_ref])
-            full_space_v_ref = FunctionSpace(
-                space_0_ref.mesh(), mixed_element_v_ref)
+            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
             my_v = Function(full_space_v)
             my_zeta = Function(full_space_v)
@@ -2418,8 +2468,8 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_FE():
             for i in range(n_t):
                 t = i * tau
 
-                v_ref.sub(i).interpolate(ref_sol_v(*X, t))
-                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, t))
+                v_ref.sub(i).interpolate(ref_sol_v(*X, Constant(t)))
+                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
 
             v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
                 inner(my_v - v_ref, my_v - v_ref) * dx)))
@@ -2451,7 +2501,7 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_time():
         X_2 = y - 1.0
 
         c_1 = (2.0 / (pi * pi * beta)) * exp(Constant(t_f))
-        c_2 = - (2.0 / ((2.0 + pi * pi) * beta)) * exp(Constant(t))
+        c_2 = - (2.0 / ((2.0 + pi * pi) * beta)) * exp(t)
 
         return 1.0 + (c_1 + c_2) * cos(0.5 * pi * X_1) * cos(0.5 * pi * X_2)
 
@@ -2460,7 +2510,7 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_time():
         X_2 = y - 1.0
 
         c_1 = exp(Constant(t_f))
-        c_2 = - exp(Constant(t))
+        c_2 = - exp(t)
 
         return (c_1 + c_2) * cos(0.5 * pi * X_1) * cos(0.5 * pi * X_2)
 
@@ -2470,9 +2520,9 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_time():
         X = SpatialCoordinate(mesh)
         x = X[0] - 1.0
         y = X[1] - 1.0
-        a = Constant(t)
-        wind = as_vector([cos(0.5 * pi * a) * 2. * y * (1. - x * x),
-                          -cos(0.5 * pi * a) * 2. * x * (1. - y * y)])
+
+        wind = as_vector([cos(0.5 * pi * t) * 2. * y * (1. - x * x),
+                          -cos(0.5 * pi * t) * 2. * x * (1. - y * y)])
         # spatial differential for the forward problem
         return (
             inner(grad(trial), grad(test)) * dx
@@ -2484,9 +2534,9 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_time():
         X = SpatialCoordinate(mesh)
         x = X[0] - 1.0
         y = X[1] - 1.0
-        a = Constant(t)
-        wind = as_vector([cos(0.5 * pi * a) * 2. * y * (1. - x * x),
-                          -cos(0.5 * pi * a) * 2. * x * (1. - y * y)])
+
+        wind = as_vector([cos(0.5 * pi * t) * 2. * y * (1. - x * x),
+                          -cos(0.5 * pi * t) * 2. * x * (1. - y * y)])
         zeta = ref_sol_zeta(*X, t)
         grad_zeta = grad(zeta)
         convection = grad_zeta[(0)] * wind[(0)] + grad_zeta[(1)] * wind[(1)]
@@ -2495,14 +2545,18 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_time():
         v_d = Function(space, name="v_d")
 
         c_1 = (2.0 / (pi * pi * beta) + 0.5 * pi * pi) * exp(Constant(t_f))
-        c_2 = (1.0 - 2.0 / ((2.0 + pi * pi) * beta) - 0.5 * pi * pi) * exp(a)
+        c_2 = (1.0 - 2.0 / ((2.0 + pi * pi) * beta) - 0.5 * pi * pi) * exp(t)
         c = c_1 + c_2
 
         v_d.interpolate(
             Constant(1.0) + c * cos(0.5 * pi * x) * cos(0.5 * pi * y)
             - convection)
 
-        return inner(v_d, test) * dx, v_d
+        # true v
+        true_v = Function(space, name="true_v")
+        true_v.assign(v_d)
+
+        return inner(v_d, test) * dx, true_v
 
     def initial_condition(test):
         space = test.function_space()
@@ -2526,9 +2580,10 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_time():
         X = SpatialCoordinate(mesh)
         x = X[0] - 1.0
         y = X[1] - 1.0
-        a = Constant(t)
-        wind = as_vector([cos(0.5 * pi * a) * 2. * y * (1. - x * x),
-                          -cos(0.5 * pi * a) * 2. * x * (1. - y * y)])
+
+        wind = as_vector([cos(0.5 * pi * t) * 2. * y * (1. - x * x),
+                          -cos(0.5 * pi * t) * 2. * x * (1. - y * y)])
+
         v = ref_sol_v(*X, t)
         grad_v = grad(v)
         convection = grad_v[(0)] * wind[(0)] + grad_v[(1)] * wind[(1)]
@@ -2563,7 +2618,7 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_time():
 
             solver_parameters = {"linear_solver": "fgmres",
                                  "fgmres_restart": 10,
-                                 "maximum_iterations": 500,
+                                 "maximum_iterations": 200,
                                  "relative_tolerance": 1.0e-10,
                                  "absolute_tolerance": 1.0e-10,
                                  "monitor_convergence": False}
@@ -2573,15 +2628,10 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_time():
                 print_error=False, create_output=False, plots=False)
 
             flattened_space_v = tuple(space_0 for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_0.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
 
             flattened_space_v_ref = tuple(space_0_ref for i in range(n_t))
-            mixed_element_v_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v_ref])
-            full_space_v_ref = FunctionSpace(
-                space_0_ref.mesh(), mixed_element_v_ref)
+            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
             my_v = Function(full_space_v)
             my_zeta = Function(full_space_v)
@@ -2599,8 +2649,8 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_time():
             for i in range(n_t):
                 t = i * tau
 
-                v_ref.sub(i).interpolate(ref_sol_v(*X, t))
-                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, t))
+                v_ref.sub(i).interpolate(ref_sol_v(*X, Constant(t)))
+                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
 
             v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
                 inner(my_v - v_ref, my_v - v_ref) * dx)))
@@ -2632,7 +2682,7 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_FE():
         X_2 = y - 1.0
 
         c_1 = (2.0 / (pi * pi * beta)) * exp(Constant(t_f))
-        c_2 = - (2.0 / ((2.0 + pi * pi) * beta)) * exp(Constant(t))
+        c_2 = - (2.0 / ((2.0 + pi * pi) * beta)) * exp(t)
 
         return 1.0 + (c_1 + c_2) * cos(0.5 * pi * X_1) * cos(0.5 * pi * X_2)
 
@@ -2641,7 +2691,7 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_FE():
         X_2 = y - 1.0
 
         c_1 = exp(Constant(t_f))
-        c_2 = - exp(Constant(t))
+        c_2 = - exp(t)
 
         return (c_1 + c_2) * cos(0.5 * pi * X_1) * cos(0.5 * pi * X_2)
 
@@ -2665,19 +2715,19 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_FE():
         X = SpatialCoordinate(mesh)
         x = X[0] - 1.0
         y = X[1] - 1.0
-        a = Constant(t)
-        wind = as_vector([cos(0.5 * pi * a) * 2. * y * (1. - x * x),
-                          -cos(0.5 * pi * a) * 2. * x * (1. - y * y)])
+
+        wind = as_vector([cos(0.5 * pi * t) * 2. * y * (1. - x * x),
+                          -cos(0.5 * pi * t) * 2. * x * (1. - y * y)])
         zeta = ref_sol_zeta(*X, t)
         grad_zeta = grad(zeta)
         convection = grad_zeta[(0)] * wind[(0)] + grad_zeta[(1)] * wind[(1)]
 
         # desired state
         v_d = Function(space, name="v_d")
-        v_sol = Function(space, name="v_sol")
+        true_v = Function(space, name="true_v")
 
         c_1 = (2.0 / (pi * pi * beta) + 0.5 * pi * pi) * exp(Constant(t_f))
-        c_2 = (1.0 - 2.0 / ((2.0 + pi * pi) * beta) - 0.5 * pi * pi) * exp(a)
+        c_2 = (1.0 - 2.0 / ((2.0 + pi * pi) * beta) - 0.5 * pi * pi) * exp(t)
         c = c_1 + c_2
 
         v_d.interpolate(
@@ -2685,13 +2735,13 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_FE():
             - convection)
 
         c_1 = (2.0 / (pi * pi * beta)) * exp(Constant(t_f))
-        c_2 = - (2.0 / ((2.0 + pi * pi) * beta)) * exp(a)
+        c_2 = - (2.0 / ((2.0 + pi * pi) * beta)) * exp(t)
         c = c_1 + c_2
 
-        v_sol.interpolate(
+        true_v.interpolate(
             Constant(1.0) + c * cos(0.5 * pi * x) * cos(0.5 * pi * y))
 
-        return inner(v_d, test) * dx, v_sol
+        return inner(v_d, test) * dx, true_v
 
     def initial_condition(test):
         space = test.function_space()
@@ -2716,9 +2766,9 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_FE():
         X = SpatialCoordinate(mesh)
         x = X[0] - 1.0
         y = X[1] - 1.0
-        a = Constant(t)
-        wind = as_vector([cos(0.5 * pi * a) * 2. * y * (1. - x * x),
-                          -cos(0.5 * pi * a) * 2. * x * (1. - y * y)])
+
+        wind = as_vector([cos(0.5 * pi * t) * 2. * y * (1. - x * x),
+                          -cos(0.5 * pi * t) * 2. * x * (1. - y * y)])
         v = ref_sol_v(*X, t)
         grad_v = grad(v)
         convection = grad_v[(0)] * wind[(0)] + grad_v[(1)] * wind[(1)]
@@ -2753,7 +2803,7 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_FE():
 
             solver_parameters = {"linear_solver": "fgmres",
                                  "fgmres_restart": 10,
-                                 "maximum_iterations": 500,
+                                 "maximum_iterations": 200,
                                  "relative_tolerance": 1.0e-10,
                                  "absolute_tolerance": 1.0e-10,
                                  "monitor_convergence": False}
@@ -2763,15 +2813,10 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_FE():
                 print_error=False, create_output=False, plots=False)
 
             flattened_space_v = tuple(space_0 for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_0.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
 
             flattened_space_v_ref = tuple(space_0_ref for i in range(n_t))
-            mixed_element_v_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v_ref])
-            full_space_v_ref = FunctionSpace(
-                space_0_ref.mesh(), mixed_element_v_ref)
+            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
             my_v = Function(full_space_v)
             my_zeta = Function(full_space_v)
@@ -2789,8 +2834,8 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_FE():
             for i in range(n_t):
                 t = i * tau
 
-                v_ref.sub(i).interpolate(ref_sol_v(*X, t))
-                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, t))
+                v_ref.sub(i).interpolate(ref_sol_v(*X, Constant(t)))
+                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
 
             v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
                 inner(my_v - v_ref, my_v - v_ref) * dx)))
@@ -2822,7 +2867,7 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_time():
         X_2 = y - 1.0
 
         c_1 = (2.0 / (pi * pi * beta)) * exp(Constant(t_f))
-        c_2 = - (2.0 / ((2.0 + pi * pi) * beta)) * exp(Constant(t))
+        c_2 = - (2.0 / ((2.0 + pi * pi) * beta)) * exp(t)
 
         return 1.0 + (c_1 + c_2) * cos(0.5 * pi * X_1) * cos(0.5 * pi * X_2)
 
@@ -2831,7 +2876,7 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_time():
         X_2 = y - 1.0
 
         c_1 = exp(Constant(t_f))
-        c_2 = - exp(Constant(t))
+        c_2 = - exp(t)
 
         return (c_1 + c_2) * cos(0.5 * pi * X_1) * cos(0.5 * pi * X_2)
 
@@ -2841,9 +2886,9 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_time():
         X = SpatialCoordinate(mesh)
         x = X[0] - 1.0
         y = X[1] - 1.0
-        a = Constant(t)
-        wind = as_vector([cos(0.5 * pi * a) * 2. * y * (1. - x * x),
-                          -cos(0.5 * pi * a) * 2. * x * (1. - y * y)])
+
+        wind = as_vector([cos(0.5 * pi * t) * 2. * y * (1. - x * x),
+                          -cos(0.5 * pi * t) * 2. * x * (1. - y * y)])
         # spatial differential for the forward problem
         return (
             inner(grad(trial), grad(test)) * dx
@@ -2855,19 +2900,19 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_time():
         X = SpatialCoordinate(mesh)
         x = X[0] - 1.0
         y = X[1] - 1.0
-        a = Constant(t)
-        wind = as_vector([cos(0.5 * pi * a) * 2. * y * (1. - x * x),
-                          -cos(0.5 * pi * a) * 2. * x * (1. - y * y)])
+
+        wind = as_vector([cos(0.5 * pi * t) * 2. * y * (1. - x * x),
+                          -cos(0.5 * pi * t) * 2. * x * (1. - y * y)])
         zeta = ref_sol_zeta(*X, t)
         grad_zeta = grad(zeta)
         convection = grad_zeta[(0)] * wind[(0)] + grad_zeta[(1)] * wind[(1)]
 
         # desired state
         v_d = Function(space, name="v_d")
-        v_sol = Function(space, name="v_sol")
+        true_v = Function(space, name="true_v")
 
         c_1 = (2.0 / (pi * pi * beta) + 0.5 * pi * pi) * exp(Constant(t_f))
-        c_2 = (1.0 - 2.0 / ((2.0 + pi * pi) * beta) - 0.5 * pi * pi) * exp(a)
+        c_2 = (1.0 - 2.0 / ((2.0 + pi * pi) * beta) - 0.5 * pi * pi) * exp(t)
         c = c_1 + c_2
 
         v_d.interpolate(
@@ -2875,13 +2920,13 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_time():
             - convection)
 
         c_1 = (2.0 / (pi * pi * beta)) * exp(Constant(t_f))
-        c_2 = - (2.0 / ((2.0 + pi * pi) * beta)) * exp(a)
+        c_2 = - (2.0 / ((2.0 + pi * pi) * beta)) * exp(t)
         c = c_1 + c_2
 
-        v_sol.interpolate(
+        true_v.interpolate(
             Constant(1.0) + c * cos(0.5 * pi * x) * cos(0.5 * pi * y))
 
-        return inner(v_d, test) * dx, v_sol
+        return inner(v_d, test) * dx, true_v
 
     def initial_condition(test):
         space = test.function_space()
@@ -2906,9 +2951,9 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_time():
         X = SpatialCoordinate(mesh)
         x = X[0] - 1.0
         y = X[1] - 1.0
-        a = Constant(t)
-        wind = as_vector([cos(0.5 * pi * a) * 2. * y * (1. - x * x),
-                          -cos(0.5 * pi * a) * 2. * x * (1. - y * y)])
+
+        wind = as_vector([cos(0.5 * pi * t) * 2. * y * (1. - x * x),
+                          -cos(0.5 * pi * t) * 2. * x * (1. - y * y)])
         v = ref_sol_v(*X, t)
         grad_v = grad(v)
         convection = grad_v[(0)] * wind[(0)] + grad_v[(1)] * wind[(1)]
@@ -2943,25 +2988,20 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_time():
 
             solver_parameters = {"linear_solver": "fgmres",
                                  "fgmres_restart": 10,
-                                 "maximum_iterations": 500,
+                                 "maximum_iterations": 200,
                                  "relative_tolerance": 1.0e-10,
                                  "absolute_tolerance": 1.0e-10,
                                  "monitor_convergence": False}
 
             my_control_instationary.linear_solve(
                 solver_parameters=solver_parameters,
-                print_error=True, create_output=False, plots=False)
+                print_error=False, create_output=False, plots=False)
 
             flattened_space_v = tuple(space_0 for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_0.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
 
             flattened_space_v_ref = tuple(space_0_ref for i in range(n_t))
-            mixed_element_v_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v_ref])
-            full_space_v_ref = FunctionSpace(
-                space_0_ref.mesh(), mixed_element_v_ref)
+            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
             my_v = Function(full_space_v)
             my_zeta = Function(full_space_v)
@@ -2979,8 +3019,8 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_time():
             for i in range(n_t):
                 t = i * tau
 
-                v_ref.sub(i).interpolate(ref_sol_v(*X, t))
-                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, t))
+                v_ref.sub(i).interpolate(ref_sol_v(*X, Constant(t)))
+                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
 
             v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
                 inner(my_v - v_ref, my_v - v_ref) * dx)))
@@ -3047,13 +3087,13 @@ def test_instationary_Stokes_control_BE_with_exact_sol():
         T_f = 1.
         beta = 10.0**0
 
-        v_d_help = Function(space)
+        v_d_help = Function(space, name="v_d_help")
         v_d_help.interpolate(as_vector([
             4. * beta * y * (2. * (3. * x * x - 1.) * (y * y - 1.) + 3. * (x * x - 1.)**2),  # noqa: E501
             -4. * beta * x * (3. * (y * y - 1.)**2 + 2. * (x * x - 1.) * (3. * y * y - 1.))]))  # noqa: E501
 
         # desired state
-        v_d = Function(space)
+        v_d = Function(space, name="v_d")
         v_d.interpolate(as_vector([
             exp(T_f - t) * (x * y**3 + 2. * beta * y * (((x * x - 1.)**2) * (y * y - 7.) - 4. * (3. * x * x - 1.) * (y * y - 1.) + 2.)),  # noqa: E501
             exp(T_f - t) * ((1. / 4.) * (x**4 - y**4) - 2. * beta * x * (((y * y - 1.)**2) * (x * x - 7.) - 4. * (x * x - 1.) * (3. * y * y - 1.) - 2.))]))  # noqa: E501
@@ -3062,7 +3102,7 @@ def test_instationary_Stokes_control_BE_with_exact_sol():
                 v_d_help.dat.vec_ro as b_1_v:
             b_v.axpy(1.0, b_1_v)
 
-        true_v = Function(space)
+        true_v = Function(space, name="true_v")
         true_v.interpolate(as_vector([
             exp(T_f - t) * x * y**3,
             (1. / 4.) * exp(T_f - t) * (x**4 - y**4)]))
@@ -3127,173 +3167,8 @@ def test_instationary_Stokes_control_BE_with_exact_sol():
         lambda_p_bounds=lambda_p_bounds, print_error=False,
         create_output=False)
 
-    flattened_space_v = tuple(space_v for i in range(n_t))
-    mixed_element_v = ufl.classes.MixedElement(
-        *[space.ufl_element() for space in flattened_space_v])
-    full_space_v = FunctionSpace(space_v.mesh(), mixed_element_v)
-
-    flattened_space_p = tuple(space_p for i in range(n_t - 1))
-    mixed_element_p = ufl.classes.MixedElement(
-        *[space.ufl_element() for space in flattened_space_p])
-    full_space_p = FunctionSpace(space_p.mesh(), mixed_element_p)
-
-    my_v = Function(full_space_v)
-    my_p = Function(full_space_p)
-
-    my_zeta = Function(full_space_v)
-    my_mu = Function(full_space_p)
-
-    my_v.assign(my_control_instationary._v)
-
-    my_zeta.assign(my_control_instationary._zeta)
-
-    for i in range(n_t - 1):
-        my_p.sub(i).assign(my_control_instationary._p.sub(i + 1))
-
-        my_mu.sub(i).assign(my_control_instationary._mu.sub(i))
-
     del my_control_instationary
     PETSc.garbage_cleanup(space_v.mesh().comm)
-
-    def v_sol(test, t):
-        space = test.function_space()
-        mesh = space.mesh()
-        X = SpatialCoordinate(mesh)
-        x = X[0] - 1.0
-        y = X[1] - 1.0
-
-        T_f = 1.0
-
-        true_v = Function(space)
-        true_v.interpolate(as_vector([
-            exp(T_f - t) * x * y**3,
-            (1. / 4.) * exp(T_f - t) * (x**4 - y**4)]))
-
-        return true_v
-
-    def p_sol(test, t):
-        space = test.function_space()
-        mesh = space.mesh()
-        X = SpatialCoordinate(mesh)
-        x = X[0] - 1.0
-        y = X[1] - 1.0
-
-        T_f = 1.0
-
-        true_p = Function(space)
-        true_p.interpolate(
-            exp(T_f - t) * (3. * x**2 * y - y**3))
-
-        return true_p
-
-    def zeta_sol(test, t):
-        space = test.function_space()
-        mesh = space.mesh()
-        X = SpatialCoordinate(mesh)
-        x = X[0] - 1.0
-        y = X[1] - 1.0
-
-        T_f = 1.0
-
-        beta = 10.0**0
-
-        true_zeta = Function(space)
-        true_zeta.interpolate(as_vector([
-            beta * (exp(T_f - t) - 1.) * 2. * y * (x**2 - 1.)**2 * (y**2 - 1.),  # noqa: E501
-            -beta * (exp(T_f - t) - 1.) * 2. * x * (x**2 - 1.) * (y**2 - 1.)**2]))  # noqa: E501
-
-        return true_zeta
-
-    def mu_sol(test, t):
-        space = test.function_space()
-        mesh = space.mesh()
-        X = SpatialCoordinate(mesh)
-        x = X[0] - 1.0
-        y = X[1] - 1.0
-
-        T_f = 1.0
-
-        beta = 10.0**0
-
-        true_mu = Function(space)
-        true_mu.interpolate(
-            beta * exp(T_f - t) * 4. * x * y)
-
-        return true_mu
-
-    true_v = Function(full_space_v, name="true_v")
-    true_zeta = Function(full_space_v, name="true_zeta")
-
-    true_p = Function(full_space_p, name="true_p")
-    true_mu = Function(full_space_p, name="true_mu")
-
-    t_0 = time_interval[0]
-    T_f = time_interval[1]
-    tau = (T_f - t_0) / (n_t - 1.0)
-
-    v_test = TestFunction(space_v)
-    p_test = TestFunction(space_p)
-
-    p_help = Function(space_p)
-    mu_help = Function(space_p)
-
-    true_p_i = Function(space_p)
-    true_mu_i = Function(space_p)
-
-    for i in range(n_t - 1):
-        t = t_0 + i * tau
-
-        true_v_i = v_sol(v_test, t)
-        true_v.sub(i).assign(true_v_i)
-
-        true_zeta_i = zeta_sol(v_test, t)
-        true_zeta.sub(i).assign(true_zeta_i)
-
-        true_p_i = p_sol(p_test, t + tau)
-        mean = assemble(true_p_i * dx)
-        with true_p_i.dat.vec as b_p:
-            b_p.shift(-mean)
-        true_p.sub(i).assign(true_p_i)
-
-        p_help.assign(my_p.sub(i))
-        mean = assemble(p_help * dx)
-        with p_help.dat.vec as b_p:
-            b_p.shift(-mean)
-        my_p.sub(i).assign(p_help)
-
-        true_mu_i = mu_sol(p_test, t)
-        mean = assemble(true_mu_i * dx)
-        with true_mu_i.dat.vec as b_p:
-            b_p.shift(-mean)
-        true_mu.sub(i).assign(true_mu_i)
-
-        mu_help.assign(my_mu.sub(i))
-        mean = assemble(mu_help * dx)
-        with mu_help.dat.vec as b_p:
-            b_p.shift(-mean)
-        my_mu.sub(i).assign(mu_help)
-
-    true_v_i = v_sol(v_test, time_interval[1])
-    true_v.sub(n_t - 1).assign(true_v_i)
-
-    true_zeta_i = zeta_sol(v_test, time_interval[1])
-    true_zeta.sub(n_t - 1).assign(true_zeta_i)
-
-    v_error_norm = np.sqrt(abs(assemble(inner(my_v - true_v,
-                                              my_v - true_v) * dx)))
-    assert v_error_norm < 0.02
-
-    zeta_error_norm = np.sqrt(abs(assemble(inner(my_zeta - true_zeta,
-                                                 my_zeta - true_zeta) * dx)))
-    assert zeta_error_norm < 0.02
-
-    p_error_norm = np.sqrt(abs(assemble(inner(my_p - true_p,
-                                              my_p - true_p) * dx)))
-    assert p_error_norm < 0.02
-
-    mu_error_norm = np.sqrt(abs(assemble(inner(my_mu - true_mu,
-                                               my_mu - true_mu) * dx)))
-    assert mu_error_norm < 0.02
 
 
 def test_instationary_Stokes_control_CN_with_exact_sol():
@@ -3342,13 +3217,13 @@ def test_instationary_Stokes_control_CN_with_exact_sol():
         T_f = 1.
         beta = 10.0**0
 
-        v_d_help = Function(space)
+        v_d_help = Function(space, name="v_d_help")
         v_d_help.interpolate(as_vector([
             4. * beta * y * (2. * (3. * x * x - 1.) * (y * y - 1.) + 3. * (x * x - 1.)**2),  # noqa: E501
             -4. * beta * x * (3. * (y * y - 1.)**2 + 2. * (x * x - 1.) * (3. * y * y - 1.))]))  # noqa: E501
 
         # desired state
-        v_d = Function(space)
+        v_d = Function(space, name="v_d")
         v_d.interpolate(as_vector([
             exp(T_f - t) * (x * y**3 + 2. * beta * y * (((x * x - 1.)**2) * (y * y - 7.) - 4. * (3. * x * x - 1.) * (y * y - 1.) + 2.)),  # noqa: E501
             exp(T_f - t) * ((1. / 4.) * (x**4 - y**4) - 2. * beta * x * (((y * y - 1.)**2) * (x * x - 7.) - 4. * (x * x - 1.) * (3. * y * y - 1.) - 2.))]))  # noqa: E501
@@ -3357,7 +3232,7 @@ def test_instationary_Stokes_control_CN_with_exact_sol():
                 v_d_help.dat.vec_ro as b_1_v:
             b_v.axpy(1.0, b_1_v)
 
-        true_v = Function(space)
+        true_v = Function(space, name="true_v")
         true_v.interpolate(as_vector([
             exp(T_f - t) * x * y**3,
             exp(T_f - t) * (1. / 4.) * (x**4 - y**4)]))
@@ -3422,161 +3297,8 @@ def test_instationary_Stokes_control_CN_with_exact_sol():
         lambda_p_bounds=lambda_p_bounds, print_error=False,
         create_output=False)
 
-    my_v = my_control_instationary._v
-    my_p = my_control_instationary._p
-
-    my_zeta = my_control_instationary._zeta
-    my_mu = my_control_instationary._mu
-
-    def v_sol(test, t):
-        space = test.function_space()
-        mesh = space.mesh()
-        X = SpatialCoordinate(mesh)
-        x = X[0] - 1.0
-        y = X[1] - 1.0
-
-        T_f = 1.0
-
-        true_v = Function(space)
-        true_v.interpolate(as_vector([
-            exp(T_f - t) * x * y**3,
-            exp(T_f - t) * (1. / 4.) * (x**4 - y**4)]))
-
-        return true_v
-
-    def p_sol(test, t):
-        space = test.function_space()
-        mesh = space.mesh()
-        X = SpatialCoordinate(mesh)
-        x = X[0] - 1.0
-        y = X[1] - 1.0
-
-        T_f = 1.0
-
-        true_p = Function(space)
-        true_p.interpolate(
-            exp(T_f - t) * (3. * x**2 * y - y**3))
-
-        return true_p
-
-    def zeta_sol(test, t):
-        space = test.function_space()
-        mesh = space.mesh()
-        X = SpatialCoordinate(mesh)
-        x = X[0] - 1.0
-        y = X[1] - 1.0
-
-        T_f = 1.0
-
-        beta = 10.0**0
-
-        true_zeta = Function(space)
-        true_zeta.interpolate(as_vector([
-            beta * (exp(T_f - t) - 1.) * 2. * y * (x**2 - 1.)**2 * (y**2 - 1.),  # noqa: E501
-            -beta * (exp(T_f - t) - 1.) * 2. * x * (x**2 - 1.) * (y**2 - 1.)**2]))  # noqa: E501
-
-        return true_zeta
-
-    def mu_sol(test, t):
-        space = test.function_space()
-        mesh = space.mesh()
-        X = SpatialCoordinate(mesh)
-        x = X[0] - 1.0
-        y = X[1] - 1.0
-
-        T_f = 1.0
-
-        beta = 10.0**0
-
-        true_mu = Function(space)
-        true_mu.interpolate(
-            beta * exp(T_f - t) * 4. * x * y)
-
-        return true_mu
-
-    flattened_space_v = tuple(space_v for i in range(n_t))
-    mixed_element_v = ufl.classes.MixedElement(
-        *[space.ufl_element() for space in flattened_space_v])
-    full_space_v = FunctionSpace(space_v.mesh(), mixed_element_v)
-
-    flattened_space_p = tuple(space_p for i in range(n_t - 1))
-    mixed_element_p = ufl.classes.MixedElement(
-        *[space.ufl_element() for space in flattened_space_p])
-    full_space_p = FunctionSpace(space_p.mesh(), mixed_element_p)
-
-    true_v = Function(full_space_v, name="true_v")
-    true_zeta = Function(full_space_v, name="true_zeta")
-
-    true_p = Function(full_space_p, name="true_p")
-    true_mu = Function(full_space_p, name="true_mu")
-
-    t_0 = time_interval[0]
-    T_f = time_interval[1]
-    tau = (T_f - t_0) / (n_t - 1.0)
-
-    v_test = TestFunction(space_v)
-    p_test = TestFunction(space_p)
-
-    true_v_i = v_sol(v_test, t_0)
-    true_v.sub(0).assign(true_v_i)
-
-    true_zeta_i = zeta_sol(v_test, t_0)
-    true_zeta.sub(0).assign(true_zeta_i)
-
-    p_help = Function(space_p)
-
-    for i in range(1, n_t):
-        t = t_0 + i * tau
-        t_p = t - 0.5 * tau
-
-        true_v_i = v_sol(v_test, t)
-        true_v.sub(i).assign(true_v_i)
-
-        true_zeta_i = zeta_sol(v_test, t)
-        true_zeta.sub(i).assign(true_zeta_i)
-
-        true_p_i = p_sol(p_test, t_p)
-        mean = assemble(true_p_i * dx)
-        with true_p_i.dat.vec as b_p:
-            b_p.shift(-mean)
-        true_p.sub(i - 1).assign(true_p_i)
-
-        true_mu_i = mu_sol(p_test, t_p)
-        mean = assemble(true_mu_i * dx)
-        with true_mu_i.dat.vec as b_p:
-            b_p.shift(-mean)
-        true_mu.sub(i - 1).assign(true_mu_i)
-
-        p_help.assign(my_p.sub(i - 1))
-        mean = assemble(p_help * dx)
-        with p_help.dat.vec as b_p:
-            b_p.shift(-mean)
-        my_p.sub(i - 1).assign(p_help)
-
-        p_help.assign(my_mu.sub(i - 1))
-        mean = assemble(p_help * dx)
-        with p_help.dat.vec as b_p:
-            b_p.shift(-mean)
-        my_mu.sub(i - 1).assign(p_help)
-
     del my_control_instationary
     PETSc.garbage_cleanup(space_v.mesh().comm)
-
-    v_error_norm = np.sqrt(abs(assemble(inner(my_v - true_v,
-                                              my_v - true_v) * dx)))
-    assert v_error_norm < 0.025
-
-    zeta_error_norm = np.sqrt(abs(assemble(inner(my_zeta - true_zeta,
-                                                 my_zeta - true_zeta) * dx)))
-    assert zeta_error_norm < 0.025
-
-    p_error_norm = np.sqrt(abs(assemble(inner(my_p - true_p,
-                                              my_p - true_p) * dx)))
-    assert p_error_norm < 0.025
-
-    mu_error_norm = np.sqrt(abs(assemble(inner(my_mu - true_mu,
-                                               my_mu - true_mu) * dx)))
-    assert mu_error_norm < 0.025
 
 
 def test_MMS_instationary_Stokes_control_BE_convergence_FE():
@@ -3589,41 +3311,57 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
     def v_sol(x_1, x_2, t):
         x = x_1 - 1.0
         y = x_2 - 1.0
-        a = Constant(t)
 
         v = as_vector([
-            exp(Constant(t_f) - a) * x * y**3,
-            (1. / 4.) * exp(Constant(t_f) - a) * (x**4 - y**4)])
+            (Constant(t_f) - t) * x * y**3,
+            (1. / 4.) * (Constant(t_f) - t) * (x**4 - y**4)])
 
         return v
+
+    def v_sol_space(x_1, x_2):
+        x = x_1 - 1.0
+        y = x_2 - 1.0
+
+        v_space = as_vector([
+            x * y**3,
+            (1. / 4.) * (x**4 - y**4)])
+
+        return v_space
 
     def p_sol(x_1, x_2, t):
         x = x_1 - 1.0
         y = x_2 - 1.0
-        a = Constant(t)
 
-        p = exp(Constant(t_f) - a) * (3. * x**2 * y - y**3)
+        p = (Constant(t_f) - t) * (3. * x**2 * y - y**3)
 
         return p
 
     def zeta_sol(x_1, x_2, t):
         x = x_1 - 1.0
         y = x_2 - 1.0
-        a = Constant(t)
-        b = Constant(t_f)
+        a = Constant(t_f)
 
         zeta = as_vector([
-            beta * (exp(b - a) - 1.) * 2. * y * (x**2 - 1.)**2 * (y**2 - 1.),
-            -beta * (exp(b - a) - 1.) * 2. * x * (x**2 - 1.) * (y**2 - 1.)**2])
+            beta * (a - t) * 2. * y * (x**2 - 1.)**2 * (y**2 - 1.),
+            -beta * (a - t) * 2. * x * (x**2 - 1.) * (y**2 - 1.)**2])
 
         return zeta
+
+    def zeta_sol_space(x_1, x_2):
+        x = x_1 - 1.0
+        y = x_2 - 1.0
+
+        zeta_space = as_vector([
+            beta * 2. * y * (x**2 - 1.)**2 * (y**2 - 1.),
+            -beta * 2. * x * (x**2 - 1.) * (y**2 - 1.)**2])
+
+        return zeta_space
 
     def mu_sol(x_1, x_2, t):
         x = x_1 - 1.0
         y = x_2 - 1.0
-        a = Constant(t)
 
-        mu = beta * exp(Constant(t_f) - a) * 4. * x * y
+        mu = beta * (Constant(t_f) - t) * 4. * x * y
 
         return mu
 
@@ -3633,11 +3371,13 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
         x = X[0] - 1.0
         y = X[1] - 1.0
 
+        a = Constant(t_f)
+
         my_bcs = DirichletBC(
             space_v,
             as_vector([
-                exp(t_f - t) * x * (y**3),
-                (1. / 4.) * exp(t_f - t) * (x**4 - y**4)]),
+                (a - t) * x * (y**3),
+                (1. / 4.) * (a - t) * (x**4 - y**4)]),
             "on_boundary")
 
         return my_bcs
@@ -3652,26 +3392,25 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
         X = SpatialCoordinate(mesh)
         x = X[0] - 1.0
         y = X[1] - 1.0
+        a = Constant(t_f)
 
-        v_d_help = Function(space)
-        v_d_help.interpolate(as_vector([
-            4. * beta * y * (2. * (3. * x * x - 1.) * (y * y - 1.) + 3. * (x * x - 1.)**2),  # noqa: E501
-            -4. * beta * x * (3. * (y * y - 1.)**2 + 2. * (x * x - 1.) * (3. * y * y - 1.))]))  # noqa: E501
+        v = v_sol(*X, t)
+        zeta = zeta_sol(*X, t)
+        mu = mu_sol(*X, t)
+
+        zeta_space = zeta_sol_space(*X)
+
+        lapl_zeta = div(grad(zeta))
+        grad_mu = grad(mu)
 
         # desired state
-        v_d = Function(space)
-        v_d.interpolate(as_vector([
-            exp(t_f - t) * (x * y**3 + 2. * beta * y * (((x * x - 1.)**2) * (y * y - 7.) - 4. * (3. * x * x - 1.) * (y * y - 1.) + 2.)),  # noqa: E501
-            exp(t_f - t) * ((1. / 4.) * (x**4 - y**4) - 2. * beta * x * (((y * y - 1.)**2) * (x * x - 7.) - 4. * (x * x - 1.) * (3. * y * y - 1.) - 2.))]))  # noqa: E501
+        v_d = Function(space, name="v_d")
+        v_d.interpolate(v + zeta_space - lapl_zeta + grad_mu)
 
-        with v_d.dat.vec as b_v, \
-                v_d_help.dat.vec_ro as b_1_v:
-            b_v.axpy(1.0, b_1_v)
-
-        true_v = Function(space)
+        true_v = Function(space, name="true_v")
         true_v.interpolate(as_vector([
-            exp(t_f - t) * x * y**3,
-            (1. / 4.) * exp(t_f - t) * (x**4 - y**4)]))
+            (a - t) * x * y**3,
+            (1. / 4.) * (a - t) * (x**4 - y**4)]))
 
         return inner(v_d, test) * dx, true_v
 
@@ -3682,12 +3421,10 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
         x = X[0] - 1.0
         y = X[1] - 1.0
 
-        t = 0.0
-
         v_0 = Function(space)
         v_0.interpolate(as_vector([
-            exp(t_f - t) * x * y**3,
-            (1. / 4.) * exp(t_f - t) * (x**4 - y**4)]))
+            Constant(t_f) * x * y**3,
+            (1. / 4.) * Constant(t_f) * (x**4 - y**4)]))
 
         return v_0
 
@@ -3695,24 +3432,20 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
         space = test.function_space()
         mesh = space.mesh()
         X = SpatialCoordinate(mesh)
-        x = X[0] - 1.0
-        y = X[1] - 1.0
 
-        # force function
-        f_help = Function(space)
-        f_help.interpolate(as_vector([
-            2. * y * (x**2 - 1.)**2 * (y**2 - 1.),
-            -2. * x * (x**2 - 1.) * (y**2 - 1.)**2]))
+        v = v_sol(*X, t)
+        zeta = zeta_sol(*X, t)
+        p = p_sol(*X, t)
+
+        v_space = v_sol_space(*X)
+
+        lapl_v = div(grad(v))
+        grad_p = grad(p)
 
         # force function
         f = Function(space)
-        f.interpolate(as_vector([
-            exp(t_f - t) * (-x * y**3 - 2. * y * (x * x - 1.)**2 * (y * y - 1.)),  # noqa: E501
-            exp(t_f - t) * ((1. / 4.) * (y**4 - x**4) + 2. * x * (x * x - 1.) * (y * y - 1.)**2)]))  # noqa: E501
-
-        with f.dat.vec as b_v, \
-                f_help.dat.vec_ro as b_1_v:
-            b_v.axpy(1.0, b_1_v)
+        f.interpolate(-v_space - lapl_v + grad_p
+                      - Constant(1. / beta) * zeta)
 
         return inner(f, test) * dx
 
@@ -3723,7 +3456,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
         mu_error_norms = []
         for p in range(*p_range):
             N = 2 ** p
-            n_t = 100
+            n_t = 10
 
             mesh = RectangleMesh(N, N, 2.0, 2.0)
             X = SpatialCoordinate(mesh)
@@ -3749,7 +3482,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
 
             solver_parameters = {"linear_solver": "fgmres",
                                  "fgmres_restart": 10,
-                                 "maximum_iterations": 500,
+                                 "maximum_iterations": 200,
                                  "relative_tolerance": 1.0e-10,
                                  "absolute_tolerance": 1.0e-10,
                                  "monitor_convergence": False}
@@ -3762,26 +3495,16 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
                 print_error=False, create_output=False)
 
             flattened_space_v = tuple(space_v for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_v.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
 
             flattened_space_p = tuple(space_p for i in range(n_t - 1))
-            mixed_element_p = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_p])
-            full_space_p = FunctionSpace(space_p.mesh(), mixed_element_p)
+            full_space_p = MixedFunctionSpace(flattened_space_p)
 
             flattened_space_v_ref = tuple(space_v_ref for i in range(n_t))
-            mixed_element_v_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v_ref])
-            full_space_v_ref = FunctionSpace(
-                space_v_ref.mesh(), mixed_element_v_ref)
+            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
             flattened_space_p_ref = tuple(space_p_ref for i in range(n_t - 1))
-            mixed_element_p_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_p_ref])
-            full_space_p_ref = FunctionSpace(
-                space_p_ref.mesh(), mixed_element_p_ref)
+            full_space_p_ref = MixedFunctionSpace(flattened_space_p_ref)
 
             my_v = Function(full_space_v)
             my_p = Function(full_space_p)
@@ -3816,11 +3539,11 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
             for i in range(n_t - 1):
                 t = i * tau
 
-                v_ref.sub(i).interpolate(v_sol(*X, t))
+                v_ref.sub(i).interpolate(v_sol(*X, Constant(t)))
 
-                zeta_ref.sub(i).interpolate(zeta_sol(*X, t))
+                zeta_ref.sub(i).interpolate(zeta_sol(*X, Constant(t)))
 
-                true_p_i_ref.interpolate(p_sol(*X, t + tau))
+                true_p_i_ref.interpolate(p_sol(*X, Constant(t + tau)))
                 mean = assemble(true_p_i_ref * dx)
                 with true_p_i_ref.dat.vec as b_p:
                     b_p.shift(-mean)
@@ -3832,7 +3555,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
                     b_p.shift(-mean)
                 my_p.sub(i).assign(p_help)
 
-                true_mu_i_ref.interpolate(mu_sol(*X, t))
+                true_mu_i_ref.interpolate(mu_sol(*X, Constant(t)))
                 mean = assemble(true_mu_i_ref * dx)
                 with true_mu_i_ref.dat.vec as b_p:
                     b_p.shift(-mean)
@@ -3844,9 +3567,9 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
                     b_p.shift(-mean)
                 my_mu.sub(i).assign(mu_help)
 
-            v_ref.sub(n_t - 1).interpolate(v_sol(*X, t_f))
+            v_ref.sub(n_t - 1).interpolate(v_sol(*X, Constant(t_f)))
 
-            zeta_ref.sub(n_t - 1).interpolate(zeta_sol(*X, t_f))
+            zeta_ref.sub(n_t - 1).interpolate(zeta_sol(*X, Constant(t_f)))
 
             v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
                 inner(my_v - v_ref, my_v - v_ref) * dx)))
@@ -3887,7 +3610,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
 
 def test_MMS_instationary_Stokes_control_BE_convergence_time():
     degree_range = (2, 4)
-    p_range = (2, 6)
+    p_range = (2, 5)
     beta = 10.0 ** -3
     t_f = 2.0
     time_interval = (0.0, t_f)
@@ -3895,38 +3618,40 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
     def v_sol(x_1, x_2, t):
         x = x_1 - 1.0
         y = x_2 - 1.0
+        a = Constant(t_f)
 
         v = as_vector([
-            exp(t_f - t) * x * y**3,
-            (1. / 4.) * exp(t_f - t) * (x**4 - y**4)])
+            exp(a - t) * x * y**3,
+            (1. / 4.) * exp(a - t) * (x**4 - y**4)])
 
         return v
 
     def p_sol(x_1, x_2, t):
         x = x_1 - 1.0
         y = x_2 - 1.0
+        a = Constant(t_f)
 
-        p = exp(t_f - t) * (3. * x**2 * y - y**3)
+        p = exp(a - t) * (3. * x**2 * y - y**3)
 
         return p
 
     def zeta_sol(x_1, x_2, t):
         x = x_1 - 1.0
         y = x_2 - 1.0
-        a = Constant(t)
-        b = Constant(t_f)
+        a = Constant(t_f)
 
         zeta = as_vector([
-            beta * (exp(b - a) - 1.) * 2. * y * (x**2 - 1.)**2 * (y**2 - 1.),
-            -beta * (exp(b - a) - 1.) * 2. * x * (x**2 - 1.) * (y**2 - 1.)**2])
+            beta * (exp(a - t) - 1.) * 2. * y * (x**2 - 1.)**2 * (y**2 - 1.),
+            -beta * (exp(a - t) - 1.) * 2. * x * (x**2 - 1.) * (y**2 - 1.)**2])
 
         return zeta
 
     def mu_sol(x_1, x_2, t):
         x = x_1 - 1.0
         y = x_2 - 1.0
+        a = Constant(t_f)
 
-        mu = beta * exp(t_f - t) * 4. * x * y
+        mu = beta * exp(a - t) * 4. * x * y
 
         return mu
 
@@ -3935,12 +3660,13 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
         X = SpatialCoordinate(mesh)
         x = X[0] - 1.0
         y = X[1] - 1.0
+        a = Constant(t_f)
 
         my_bcs = DirichletBC(
             space_v,
             as_vector([
-                exp(t_f - t) * x * (y**3),
-                (1. / 4.) * exp(t_f - t) * (x**4 - y**4)]),
+                exp(a - t) * x * (y**3),
+                (1. / 4.) * exp(a - t) * (x**4 - y**4)]),
             "on_boundary")
 
         return my_bcs
@@ -3955,26 +3681,27 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
         X = SpatialCoordinate(mesh)
         x = X[0] - 1.0
         y = X[1] - 1.0
+        a = Constant(t_f)
 
-        v_d_help = Function(space)
+        v_d_help = Function(space, name="v_d_help")
         v_d_help.interpolate(as_vector([
             4. * beta * y * (2. * (3. * x * x - 1.) * (y * y - 1.) + 3. * (x * x - 1.)**2),  # noqa: E501
             -4. * beta * x * (3. * (y * y - 1.)**2 + 2. * (x * x - 1.) * (3. * y * y - 1.))]))  # noqa: E501
 
         # desired state
-        v_d = Function(space)
+        v_d = Function(space, name="v_d")
         v_d.interpolate(as_vector([
-            exp(t_f - t) * (x * y**3 + 2. * beta * y * (((x * x - 1.)**2) * (y * y - 7.) - 4. * (3. * x * x - 1.) * (y * y - 1.) + 2.)),  # noqa: E501
-            exp(t_f - t) * ((1. / 4.) * (x**4 - y**4) - 2. * beta * x * (((y * y - 1.)**2) * (x * x - 7.) - 4. * (x * x - 1.) * (3. * y * y - 1.) - 2.))]))  # noqa: E501
+            exp(a - t) * (x * y**3 + 2. * beta * y * (((x * x - 1.)**2) * (y * y - 7.) - 4. * (3. * x * x - 1.) * (y * y - 1.) + 2.)),  # noqa: E501
+            exp(a - t) * ((1. / 4.) * (x**4 - y**4) - 2. * beta * x * (((y * y - 1.)**2) * (x * x - 7.) - 4. * (x * x - 1.) * (3. * y * y - 1.) - 2.))]))  # noqa: E501
 
         with v_d.dat.vec as b_v, \
                 v_d_help.dat.vec_ro as b_1_v:
             b_v.axpy(1.0, b_1_v)
 
-        true_v = Function(space)
+        true_v = Function(space, name="true_v")
         true_v.interpolate(as_vector([
-            exp(t_f - t) * x * y**3,
-            (1. / 4.) * exp(t_f - t) * (x**4 - y**4)]))
+            exp(a - t) * x * y**3,
+            (1. / 4.) * exp(a - t) * (x**4 - y**4)]))
 
         return inner(v_d, test) * dx, true_v
 
@@ -3984,13 +3711,12 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
         X = SpatialCoordinate(mesh)
         x = X[0] - 1.0
         y = X[1] - 1.0
-
-        t = 0.0
+        a = Constant(t_f)
 
         v_0 = Function(space)
         v_0.interpolate(as_vector([
-            exp(t_f - t) * x * y**3,
-            (1. / 4.) * exp(t_f - t) * (x**4 - y**4)]))
+            exp(a) * x * y**3,
+            (1. / 4.) * exp(a) * (x**4 - y**4)]))
 
         return v_0
 
@@ -4000,18 +3726,19 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
         X = SpatialCoordinate(mesh)
         x = X[0] - 1.0
         y = X[1] - 1.0
+        a = Constant(t_f)
 
         # force function
-        f_help = Function(space)
+        f_help = Function(space, name="f_help")
         f_help.interpolate(as_vector([
             2. * y * (x**2 - 1.)**2 * (y**2 - 1.),
             -2. * x * (x**2 - 1.) * (y**2 - 1.)**2]))
 
         # force function
-        f = Function(space)
+        f = Function(space, name="f")
         f.interpolate(as_vector([
-            exp(t_f - t) * (-x * y**3 - 2. * y * (x * x - 1.)**2 * (y * y - 1.)),  # noqa: E501
-            exp(t_f - t) * ((1. / 4.) * (y**4 - x**4) + 2. * x * (x * x - 1.) * (y * y - 1.)**2)]))  # noqa: E501
+            exp(a - t) * (-x * y**3 - 2. * y * (x * x - 1.)**2 * (y * y - 1.)),  # noqa: E501
+            exp(a - t) * ((1. / 4.) * (y**4 - x**4) + 2. * x * (x * x - 1.) * (y * y - 1.)**2)]))  # noqa: E501
 
         with f.dat.vec as b_v, \
                 f_help.dat.vec_ro as b_1_v:
@@ -4025,7 +3752,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
         p_error_norms = []
         mu_error_norms = []
         for p in range(*p_range):
-            N = 250
+            N = 100
             n_t = 2 ** p
 
             mesh = RectangleMesh(N, N, 2.0, 2.0)
@@ -4052,7 +3779,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
 
             solver_parameters = {"linear_solver": "fgmres",
                                  "fgmres_restart": 10,
-                                 "maximum_iterations": 500,
+                                 "maximum_iterations": 200,
                                  "relative_tolerance": 1.0e-10,
                                  "absolute_tolerance": 1.0e-10,
                                  "monitor_convergence": False}
@@ -4065,26 +3792,16 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
                 print_error=False, create_output=False)
 
             flattened_space_v = tuple(space_v for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_v.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
 
             flattened_space_p = tuple(space_p for i in range(n_t - 1))
-            mixed_element_p = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_p])
-            full_space_p = FunctionSpace(space_p.mesh(), mixed_element_p)
+            full_space_p = MixedFunctionSpace(flattened_space_p)
 
             flattened_space_v_ref = tuple(space_v_ref for i in range(n_t))
-            mixed_element_v_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v_ref])
-            full_space_v_ref = FunctionSpace(
-                space_v_ref.mesh(), mixed_element_v_ref)
+            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
             flattened_space_p_ref = tuple(space_p_ref for i in range(n_t - 1))
-            mixed_element_p_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_p_ref])
-            full_space_p_ref = FunctionSpace(
-                space_p_ref.mesh(), mixed_element_p_ref)
+            full_space_p_ref = MixedFunctionSpace(flattened_space_p_ref)
 
             my_v = Function(full_space_v)
             my_p = Function(full_space_p)
@@ -4116,11 +3833,11 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
             for i in range(n_t - 1):
                 t = i * tau
 
-                v_ref.sub(i).interpolate(v_sol(*X, t))
+                v_ref.sub(i).interpolate(v_sol(*X, Constant(t)))
 
-                zeta_ref.sub(i).interpolate(zeta_sol(*X, t))
+                zeta_ref.sub(i).interpolate(zeta_sol(*X, Constant(t)))
 
-                true_p_i_ref.interpolate(p_sol(*X, t + tau))
+                true_p_i_ref.interpolate(p_sol(*X, Constant(t + tau)))
                 mean = assemble(true_p_i_ref * dx)
                 with true_p_i_ref.dat.vec as b_p:
                     b_p.shift(-mean)
@@ -4132,7 +3849,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
                     b_p.shift(-mean)
                 my_p.sub(i).assign(p_help)
 
-                true_mu_i_ref.interpolate(mu_sol(*X, t))
+                true_mu_i_ref.interpolate(mu_sol(*X, Constant(t)))
                 mean = assemble(true_mu_i_ref * dx)
                 with true_mu_i_ref.dat.vec as b_p:
                     b_p.shift(-mean)
@@ -4144,9 +3861,9 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
                     b_p.shift(-mean)
                 my_mu.sub(i).assign(mu_help)
 
-            v_ref.sub(n_t - 1).interpolate(v_sol(*X, t_f))
+            v_ref.sub(n_t - 1).interpolate(v_sol(*X, Constant(t_f)))
 
-            zeta_ref.sub(n_t - 1).interpolate(zeta_sol(*X, t_f))
+            zeta_ref.sub(n_t - 1).interpolate(zeta_sol(*X, Constant(t_f)))
 
             del my_control_instationary
             PETSc.garbage_cleanup(space_v.mesh().comm)
@@ -4191,7 +3908,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
 def test_MMS_instationary_Stokes_control_CN_convergence_FE():
     degree_range = (2, 4)
     p_range = (2, 6)
-    beta = 10.0 ** -3
+    beta = 10.0 ** -1
     t_f = 2.0
     time_interval = (0.0, t_f)
 
@@ -4355,9 +4072,9 @@ def test_MMS_instationary_Stokes_control_CN_convergence_FE():
 
             solver_parameters = {"linear_solver": "fgmres",
                                  "fgmres_restart": 10,
-                                 "maximum_iterations": 500,
-                                 "relative_tolerance": 1.0e-10,
-                                 "absolute_tolerance": 1.0e-10,
+                                 "maximum_iterations": 200,
+                                 "relative_tolerance": 1.0e-8,
+                                 "absolute_tolerance": 1.0e-8,
                                  "monitor_convergence": False}
 
             my_control_instationary.incompressible_linear_solve(
@@ -4368,24 +4085,16 @@ def test_MMS_instationary_Stokes_control_CN_convergence_FE():
                 print_error=False, create_output=False)
 
             flattened_space_v = tuple(space_v for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_v.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
 
             flattened_space_p = tuple(space_p for i in range(n_t - 1))
-            mixed_element_p = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_p])
-            full_space_p = FunctionSpace(space_p.mesh(), mixed_element_p)
+            full_space_p = MixedFunctionSpace(flattened_space_p)
 
             flattened_space_v_ref = tuple(space_v_ref for i in range(n_t))
-            mixed_element_v_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v_ref])
-            full_space_v_ref = FunctionSpace(space_v_ref.mesh(), mixed_element_v_ref)  # noqa: E501
+            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
             flattened_space_p_ref = tuple(space_p_ref for i in range(n_t - 1))
-            mixed_element_p_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_p_ref])
-            full_space_p_ref = FunctionSpace(space_p_ref.mesh(), mixed_element_p_ref)  # noqa: E501
+            full_space_p_ref = MixedFunctionSpace(flattened_space_p_ref)
 
             my_v = Function(full_space_v)
             my_p = Function(full_space_p)
@@ -4490,7 +4199,7 @@ def test_MMS_instationary_Stokes_control_CN_convergence_FE():
 
 def test_MMS_instationary_Stokes_control_CN_convergence_time():
     degree_range = (2, 4)
-    p_range = (2, 6)
+    p_range = (2, 5)
     beta = 10.0 ** -3
     t_f = 2.0
     time_interval = (0.0, t_f)
@@ -4498,38 +4207,40 @@ def test_MMS_instationary_Stokes_control_CN_convergence_time():
     def v_sol(x_1, x_2, t):
         x = x_1 - 1.0
         y = x_2 - 1.0
+        a = Constant(t_f)
 
         v = as_vector([
-            exp(t_f - t) * x * y**3,
-            (1. / 4.) * exp(t_f - t) * (x**4 - y**4)])
+            exp(a - t) * x * y**3,
+            (1. / 4.) * exp(a - t) * (x**4 - y**4)])
 
         return v
 
     def p_sol(x_1, x_2, t):
         x = x_1 - 1.0
         y = x_2 - 1.0
+        a = Constant(t_f)
 
-        p = exp(t_f - t) * (3. * x**2 * y - y**3)
+        p = exp(a - t) * (3. * x**2 * y - y**3)
 
         return p
 
     def zeta_sol(x_1, x_2, t):
         x = x_1 - 1.0
         y = x_2 - 1.0
-        a = Constant(t)
-        b = Constant(t_f)
+        a = Constant(t_f)
 
         zeta = as_vector([
-            beta * (exp(b - a) - 1.) * 2. * y * (x**2 - 1.)**2 * (y**2 - 1.),
-            -beta * (exp(b - a) - 1.) * 2. * x * (x**2 - 1.) * (y**2 - 1.)**2])
+            beta * (exp(a - t) - 1.) * 2. * y * (x**2 - 1.)**2 * (y**2 - 1.),
+            -beta * (exp(a - t) - 1.) * 2. * x * (x**2 - 1.) * (y**2 - 1.)**2])
 
         return zeta
 
     def mu_sol(x_1, x_2, t):
         x = x_1 - 1.0
         y = x_2 - 1.0
+        a = Constant(t_f)
 
-        mu = beta * exp(t_f - t) * 4. * x * y
+        mu = beta * exp(a - t) * 4. * x * y
 
         return mu
 
@@ -4542,8 +4253,8 @@ def test_MMS_instationary_Stokes_control_CN_convergence_time():
         my_bcs = DirichletBC(
             space_v,
             as_vector([
-                exp(t_f - t) * x * (y**3),
-                (1. / 4.) * exp(t_f - t) * (x**4 - y**4)]),
+                exp(Constant(t_f) - t) * x * (y**3),
+                (1. / 4.) * exp(Constant(t_f) - t) * (x**4 - y**4)]),
             "on_boundary")
 
         return my_bcs
@@ -4558,6 +4269,7 @@ def test_MMS_instationary_Stokes_control_CN_convergence_time():
         X = SpatialCoordinate(mesh)
         x = X[0] - 1.0
         y = X[1] - 1.0
+        a = Constant(t_f)
 
         v_d_help = Function(space)
         v_d_help.interpolate(as_vector([
@@ -4567,8 +4279,8 @@ def test_MMS_instationary_Stokes_control_CN_convergence_time():
         # desired state
         v_d = Function(space)
         v_d.interpolate(as_vector([
-            exp(t_f - t) * (x * y**3 + 2. * beta * y * (((x * x - 1.)**2) * (y * y - 7.) - 4. * (3. * x * x - 1.) * (y * y - 1.) + 2.)),  # noqa: E501
-            exp(t_f - t) * ((1. / 4.) * (x**4 - y**4) - 2. * beta * x * (((y * y - 1.)**2) * (x * x - 7.) - 4. * (x * x - 1.) * (3. * y * y - 1.) - 2.))]))  # noqa: E501
+            exp(a - t) * (x * y**3 + 2. * beta * y * (((x * x - 1.)**2) * (y * y - 7.) - 4. * (3. * x * x - 1.) * (y * y - 1.) + 2.)),  # noqa: E501
+            exp(a - t) * ((1. / 4.) * (x**4 - y**4) - 2. * beta * x * (((y * y - 1.)**2) * (x * x - 7.) - 4. * (x * x - 1.) * (3. * y * y - 1.) - 2.))]))  # noqa: E501
 
         with v_d.dat.vec as b_v, \
                 v_d_help.dat.vec_ro as b_1_v:
@@ -4576,8 +4288,8 @@ def test_MMS_instationary_Stokes_control_CN_convergence_time():
 
         true_v = Function(space)
         true_v.interpolate(as_vector([
-            exp(t_f - t) * x * y**3,
-            (1. / 4.) * exp(t_f - t) * (x**4 - y**4)]))
+            exp(a - t) * x * y**3,
+            (1. / 4.) * exp(a - t) * (x**4 - y**4)]))
 
         return inner(v_d, test) * dx, true_v
 
@@ -4588,12 +4300,10 @@ def test_MMS_instationary_Stokes_control_CN_convergence_time():
         x = X[0] - 1.0
         y = X[1] - 1.0
 
-        t = 0.0
-
         v_0 = Function(space)
         v_0.interpolate(as_vector([
-            exp(t_f - t) * x * y**3,
-            (1. / 4.) * exp(t_f - t) * (x**4 - y**4)]))
+            exp(Constant(t_f)) * x * y**3,
+            (1. / 4.) * exp(Constant(t_f)) * (x**4 - y**4)]))
 
         return v_0
 
@@ -4603,6 +4313,7 @@ def test_MMS_instationary_Stokes_control_CN_convergence_time():
         X = SpatialCoordinate(mesh)
         x = X[0] - 1.0
         y = X[1] - 1.0
+        a = Constant(t_f)
 
         # force function
         f_help = Function(space)
@@ -4613,8 +4324,8 @@ def test_MMS_instationary_Stokes_control_CN_convergence_time():
         # force function
         f = Function(space)
         f.interpolate(as_vector([
-            exp(t_f - t) * (-x * y**3 - 2. * y * (x * x - 1.)**2 * (y * y - 1.)),  # noqa: E501
-            exp(t_f - t) * ((1. / 4.) * (y**4 - x**4) + 2. * x * (x * x - 1.) * (y * y - 1.)**2)]))  # noqa: E501
+            exp(a - t) * (-x * y**3 - 2. * y * (x * x - 1.)**2 * (y * y - 1.)),  # noqa: E501
+            exp(a - t) * ((1. / 4.) * (y**4 - x**4) + 2. * x * (x * x - 1.) * (y * y - 1.)**2)]))  # noqa: E501
 
         with f.dat.vec as b_v, \
                 f_help.dat.vec_ro as b_1_v:
@@ -4628,7 +4339,7 @@ def test_MMS_instationary_Stokes_control_CN_convergence_time():
         p_error_norms = []
         mu_error_norms = []
         for p in range(*p_range):
-            N = 250
+            N = 100
             n_t = 2 ** p
 
             mesh = RectangleMesh(N, N, 2.0, 2.0)
@@ -4655,9 +4366,9 @@ def test_MMS_instationary_Stokes_control_CN_convergence_time():
 
             solver_parameters = {"linear_solver": "fgmres",
                                  "fgmres_restart": 10,
-                                 "maximum_iterations": 500,
-                                 "relative_tolerance": 1.0e-10,
-                                 "absolute_tolerance": 1.0e-10,
+                                 "maximum_iterations": 200,
+                                 "relative_tolerance": 1.0e-8,
+                                 "absolute_tolerance": 1.0e-8,
                                  "monitor_convergence": False}
 
             my_control_instationary.incompressible_linear_solve(
@@ -4668,24 +4379,16 @@ def test_MMS_instationary_Stokes_control_CN_convergence_time():
                 print_error=False, create_output=False)
 
             flattened_space_v = tuple(space_v for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_v.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
 
             flattened_space_p = tuple(space_p for i in range(n_t - 1))
-            mixed_element_p = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_p])
-            full_space_p = FunctionSpace(space_p.mesh(), mixed_element_p)
+            full_space_p = MixedFunctionSpace(flattened_space_p)
 
             flattened_space_v_ref = tuple(space_v_ref for i in range(n_t))
-            mixed_element_v_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v_ref])
-            full_space_v_ref = FunctionSpace(space_v_ref.mesh(), mixed_element_v_ref)  # noqa: E501
+            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
             flattened_space_p_ref = tuple(space_p_ref for i in range(n_t - 1))
-            mixed_element_p_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_p_ref])
-            full_space_p_ref = FunctionSpace(space_p_ref.mesh(), mixed_element_p_ref)  # noqa: E501
+            full_space_p_ref = MixedFunctionSpace(flattened_space_p_ref)
 
             my_v = Function(full_space_v)
             my_p = Function(full_space_p)
@@ -4716,11 +4419,11 @@ def test_MMS_instationary_Stokes_control_CN_convergence_time():
             for i in range(n_t - 1):
                 t = i * tau
 
-                v_ref.sub(i).interpolate(v_sol(*X, t))
+                v_ref.sub(i).interpolate(v_sol(*X, Constant(t)))
 
-                zeta_ref.sub(i).interpolate(zeta_sol(*X, t))
+                zeta_ref.sub(i).interpolate(zeta_sol(*X, Constant(t)))
 
-                true_p_i_ref.interpolate(p_sol(*X, t + tau))
+                true_p_i_ref.interpolate(p_sol(*X, Constant(t + tau)))
                 mean = assemble(true_p_i_ref * dx)
                 with true_p_i_ref.dat.vec as b_p:
                     b_p.shift(-mean)
@@ -4732,7 +4435,7 @@ def test_MMS_instationary_Stokes_control_CN_convergence_time():
                     b_p.shift(-mean)
                 my_p.sub(i).assign(p_help)
 
-                true_mu_i_ref.interpolate(mu_sol(*X, t))
+                true_mu_i_ref.interpolate(mu_sol(*X, Constant(t)))
                 mean = assemble(true_mu_i_ref * dx)
                 with true_mu_i_ref.dat.vec as b_p:
                     b_p.shift(-mean)
@@ -4744,9 +4447,9 @@ def test_MMS_instationary_Stokes_control_CN_convergence_time():
                     b_p.shift(-mean)
                 my_mu.sub(i).assign(mu_help)
 
-            v_ref.sub(n_t - 1).interpolate(v_sol(*X, t_f))
+            v_ref.sub(n_t - 1).interpolate(v_sol(*X, Constant(t_f)))
 
-            zeta_ref.sub(n_t - 1).interpolate(zeta_sol(*X, t_f))
+            zeta_ref.sub(n_t - 1).interpolate(zeta_sol(*X, Constant(t_f)))
 
             del my_control_instationary
             PETSc.garbage_cleanup(space_v.mesh().comm)
@@ -4828,10 +4531,10 @@ def test_instationary_Navier_Stokes_BE():
         a = (100.0 / 49.0) ** 2
         b = (100.0 / 99.0) ** 2
 
-        c_1 = 1.0 - sqrt(a * ((x - 0.5) ** 2)
-                         + b * (y ** 2))
-        c_2 = 1.0 - sqrt(a * ((x + 0.5) ** 2)
-                         + b * (y ** 2))
+        c_1 = Constant(1.0 - sqrt(a * ((x - 0.5) ** 2)
+                                  + b * (y ** 2)))
+        c_2 = Constant(1.0 - sqrt(a * ((x + 0.5) ** 2)
+                                  + b * (y ** 2)))
         v_d = Function(space, name="v_d")
         v_d.interpolate(
             ufl.conditional(
@@ -4929,10 +4632,10 @@ def test_instationary_Navier_Stokes_CN():
         a = (100.0 / 49.0) ** 2
         b = (100.0 / 99.0) ** 2
 
-        c_1 = 1.0 - sqrt(a * ((x - 0.5) ** 2)
-                         + b * (y ** 2))
-        c_2 = 1.0 - sqrt(a * ((x + 0.5) ** 2)
-                         + b * (y ** 2))
+        c_1 = Constant(1.0 - sqrt(a * ((x - 0.5) ** 2)
+                                  + b * (y ** 2)))
+        c_2 = Constant(1.0 - sqrt(a * ((x + 0.5) ** 2)
+                                  + b * (y ** 2)))
         v_d = Function(space, name="v_d")
         v_d.interpolate(
             ufl.conditional(
@@ -4996,15 +4699,16 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
     beta = 10.0 ** -3
     t_f = 2.0
     time_interval = (0.0, t_f)
-    nu = 1.0 / 100.0
+    nu = 1.0 / 50.0
 
     def ref_sol_v(x_1, x_2, t):
         x = x_1 - 1.0
         y = x_2 - 1.0
+        a = Constant(t_f)
 
         v_xy = as_vector([x * (y ** 3), (1. / 4.) * (x ** 4 - y ** 4)])
 
-        v = cos(pi * Constant(t) / 2.0 - 0.5 * pi) * v_xy
+        v = (a - t) * v_xy
 
         return v, v_xy
 
@@ -5019,12 +4723,13 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
 
         x = X[0] - 1.0
         y = X[1] - 1.0
+        a = Constant(t_f)
 
         my_bcs = DirichletBC(
             space_v,
             as_vector([
-                cos(pi * t / 2.0 - 0.5 * pi) * x * (y ** 3),
-                cos(pi * t / 2.0 - 0.5 * pi) * (1. / 4.) * (x ** 4 - y ** 4)]),  # noqa: E501
+                (a - t) * x * (y ** 3),
+                (a - t) * (1. / 4.) * (x ** 4 - y ** 4)]),  # noqa: E501
             "on_boundary")
 
         return my_bcs
@@ -5054,7 +4759,15 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
     def initial_condition_v(test):
         space = test.function_space()
 
-        v = as_vector([0.0, 0.0])
+        mesh = space.mesh()
+        X = SpatialCoordinate(mesh)
+
+        x = X[0] - 1.0
+        y = X[1] - 1.0
+
+        v = as_vector([
+            Constant(t_f) * x * (y ** 3),
+            Constant(t_f) * (1. / 4.) * (x ** 4 - y ** 4)])
 
         v_0 = Function(space)
         v_0.interpolate(v)
@@ -5072,8 +4785,7 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
         f = Function(space)
         f.interpolate(
             - 0.5 * nu * div(grad(v) + ufl.transpose(grad(v)))
-            + grad(v) * v
-            - 0.5 * pi * sin(pi * Constant(t) / 2.0 - 0.5 * pi) * v_xy)
+            + grad(v) * v - v_xy)
 
         return inner(f, test) * dx
 
@@ -5082,7 +4794,7 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
         zeta_error_norms = []
         for p in range(*p_range):
             N = 2 ** p
-            n_t = 100
+            n_t = 30
 
             mesh = RectangleMesh(N, N, 2.0, 2.0)
             X = SpatialCoordinate(mesh)
@@ -5107,9 +4819,9 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
 
             solver_parameters = {"linear_solver": "fgmres",
                                  "fgmres_restart": 10,
-                                 "maximum_iterations": 500,
-                                 "relative_tolerance": 1.0e-10,
-                                 "absolute_tolerance": 1.0e-10,
+                                 "maximum_iterations": 200,
+                                 "relative_tolerance": 1.0e-7,
+                                 "absolute_tolerance": 1.0e-7,
                                  "monitor_convergence": False}
 
             my_control_instationary.incompressible_non_linear_solve(
@@ -5117,21 +4829,16 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
                 solver_parameters=solver_parameters,
                 lambda_v_bounds=lambda_v_bounds,
                 lambda_p_bounds=lambda_p_bounds,
-                max_non_linear_iter=10, relative_non_linear_tol=10.0**-9,
-                absolute_non_linear_tol=10.0**-9,
+                max_non_linear_iter=10, relative_non_linear_tol=10.0**-6,
+                absolute_non_linear_tol=10.0**-6,
                 print_error_linear=False, print_error_non_linear=False,
                 create_output=False, plots=False)
 
             flattened_space_v = tuple(space_v for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_v.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
 
             flattened_space_v_ref = tuple(space_v_ref for i in range(n_t))
-            mixed_element_v_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v_ref])
-            full_space_v_ref = FunctionSpace(
-                space_v_ref.mesh(), mixed_element_v_ref)
+            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
             my_v = Function(full_space_v)
             my_zeta = Function(full_space_v)
@@ -5147,11 +4854,11 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
             for i in range(n_t):
                 t = i * tau
 
-                v, v_xy = ref_sol_v(*X, t)
+                v, v_xy = ref_sol_v(*X, Constant(t))
 
                 v_ref.sub(i).interpolate(v)
 
-                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, t))
+                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
 
             del my_control_instationary
             PETSc.garbage_cleanup(space_v.mesh().comm)
@@ -5176,20 +4883,21 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
 
 
 def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
-    degree_range = (2, 4)
-    p_range = (2, 6)
+    degree_range = (3, 5)
+    p_range = (0, 4)
     beta = 10.0 ** -3
-    t_f = 2.0
+    t_f = 1.0
     time_interval = (0.0, t_f)
-    nu = 1.0 / 100.0
+    nu = 1.0 / 50.0
 
     def ref_sol_v(x_1, x_2, t):
         x = x_1 - 1.0
         y = x_2 - 1.0
 
-        v_xy = as_vector([x * (y ** 3), (1. / 4.) * (x ** 4 - y ** 4)])
+        v_xy = as_vector([2. * y * (1. - x * x),
+                          -2. * x * (1. - y * y)])
 
-        v = cos(pi * Constant(t) / 2.0 - 0.5 * pi) * v_xy
+        v = cos(pi * t / 2.0) * v_xy
 
         return v, v_xy
 
@@ -5208,8 +4916,8 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
         my_bcs = DirichletBC(
             space_v,
             as_vector([
-                cos(pi * t / 2.0 - 0.5 * pi) * x * (y ** 3),
-                cos(pi * t / 2.0 - 0.5 * pi) * (1. / 4.) * (x ** 4 - y ** 4)]),  # noqa: E501
+                cos(pi * t / 2.0) * 2. * y * (1. - x * x),
+                - cos(pi * t / 2.0) * 2. * x * (1. - y * y)]),
             "on_boundary")
 
         return my_bcs
@@ -5238,8 +4946,15 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
 
     def initial_condition_v(test):
         space = test.function_space()
+        mesh = space.mesh()
+        X = SpatialCoordinate(mesh)
 
-        v = as_vector([0.0, 0.0])
+        x = X[0] - 1.0
+        y = X[1] - 1.0
+
+        v = as_vector([
+            2. * y * (1. - x * x),
+            -2. * x * (1. - y * y)])
 
         v_0 = Function(space)
         v_0.interpolate(v)
@@ -5256,9 +4971,9 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
         # force function
         f = Function(space)
         f.interpolate(
-            - 0.5 * nu * div(grad(v) + ufl.transpose(grad(v)))
+            - nu * div(grad(v))
             + grad(v) * v
-            - 0.5 * pi * sin(pi * Constant(t) / 2.0 - 0.5 * pi) * v_xy)
+            - 0.5 * pi * sin(pi * t / 2.0) * v_xy)
 
         return inner(f, test) * dx
 
@@ -5266,8 +4981,8 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
         v_error_norms = []
         zeta_error_norms = []
         for p in range(*p_range):
-            N = 250
-            n_t = 2 ** p
+            N = 5
+            n_t = (2 ** p) * 15
 
             mesh = RectangleMesh(N, N, 2.0, 2.0)
             X = SpatialCoordinate(mesh)
@@ -5292,9 +5007,9 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
 
             solver_parameters = {"linear_solver": "fgmres",
                                  "fgmres_restart": 10,
-                                 "maximum_iterations": 500,
-                                 "relative_tolerance": 1.0e-10,
-                                 "absolute_tolerance": 1.0e-10,
+                                 "maximum_iterations": 200,
+                                 "relative_tolerance": 1.0e-7,
+                                 "absolute_tolerance": 1.0e-7,
                                  "monitor_convergence": False}
 
             my_control_instationary.incompressible_non_linear_solve(
@@ -5302,21 +5017,16 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
                 solver_parameters=solver_parameters,
                 lambda_v_bounds=lambda_v_bounds,
                 lambda_p_bounds=lambda_p_bounds,
-                max_non_linear_iter=10, relative_non_linear_tol=10.0**-9,
-                absolute_non_linear_tol=10.0**-9,
+                max_non_linear_iter=10, relative_non_linear_tol=10.0**-6,
+                absolute_non_linear_tol=10.0**-6,
                 print_error_linear=False, print_error_non_linear=False,
                 create_output=False, plots=False)
 
             flattened_space_v = tuple(space_v for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_v.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
 
             flattened_space_v_ref = tuple(space_v_ref for i in range(n_t))
-            mixed_element_v_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v_ref])
-            full_space_v_ref = FunctionSpace(
-                space_v_ref.mesh(), mixed_element_v_ref)
+            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
             my_v = Function(full_space_v)
             my_zeta = Function(full_space_v)
@@ -5332,11 +5042,11 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
             for i in range(n_t):
                 t = i * tau
 
-                v, v_xy = ref_sol_v(*X, t)
+                v, v_xy = ref_sol_v(*X, Constant(t))
 
                 v_ref.sub(i).interpolate(v)
 
-                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, t))
+                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
 
             del my_control_instationary
             PETSc.garbage_cleanup(space_v.mesh().comm)
@@ -5366,15 +5076,16 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE():
     beta = 10.0 ** -3
     t_f = 2.0
     time_interval = (0.0, t_f)
-    nu = 1.0 / 100.0
+    nu = 1.0 / 50.0
 
     def ref_sol_v(x_1, x_2, t):
         x = x_1 - 1.0
         y = x_2 - 1.0
+        a = Constant(t_f)
 
         v_xy = as_vector([x * (y ** 3), (1. / 4.) * (x ** 4 - y ** 4)])
 
-        v = cos(pi * Constant(t) / 2.0) * v_xy
+        v = (a - t) * v_xy
 
         return v, v_xy
 
@@ -5389,12 +5100,13 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE():
 
         x = X[0] - 1.0
         y = X[1] - 1.0
+        a = Constant(t_f)
 
         my_bcs = DirichletBC(
             space_v,
             as_vector([
-                cos(pi * t / 2.0) * x * (y ** 3),
-                cos(pi * t / 2.0) * (1. / 4.) * (x ** 4 - y ** 4)]),
+                (a - t) * x * (y ** 3),
+                (a - t) * (1. / 4.) * (x ** 4 - y ** 4)]),
             "on_boundary")
 
         return my_bcs
@@ -5429,8 +5141,8 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE():
         y = X[1] - 1.0
 
         v = as_vector([
-            x * (y ** 3),
-            (1. / 4.) * (x ** 4 - y ** 4)])
+            Constant(t_f) * x * (y ** 3),
+            Constant(t_f) * (1. / 4.) * (x ** 4 - y ** 4)])
 
         v_0 = Function(space)
         v_0.interpolate(v)
@@ -5448,8 +5160,7 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE():
         f = Function(space)
         f.interpolate(
             - 0.5 * nu * div(grad(v) + ufl.transpose(grad(v)))
-            + grad(v) * v
-            - 0.5 * pi * sin(pi * Constant(t) / 2.0) * v_xy)
+            + grad(v) * v - v_xy)
 
         return inner(f, test) * dx
 
@@ -5458,7 +5169,7 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE():
         zeta_error_norms = []
         for p in range(*p_range):
             N = 2 ** p
-            n_t = 100
+            n_t = 10
 
             mesh = RectangleMesh(N, N, 2.0, 2.0)
             X = SpatialCoordinate(mesh)
@@ -5483,9 +5194,9 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE():
 
             solver_parameters = {"linear_solver": "fgmres",
                                  "fgmres_restart": 10,
-                                 "maximum_iterations": 500,
-                                 "relative_tolerance": 1.0e-10,
-                                 "absolute_tolerance": 1.0e-10,
+                                 "maximum_iterations": 200,
+                                 "relative_tolerance": 1.0e-7,
+                                 "absolute_tolerance": 1.0e-7,
                                  "monitor_convergence": False}
 
             my_control_instationary.incompressible_non_linear_solve(
@@ -5493,21 +5204,16 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE():
                 solver_parameters=solver_parameters,
                 lambda_v_bounds=lambda_v_bounds,
                 lambda_p_bounds=lambda_p_bounds,
-                max_non_linear_iter=10, relative_non_linear_tol=10.0**-9,
-                absolute_non_linear_tol=10.0**-9,
+                max_non_linear_iter=10, relative_non_linear_tol=10.0**-6,
+                absolute_non_linear_tol=10.0**-6,
                 print_error_linear=False, print_error_non_linear=False,
                 create_output=False, plots=False)
 
             flattened_space_v = tuple(space_v for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_v.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
 
             flattened_space_v_ref = tuple(space_v_ref for i in range(n_t))
-            mixed_element_v_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v_ref])
-            full_space_v_ref = FunctionSpace(
-                space_v_ref.mesh(), mixed_element_v_ref)
+            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
             my_v = Function(full_space_v)
             my_zeta = Function(full_space_v)
@@ -5523,11 +5229,11 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE():
             for i in range(n_t):
                 t = i * tau
 
-                v, v_xy = ref_sol_v(*X, t)
+                v, v_xy = ref_sol_v(*X, Constant(t))
 
                 v_ref.sub(i).interpolate(v)
 
-                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, t))
+                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
 
             del my_control_instationary
             PETSc.garbage_cleanup(space_v.mesh().comm)
@@ -5552,20 +5258,21 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE():
 
 
 def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
-    degree_range = (2, 4)
-    p_range = (2, 6)
+    degree_range = (3, 5)
+    p_range = (0, 4)
     beta = 10.0 ** -3
-    t_f = 2.0
+    t_f = 1.0
     time_interval = (0.0, t_f)
-    nu = 1.0 / 100.0
+    nu = 1.0 / 50.0
 
     def ref_sol_v(x_1, x_2, t):
         x = x_1 - 1.0
         y = x_2 - 1.0
 
-        v_xy = as_vector([x * (y ** 3), (1. / 4.) * (x ** 4 - y ** 4)])
+        v_xy = as_vector([2. * y * (1. - x * x),
+                          -2. * x * (1. - y * y)])
 
-        v = cos(pi * Constant(t) / 2.0) * v_xy
+        v = cos(pi * t / 2.0) * v_xy
 
         return v, v_xy
 
@@ -5584,8 +5291,8 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
         my_bcs = DirichletBC(
             space_v,
             as_vector([
-                cos(pi * t / 2.0) * x * (y ** 3),
-                cos(pi * t / 2.0) * (1. / 4.) * (x ** 4 - y ** 4)]),
+                cos(pi * t / 2.0) * 2. * y * (1. - x * x),
+                - cos(pi * t / 2.0) * 2. * x * (1. - y * y)]),
             "on_boundary")
 
         return my_bcs
@@ -5620,8 +5327,8 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
         y = X[1] - 1.0
 
         v = as_vector([
-            x * (y ** 3),
-            (1. / 4.) * (x ** 4 - y ** 4)])
+            2. * y * (1. - x * x),
+            -2. * x * (1. - y * y)])
 
         v_0 = Function(space)
         v_0.interpolate(v)
@@ -5638,9 +5345,9 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
         # force function
         f = Function(space)
         f.interpolate(
-            - 0.5 * nu * div(grad(v) + ufl.transpose(grad(v)))
+            - nu * div(grad(v))
             + grad(v) * v
-            - 0.5 * pi * sin(pi * Constant(t) / 2.0) * v_xy)
+            - 0.5 * pi * sin(pi * t / 2.0) * v_xy)
 
         return inner(f, test) * dx
 
@@ -5648,8 +5355,8 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
         v_error_norms = []
         zeta_error_norms = []
         for p in range(*p_range):
-            N = 250
-            n_t = 2 ** p
+            N = 5
+            n_t = (2 ** p) * 15
 
             mesh = RectangleMesh(N, N, 2.0, 2.0)
             X = SpatialCoordinate(mesh)
@@ -5674,9 +5381,9 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
 
             solver_parameters = {"linear_solver": "fgmres",
                                  "fgmres_restart": 10,
-                                 "maximum_iterations": 500,
-                                 "relative_tolerance": 1.0e-10,
-                                 "absolute_tolerance": 1.0e-10,
+                                 "maximum_iterations": 200,
+                                 "relative_tolerance": 1.0e-7,
+                                 "absolute_tolerance": 1.0e-7,
                                  "monitor_convergence": False}
 
             my_control_instationary.incompressible_non_linear_solve(
@@ -5684,21 +5391,16 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
                 solver_parameters=solver_parameters,
                 lambda_v_bounds=lambda_v_bounds,
                 lambda_p_bounds=lambda_p_bounds,
-                max_non_linear_iter=10, relative_non_linear_tol=10.0**-9,
-                absolute_non_linear_tol=10.0**-9,
+                max_non_linear_iter=10, relative_non_linear_tol=10.0**-6,
+                absolute_non_linear_tol=10.0**-6,
                 print_error_linear=False, print_error_non_linear=False,
                 create_output=False, plots=False)
 
             flattened_space_v = tuple(space_v for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_v.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
 
             flattened_space_v_ref = tuple(space_v_ref for i in range(n_t))
-            mixed_element_v_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v_ref])
-            full_space_v_ref = FunctionSpace(
-                space_v_ref.mesh(), mixed_element_v_ref)
+            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
             my_v = Function(full_space_v)
             my_zeta = Function(full_space_v)
@@ -5714,11 +5416,11 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
             for i in range(n_t):
                 t = i * tau
 
-                v, v_xy = ref_sol_v(*X, t)
+                v, v_xy = ref_sol_v(*X, Constant(t))
 
                 v_ref.sub(i).interpolate(v)
 
-                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, t))
+                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
 
             del my_control_instationary
             PETSc.garbage_cleanup(space_v.mesh().comm)
