@@ -7,10 +7,6 @@ from preconditioner.preconditioner import *
 
 from control.control import *
 
-from tlm_adjoint.firedrake import (
-    DirichletBCApplication, Functional, compute_gradient, minimize_scipy,
-    reset_manager, start_manager, stop_manager)
-
 import petsc4py.PETSc as PETSc
 import mpi4py.MPI as MPI
 import numpy as np
@@ -25,7 +21,7 @@ pytestmark = pytest.mark.skipif(
 
 def test_MMS_instationary_heat_control_BE_convergence_FE():
     degree_range = (1, 3)
-    p_range = (2, 5)
+    p_range = (2, 6)
     beta = 1.0
     t_f = 2.0
 
@@ -78,11 +74,14 @@ def test_MMS_instationary_heat_control_BE_convergence_FE():
 
         # desired state
         v_d = Function(space, name="v_d")
-
         v_d.interpolate(
             zeta_space - lapl_zeta + v)
 
-        return inner(v_d, test) * dx, v_d
+        # ture v
+        true_v = Function(space, name="true_v")
+        true_v.assign(v_d)
+
+        return inner(v_d, test) * dx, true_v
 
     def initial_condition(test):
         space = test.function_space()
@@ -150,15 +149,10 @@ def test_MMS_instationary_heat_control_BE_convergence_FE():
                 print_error=False, create_output=False, plots=False)
 
             flattened_space_v = tuple(space_0 for i in range(n_t))
-            mixed_element_v = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v])
-            full_space_v = FunctionSpace(space_0.mesh(), mixed_element_v)
+            full_space_v = MixedFunctionSpace(flattened_space_v)
 
             flattened_space_v_ref = tuple(space_0_ref for i in range(n_t))
-            mixed_element_v_ref = ufl.classes.MixedElement(
-                *[space.ufl_element() for space in flattened_space_v_ref])
-            full_space_v_ref = FunctionSpace(
-                space_0_ref.mesh(), mixed_element_v_ref)
+            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
             my_v = Function(full_space_v)
             my_zeta = Function(full_space_v)
