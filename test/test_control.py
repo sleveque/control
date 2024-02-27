@@ -4998,12 +4998,12 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
                 time_interval=time_interval, CN=False, n_t=n_t,
                 bcs_v=my_DirichletBC_t_v)
 
-            if degree == 2:
-                lambda_v_bounds = (0.3924, 2.0598)
-                lambda_p_bounds = (0.5, 2.0)
-            else:
+            if degree == 3:
                 lambda_v_bounds = (0.2867, 2.0093)
                 lambda_p_bounds = (0.3924, 2.0598)
+            else:
+                lambda_v_bounds = (0.3772, 2.0856)
+                lambda_p_bounds = (0.2867, 2.0093)
 
             solver_parameters = {"linear_solver": "fgmres",
                                  "fgmres_restart": 10,
@@ -5372,12 +5372,12 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
                 time_interval=time_interval, n_t=n_t,
                 bcs_v=my_DirichletBC_t_v)
 
-            if degree == 2:
-                lambda_v_bounds = (0.3924, 2.0598)
-                lambda_p_bounds = (0.5, 2.0)
-            else:
+            if degree == 3:
                 lambda_v_bounds = (0.2867, 2.0093)
                 lambda_p_bounds = (0.3924, 2.0598)
+            else:
+                lambda_v_bounds = (0.3772, 2.0856)
+                lambda_p_bounds = (0.2867, 2.0093)
 
             solver_parameters = {"linear_solver": "fgmres",
                                  "fgmres_restart": 10,
