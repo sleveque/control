@@ -8,8 +8,8 @@ from preconditioner.preconditioner import *
 from control.control import *
 
 from tlm_adjoint.firedrake import (
-    DirichletBCApplication, Functional, compute_gradient, minimize_scipy,
-    reset_manager, start_manager, stop_manager)
+    Functional, compute_gradient, minimize_scipy, reset_manager, start_manager,
+    stop_manager)
 
 import petsc4py.PETSc as PETSc
 import mpi4py.MPI as MPI
@@ -630,7 +630,7 @@ def test_stationary_linear_control_with_reference_sol():
 
         def forward(u_ref, m):
             m_1 = Function(space_0, name="m_1")
-            DirichletBCApplication(m_1, m, "on_boundary").solve()
+            DirichletBC(space_0, m, "on_boundary").apply(m_1)
             m_0 = Function(space_0, name="m_0")
             m_0.assign(m - m_1)
 
@@ -787,7 +787,7 @@ def test_Picard_stationary_non_linear_control_with_reference_sol():
 
         def forward(u_ref, m):
             m_1 = Function(space_0, name="m_1")
-            DirichletBCApplication(m_1, m, "on_boundary").solve()
+            DirichletBC(space_0, m, "on_boundary").apply(m_1)
             m_0 = Function(space_0, name="m_0")
             m_0.assign(m - m_1)
 
@@ -947,7 +947,7 @@ def test_GN_stationary_non_linear_control_with_reference_sol():
 
         def forward(u_ref, m):
             m_1 = Function(space_0, name="m_1")
-            DirichletBCApplication(m_1, m, "on_boundary").solve()
+            DirichletBC(space_0, m, "on_boundary").apply(m_1)
             m_0 = Function(space_0, name="m_0")
             m_0.assign(m - m_1)
 
