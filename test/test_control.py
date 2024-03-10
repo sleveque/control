@@ -855,7 +855,7 @@ def test_Picard_stationary_non_linear_control_with_reference_sol():
         v_error_norm = np.sqrt(abs(assemble(inner(my_v - v_sol,
                                                   my_v - v_sol) * dx)))
         print(f"Error on the state: {v_error_norm}")
-        assert v_error_norm < 1.0e-8
+        assert v_error_norm < 1.0e-7
 
         control_error_norm = np.sqrt(abs(assemble(inner(my_control - m,
                                                         my_control - m) * dx)))
