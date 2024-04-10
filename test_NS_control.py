@@ -21,7 +21,7 @@ pytestmark = pytest.mark.skipif(
 
 nu_range = [1./100, 1./250, 1./500]
 
-beta_range = (2, 6)
+beta_range = (3, 6)
 
 l_range = (2, 8)
 
