@@ -7,7 +7,8 @@ For simplicity, we consider the following heat control problem:
 $\min_{v, u} \frac{1}{2} \int_0^{t_f} \| v - v_d \|^2_{L^2(\Omega)} \mathrm{d} t + \frac{\beta}{2} \int_0^{t_f} \| u \|^2_{L^2(\Omega)} \mathrm{d} t$
 
 subject to
-\begin{displaymath}
+
+$
 	\left\{
 		\begin{array}{ll}
 			\frac{\partial v}{\partial t} -\nabla^2 v = u + f,
@@ -17,7 +18,7 @@ subject to
 				\times(0, t_f),
 		\end{array}
 	\right.
-\end{displaymath}
+$
 where, for example, $\Omega = (0, 1)^2$, $\beta = 10^{-4}$, and $t_f = 2$.
 
 The problem is defined in a compact way by providing the weak form representing the forward differential operator
