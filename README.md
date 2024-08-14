@@ -8,9 +8,10 @@ $\min_{v, u} \frac{1}{2} \int_0^{t_f} \| v - v_d \|^2_{L^2(\Omega)} \mathrm{d} t
 
 subject to
 
-$\left\{ \begin{array}{ll} \frac{\partial v}{\partial t} -\nabla^2 v = u + f, & \mathrm{in} \; \Omega \times (0, t_f)\\ v(\mathbf{x},0)=0, & \mathrm{in} \; \Omega\\ v(\mathbf{x},t)=0, & \mathrm{on} \; \partial \Omega \times(0, t_f), \end{array} \right.$
+$ -\nabla^2 v = u + f, \quad \mathrm{in} \; \Omega \times (0, t_f)$
 
-where, for example, $\Omega = (0, 1)^2$, $\beta = 10^{-4}$, and $t_f = 2$.
+provided with suitable initial and boundary conditions $v(\mathbf{x},0)=v_0$ in $\Omega$ and $v(\mathbf{x},t)=g(\mathbf{x},t)$
+on $\partial \Omega \times(0, t_f)$, where, for example, $\Omega = (0, 1)^2$, $\beta = 10^{-4}$, and $t_f = 2$.
 
 The problem is defined in a compact way by providing the weak form representing the forward differential operator
 in space, the boundary conditions on the state variable, the desired state, and the force function acting on the
