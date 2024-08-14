@@ -3,7 +3,9 @@ system to derive the finite element discretization of the problems considered, u
 for the derivation of the KKT conditions and the definition of the linear solvers.
 
 For simplicity, we consider the following heat control problem:
-$$\min_{v, u} \frac{1}{2} \int_0^{t_f} \| v - v_d \|^2_{L^2(\Omega)} \mathrm{d} t + \frac{\beta}{2} \int_0^{t_f} \| u \|^2_{L^2(\Omega)} \mathrm{d} t$$
+
+$\min_{v, u} \frac{1}{2} \int_0^{t_f} \| v - v_d \|^2_{L^2(\Omega)} \mathrm{d} t + \frac{\beta}{2} \int_0^{t_f} \| u \|^2_{L^2(\Omega)} \mathrm{d} t$
+
 subject to
 \begin{displaymath}
 	\left\{
