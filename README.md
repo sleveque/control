@@ -19,7 +19,7 @@ system. Note that, for stationary control problems, the callables defining the d
 accept as an input the test function of the finite element space considered, while the callable related to the
 forward differential operator accepts as inputs the trial function, the test function, and the current approximation
 of the state $v$. For instationary problems one has to include also the time $t$. Finally the problem is defined by
-instantiating an \texttt{Instationary} object. For the example considered, the code looks as follows:
+instantiating an Instationary object. For the example considered, the code looks as follows:
 
 	from firedrake import *
 	from preconditioner import *
@@ -64,16 +64,16 @@ instantiating an \texttt{Instationary} object. For the example considered, the c
 	    time_interval=(0.0, 2.0))
 
 For instationary problems, the user can also provide a callable for the definition of a different initial condition,
-passing the argument \texttt{initial\_condition}. The discretization in time can be set to backward Euler by passing
-the argument \texttt{CN = False} to the call; the default discretization in time is trapezi.
+passing the argument initial_condition. The discretization in time can be set to backward Euler by passing
+the argument CN = False to the call; the default discretization in time is trapezi.
 
 Control problems which include incompressibility constraints are defined by passing to the extra argument
-\texttt{space\_p}, the space to which the pressure belongs. The software assumes that inf--sup stable finite
+space_p, the space to which the pressure belongs. The software assumes that inf-sup stable finite
 element pairs are used.
 
 The linear solvers consist of a Krylov solver preconditioned by suitable approximations of the matrices considered.
-The solvers allow one to employ a user-defined preconditioner, adding to the call the argument \texttt{P} and passing
-the solver parameters through the extra argument \texttt{solver\_parameters}. The non-linear solver is based on a
-Picard iteration, but it can be set to a Gauss--Newton method by passing the argument \texttt{Gauss\_Newton = True}
+The solvers allow one to employ a user-defined preconditioner, adding to the call the argument P and passing
+the solver parameters through the extra argument solver_parameters. The non-linear solver is based on a
+Picard iteration, but it can be set to a Gauss-Newton method by passing the argument Gauss_Newton = True
 to the definition of the object. In the following section, we give details of the in-built preconditioners employed
 in our software.
