@@ -8,7 +8,7 @@ $\min_{v, u} \frac{1}{2} \int_0^{t_f} \| v - v_d \|^2_{L^2(\Omega)} \mathrm{d} t
 
 subject to
 
-$-\nabla^2 v = u + f$, in  $\Omega \times (0, t_f)$
+$-\nabla^2 v = u + f$,      in  $\Omega \times (0, t_f)$
 
 provided with suitable initial and boundary conditions $v(\mathbf{x},0)=v_0$ in $\Omega$ and $v(\mathbf{x},t)=g(\mathbf{x},t)$
 on $\partial \Omega \times(0, t_f)$, where, for example, $\Omega = (0, 1)^2$, $\beta = 10^{-4}$, and $t_f = 2$.
