@@ -77,3 +77,6 @@ the solver parameters through the extra argument solver_parameters. The non-line
 Picard iteration, but it can be set to a Gauss-Newton method by passing the argument Gauss_Newton = True
 to the definition of the object. In the following section, we give details of the in-built preconditioners employed
 in our software.
+
+The cose is based on the work "Automatic Differentiation for All-at-once Systems Arising in Certain PDE-Constrained
+Optimization Problems" by Santolo Leveque, James R. Maddison, and John W. Pearson.
