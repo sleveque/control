@@ -25,7 +25,7 @@ instantiating an Instationary object. For the example considered, the code looks
 	from preconditioner import *
 	from control import *
 
-	mesh = UnitSquareMesh(10, 10, 2.0, 2.0)
+	mesh = RectangleMesh(10, 10, 2.0, 2.0)
 	space_0 = FunctionSpace(mesh, "Lagrange", 1)
 
 	def forw_diff_operator(trial, test, v, t):
@@ -39,7 +39,7 @@ instantiating an Instationary object. For the example considered, the code looks
 	    y = X[1] - 1.0
 
 	    v_d = Function(space, name="v_d")
-	    v_d.interpolate(t * cos(0.5 * pi * x) cos(0.5 * pi * y))
+	    v_d.interpolate(t * cos(0.5 * pi * x) * cos(0.5 * pi * y))
 
 	    return inner(v_d, test) * dx, v_d
 
@@ -51,16 +51,16 @@ instantiating an Instationary object. For the example considered, the code looks
 	    y = X[1] - 1.0
 
 	    f = Function(space, name="f")
-	    f.interpolate(cos(0.5 * pi * x) cos(0.5 * pi * y))
+	    f.interpolate(cos(0.5 * pi * x) * cos(0.5 * pi * y))
 
 	    return inner(f, test) * dx
 
 	def bc_t(space_0, t):
-		return DirichletBC(space_0, 0.0, "on_boundary")
+	    return DirichletBC(space_0, 0.0, "on_boundary")
 
 	control_instationary = Control.Instationary(
 	    space_0, forw_diff_operator, desired_state=desired_state,
-	    force_f=force_f, bcs_v=bc_t, beta=1.0e-4, n_t=10,
+	    force_function=force_f, bcs_v=bc_t, beta=1.0e-4, n_t=10,
 	    time_interval=(0.0, 2.0))
 
 For instationary problems, the user can also provide a callable for the definition of a different initial condition,
