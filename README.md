@@ -11,7 +11,7 @@ subject to
 $-\nabla^2 v = u + f$, in  $\Omega \times (0, t_f)$
 
 provided with suitable initial and boundary conditions $v(\mathbf{x},0)=v_0$ in $\Omega$ and $v(\mathbf{x},t)=g(\mathbf{x},t)$
-on $\partial \Omega \times(0, t_f)$, where, for example, $\Omega = (0, 1)^2$, $\beta = 10^{-4}$, and $t_f = 2$.
+on $\partial \Omega \times(0, t_f)$, where, for example, $\Omega = (-1, 1)^2$, $\beta = 10^{-4}$, and $t_f = 2$.
 
 The problem is defined in a compact way by providing the weak form representing the forward differential operator
 in space, the boundary conditions on the state variable, the desired state, and the force function acting on the
