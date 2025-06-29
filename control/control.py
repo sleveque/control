@@ -1,4 +1,9 @@
-from firedrake import *
+from firedrake import (
+    TestFunction, TrialFunction, inner, dx, Function,
+    FunctionSpace, MixedFunctionSpace, homogenize, adjoint,
+    grad, div, assemble, Cofunction, action, LinearSolver, Constant,
+    sqrt, tripcolor, CheckpointFile
+    )
 from firedrake.functionspaceimpl import WithGeometry as FunctionSpaceBase
 
 import ufl
