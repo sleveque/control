@@ -15,6 +15,7 @@ __all__ = \
         "apply_bcs",
 
         "Nullspace",
+        "NoneNullspace",
         "ConstantNullspace",
         "DirichletBCNullspace",
         "FullNullspace",
@@ -334,8 +335,8 @@ class MultiBlockSystem:
             solver_parameters = {}
         if pc_fn is None:
             def pc_fn(u_0, u_1, b_0, b_1):
-                u_0.assign(b_0)
-                u_1.assign(b_1)
+                u_0.assign(b_0.riesz_representation("l2"))
+                u_1.assign(b_1.riesz_representation("l2"))
 
         class MultiBlockSystemMatrix:
             def __init__(self, n_blocks_00, n_blocks_11,
