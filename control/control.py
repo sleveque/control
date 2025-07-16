@@ -5,6 +5,7 @@ from firedrake import (
     sqrt, tripcolor, CheckpointFile
     )
 from firedrake.functionspaceimpl import WithGeometry as FunctionSpaceBase
+from firedrake.output import VTKFile as File
 
 import ufl
 
@@ -26,7 +27,7 @@ def converged(ksp, it, rnorm):
     return it >= ksp.max_it
 
 
-# definition of application of T_1 and T_2
+# definition of application of T_1 and T_2 for CN discretization
 def apply_T_1(x_old, space_v, n_blocks):
     flattened_space = tuple(space_v for i in range(n_blocks))
     full_space_v = MixedFunctionSpace(flattened_space)
@@ -63,7 +64,7 @@ def apply_T_2(x_old, space_v, n_blocks):
     return x_new
 
 
-# definition of application of T_1^-1 and T_2^-1
+# definition of application of T_1^-1 and T_2^-1 for CN discretization
 def apply_T_1_inv(x_old, space_v, n_blocks):
     flattened_space = tuple(space_v for i in range(n_blocks))
     full_space_v = MixedFunctionSpace(flattened_space)
@@ -101,11 +102,46 @@ def apply_T_2_inv(x_old, space_v, n_blocks):
 
 
 class Control:
+    """control is a library for solving certain PDE-constrained
+    optimization problems. The software employs the Firedrake
+    system to derive the finite element discretization of the problems
+    considered, using the Python interface to PETSc for the derivation
+    of the KKT conditions and the definition of the linear solvers.
+
+    Control contains the class Stationary and the class Instationary,
+    employed for the solution of the corresponding control problem.
+    """
     class Stationary:
+        """Module employed for the solution of stationary control
+        problems."""
         def __init__(self, space_v,
                      forward_form, desired_state=None, force_function=None, *,
                      beta=1.0e-3, space_p=None, Gauss_Newton=False,
                      bcs_v=None):
+            """Constructor of the object Stationary.
+
+            Input:
+                - space_v             space whom the solution belongs to
+
+                - forward_form        form that represents the differential
+                                      operator in space
+
+                - desired_state       desired state
+
+                - force_function      force function acting on the system
+
+                - beta                regularization parameter
+
+                - space_p             pressure space (only for incompressible
+                                      problems)
+
+                - Gauss_Newton        if True, a Gauss--Newton linearization is
+                                      employed, otherwise a Picard linearization
+                                      is applied
+
+                - bcs_v               boundary conditions on the state
+            """
+
             if bcs_v is None:
                 bcs_v = ()
             elif not isinstance(bcs_v, Sequence):
@@ -121,6 +157,8 @@ class Control:
 
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
 
+            # in case no desired_state is passed, the solver assumes
+            # zero desired state
             if desired_state is None:
                 def desired_state(test_v):
                     space_v = test.function_space()
@@ -129,6 +167,8 @@ class Control:
 
                     return inner(v_d, test_v) * dx
 
+            # in case no force_function is passed, the solver assumes
+            # zero force
             if force_function is None:
                 def force_function(test_v):
                     space_v = test.function_space()
@@ -146,6 +186,7 @@ class Control:
             self._beta = beta
             self._bcs_v = bcs_v
 
+            # building the forms of the (1,1)- and (2,2)-blocks
             self._M_v = inner(v_trial, v_test) * dx
             self._M_zeta = inner(v_trial, v_test) * dx
             self._M_p = None
@@ -153,18 +194,21 @@ class Control:
 
             self._Gauss_Newton = Gauss_Newton
 
+            # building the solutions
             v = Function(space_v, name="v")
             zeta = Function(space_v, name="zeta")
 
             v.zero()
             zeta.zero()
 
+            # applying bcs to the state
             for bc in self._bcs_v:
                 bc.apply(v)
 
             self._v = v
             self._zeta = zeta
 
+            # if space_p is passed, the state and adjoint pressures are built
             if space_p is not None:
                 p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
 
@@ -182,6 +226,19 @@ class Control:
 
         def set_space_v(self, space_v, *, v=None, zeta=None,
                         bcs_v_new=False, bcs_v=None):
+            """Modifying the space whom the solution belongs to.
+
+            Input:
+                - space_v        new space
+
+                - v              approximation of the state solution
+
+                - zeta           approximation of the adjoint soluton
+
+                - bcs_v_new      if True, new boundary conditions are imposed
+
+                - bcs_v          the boundary conditions on the state
+            """
             self._space_v = space_v
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
 
@@ -222,6 +279,15 @@ class Control:
             self._zeta = zeta
 
         def set_space_p(self, space_p, *, p=None, mu=None):
+            """Modifying the space whom the pressure solution belongs to.
+
+            Input:
+                - space_p        new pressure space
+
+                - p              approximation of the pressure state solution
+
+                - mu             approximation of the pressure adjoint soluton
+            """
             self._space_p = space_p
             p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
 
@@ -244,18 +310,47 @@ class Control:
             self._mu = mu
 
         def set_forward_form(self, forward_form):
+            """Modifying the form that represents the differential operator
+            in space.
+
+            Input:
+                - forward_form        new form
+            """
             self._forward_form = forward_form
 
         def set_desired_state(self, desired_state):
+            """Modifying the desired state.
+
+            Input:
+                - desired_state        new desired state
+            """
             self._desired_state = desired_state
 
         def set_force_function(self, force_function):
+            """Modifying the force function acting on the system.
+
+            Input:
+                - force_function        new force function
+            """
             self._force_function = force_function
 
         def set_beta(self, beta):
+            """Modifying the regularization parameter.
+
+            Input:
+                - beta        new regularization parameter
+            """
             self._beta = beta
 
         def set_bcs_v(self, bcs_v, space_v=None):
+            """Modifying the boundary conditions on the state.
+
+            Input:
+                - bcs_v        new boundary conditions
+
+                - space_v      if one wishes to change also the
+                               space of the solution 
+            """
             if space_v is None:
                 if bcs_v is None:
                     bcs_v = ()
@@ -269,9 +364,21 @@ class Control:
                 self.set_space_v(space_v, bcs_v_new=True, bcs_v=bcs_v)
 
         def set_Gauss_Newton(self, Gauss_Newton=True):
+            """Modifying the non-linear iteration.
+
+            Input:
+                - Gauss_Newton        if True, Gauss--Newton is applied,
+                                      otherwise a Picard linearization is
+                                      adopted
+            """
             self._Gauss_Newton = Gauss_Newton
 
         def set_v(self, v_new):
+            """Modifying the approximation of the state solution.
+
+            Input:
+                - v_new        new approximation of the state solution
+            """
             if v_new.function_space() != self._space_v:
                 raise ValueError("Unexpected space")
             else:
@@ -282,6 +389,11 @@ class Control:
                 self._v.assign(v_help)
 
         def set_zeta(self, zeta_new):
+            """Modifying the approximation of the adjoint solution.
+
+            Input:
+                - zeta_new        new approximation of the adjoint solution
+            """
             if zeta_new.function_space() != self._space_v:
                 raise ValueError("Unexpected space")
             else:
@@ -293,6 +405,11 @@ class Control:
                 self._zeta.assign(zeta_help)
 
         def set_p(self, p_new):
+            """Modifying the approximation of the pressure state solution.
+
+            Input:
+                - p_new        new approximation of the pressure state solution
+            """
             if self._space_p is not None:
                 if p_new.function_space() != self._space_p:
                     raise ValueError("Unexpected space")
@@ -302,6 +419,11 @@ class Control:
                 raise ValueError("Undefined space_p: unable to assign value")
 
         def set_mu(self, mu_new):
+            """Modifying the approximation of the pressure adjoint solution.
+
+            Input:
+                - mu_new        new approximation of the pressure adjoint solution
+            """
             if self._space_p is not None:
                 if mu_new.function_space() != self._space_p:
                     raise ValueError("Unexpected space")
@@ -311,6 +433,9 @@ class Control:
                 raise ValueError("Undefined space_p: unable to assign value")
 
         def print_error(self):
+            """Print the difference in the discretized L^2-norm
+            between the numerical solution and the desired state.
+            """
             v_err = self._v - self._true_v
 
             error = sqrt(abs(assemble(inner(v_err, v_err) * dx)))
@@ -323,9 +448,29 @@ class Control:
 
         def construct_D_v(self, v_trial, v_test, v_old, *,
                           non_linear_res=False):
+            """Construction of the discretized forward form.
+
+            Input:
+                - v_trial               trial function
+
+                - v_test                test function
+
+                - v_old                 approximation of the state solution
+
+                - non_linear_res        if True, the form is employed in the
+                                        evaluation of the non-linear residual
+
+            Output:
+                - D_v                   discretized forward form
+            """
             if (not self._Gauss_Newton) or non_linear_res:
+                # if Gauss--Newton is not applied or we want to
+                # evaluate the residual, we take the Picard linearization
+                # of the forward form
                 D_v = self._forward_form(v_trial, v_test, v_old)
             else:
+                # if we want to apply Gauss--Newton, we take the
+                # derivative of the form in the direction of v_old
                 D_v = ufl.derivative(self._forward_form(v_old,
                                                         v_test,
                                                         v_old),
@@ -336,6 +481,25 @@ class Control:
 
         def construct_f(self, inhomogeneous_bcs_v, v_test,
                         D_v, v_inhom, bcs_v):
+            """Construction of the vector containing the force function.
+
+            Input:
+                - inhomogeneous_bcs_v        if True, inhomogeneous bcs have to
+                                             be imposed
+
+                - v_test                     test function
+
+                - D_v                        discretized forward form
+
+                - v_inhom                    function that is zero in the interior
+                                             of the domain and interpolates the state
+                                             on the boundary
+
+                - bcs_v                      homogenization of the bcs on the state
+
+            Output:
+                - f                          discretized force function
+            """
             if inhomogeneous_bcs_v:
                 f = assemble(self._force_function(v_test)
                              - action(D_v, v_inhom))
@@ -347,6 +511,23 @@ class Control:
             return f
 
         def construct_v_d(self, v_test, inhomogeneous_bcs_v, v_inhom, bcs_v):
+            """Construction of the vector containing the desired state.
+
+            Input:
+                - v_test                     test function
+
+                - inhomogeneous_bcs_v        if True, inhomogeneous bcs have to
+                                             be imposed
+
+                - v_inhom                    function that is zero in the interior
+                                             of the domain and interpolates the state
+                                             on the boundary
+
+                - bcs_v                      homogenization of the bcs on the state
+
+            Output:
+                - v_d                        discretized desired state
+            """
             v_d, true_v = self._desired_state(v_test)
             self._true_v = true_v
 
@@ -361,8 +542,27 @@ class Control:
 
         def construct_pc(self, auxiliary_sp,
                          bcs_v, bcs_zeta, D_v, D_zeta):
+            """Construction of the preconditioner, based on the matching strategy.
+
+            Input:
+                - auxiliary_sp        auxiliary solver parameters for inner blocks
+
+                - bcs_v               homogenized boundary conditions for the state
+                                      variable
+
+                - bcs_zeta            homogenized boundary conditions for the adjoint
+                                      variable
+
+                - D_v                 discretized forward form
+
+                - D_zeta              discretized adjoint form
+
+            Output:
+                - pc_linear           preconditioner to employ within Krylov method
+            """
             beta = self._beta
 
+            # solver parameters for the (1,1)-block
             if "sp_11block" in auxiliary_sp:
                 sp_11block = auxiliary_sp["sp_11block"]
             else:
@@ -372,6 +572,8 @@ class Control:
                               "ksp_atol": 0.0,
                               "ksp_rtol": 0.0}
 
+            # solver parameters for the factorization of the Schur complement
+            # approximation
             if "sp_Schur" in auxiliary_sp:
                 sp_Schur = auxiliary_sp["sp_Schur"]
             else:
@@ -383,6 +585,7 @@ class Control:
                             "ksp_atol": 0.0,
                             "ksp_rtol": 0.0}
 
+            # building the solvers
             solver_0 = LinearSolver(
                 assemble(self._M_v, bcs=bcs_v),
                 solver_parameters=sp_11block)
@@ -433,12 +636,43 @@ class Control:
 
         def non_linear_res_eval(self, space_v, v_d, f, v_old, zeta_old,
                                 D_v, D_zeta, M_zeta, bcs_v, bcs_zeta):
+            """Construction of the non-linear residual.
+
+            Input:
+                - space_v      space of state and adjoint variables
+
+                - v_d          desired state
+
+                - f            force function
+
+                - v_old        approximation of state variable
+
+                - zeta_old     approximation of adjoint variable
+
+                - D_v          discretized forward form
+
+                - D_zeta       discretized adjoint form
+
+                - M_zeta       (2,2)-block
+
+                - bcs_v        homogenized boundary conditions for the state
+                               variable
+
+                - bcs_zeta     homogenized boundary conditions for the adjoint
+                               variable
+
+            Output:
+                - rhs_0        non-linear residual (adjoint equation)
+
+                - rhs_1        non-linear residual (state equation)
+            """
             rhs_0 = Cofunction(space_v.dual(), name="rhs_0")
             rhs_1 = Cofunction(space_v.dual(), name="rhs_1")
 
             rhs_0.assign(v_d)
             rhs_1.assign(f)
 
+            # evaluating non-linear residual (adjoint equation)
             b = assemble(action(self._M_v, v_old))
             with b.dat.vec_ro as b_v, \
                     rhs_0.dat.vec as b_1_v:
@@ -450,6 +684,7 @@ class Control:
                 b_1_v.axpy(-1.0, b_v)
             del b
 
+            # evaluating non-linear residual (state equation)
             b = assemble(action(D_v, v_old))
             with b.dat.vec_ro as b_v, \
                     rhs_1.dat.vec as b_1_v:
@@ -461,6 +696,7 @@ class Control:
                 b_1_v.axpy(-1.0, b_v)
             del b
 
+            # applying bcs
             apply_bcs(bcs_v, rhs_0)
             apply_bcs(bcs_zeta, rhs_1)
 
@@ -471,6 +707,32 @@ class Control:
                          auxiliary_sp={}, v_d=None, f=None,
                          print_error=True, create_output=True,
                          plots=False):
+            """Module for the solution of linear control problems.
+
+            Input:
+                - P                        preconditioner to apply within
+                                           the Krylov method (if None, default
+                                           option is employed)
+
+                - solver_parameters        parameter to pass at the Krylov solver
+
+                - auxiliary_sp             auxiliary parameters for setting solvers
+                                           of inner blocks
+
+                - v_d                      when solving non-linear problems, v_d is
+                                           the non-linear residual (adjoint equation)
+
+                - f                        when solving non-linear problems, f is
+                                           the non-linear residual (state equation)
+
+                - print_error              if True, the L^2 discrepancy between the
+                                           desired state and the numerical solution
+                                           is printed
+
+                - create_output            if True, output is generated
+
+                - plots                    if True, plots of the solutions are generated
+            """
             space_v = self._space_v
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
 
@@ -486,17 +748,20 @@ class Control:
                 bcs_v = self._bcs_v
             bcs_zeta = bcs_v
 
+            # construction of nullspaces
             nullspace_v = DirichletBCNullspace(bcs_v)
             nullspace_zeta = DirichletBCNullspace(bcs_zeta)
 
             beta = self._beta
 
+            # construction of the blocks of the matrix
             v_old = Function(space_v, name="v_old")
             v_old.assign(self._v)
 
             D_v = self.construct_D_v(v_trial, v_test, v_old)
             D_zeta = adjoint(D_v)
 
+            # construction of the right-hand side
             if inhomogeneous_bcs_v:
                 v_inhom = Function(space_v)
                 apply_bcs(bcs_v_help, v_inhom)
@@ -517,12 +782,14 @@ class Control:
             else:
                 check_v_d = False
 
+            # construction of the preconditioner
             if P is None:
                 pc_fn = self.construct_pc(auxiliary_sp,
                                           bcs_v, bcs_zeta, D_v, D_zeta)
             else:
                 pc_fn = P(self, D_zeta, D_v, bcs_v, bcs_zeta)
 
+            # building the system to be solved
             block_00 = {}
             block_00[(0, 0)] = self._M_v
             block_01 = {}
@@ -538,13 +805,14 @@ class Control:
                 block_10=block_10, block_11=block_11,
                 nullspace_0=(nullspace_v,), nullspace_1=(nullspace_zeta,))
 
+            # setting solver parameters
             if solver_parameters is None:
                 solver_parameters = {"linear_solver": "gmres",
                                      "gmres_restart": 10,
                                      "maximum_iterations": 50,
                                      "relative_tolerance": 1.0e-6,
                                      "absolute_tolerance": 0.0,
-                                     "monitor_convergence": print_error}
+                                     "monitor_convergence": True}
 
             v = Function(space_v, name="v")
             zeta = Function(space_v, name="zeta")
@@ -552,16 +820,19 @@ class Control:
             v.zero()
             zeta.zero()
 
+            # solving the system
             system.solve(
                 v, zeta, v_d, f,
                 solver_parameters=solver_parameters,
                 pc_fn=pc_fn)
 
+            # applying bcs
             if inhomogeneous_bcs_v:
                 with v.dat.vec as b_v, \
                         v_inhom.dat.vec_ro as b_1_v:
                     b_v.axpy(1.0, b_1_v)
 
+            # updating solutions
             self.set_v(v)
             self.set_zeta(zeta)
 
@@ -572,6 +843,7 @@ class Control:
             del system
             del pc_fn
 
+            # creating output
             if create_output:
                 v_output = File("v.pvd")
                 v_output.write(v)
@@ -585,6 +857,7 @@ class Control:
                 with CheckpointFile("zeta.h5", "w") as h:
                     h.save_function(zeta)
 
+            # plotting the solutions
             if plots:
                 try:
                     import matplotlib.pyplot as plt
@@ -604,6 +877,7 @@ class Control:
             del v
             del zeta
 
+            # printing the error
             if print_error:
                 self.print_error()
 
@@ -615,10 +889,35 @@ class Control:
                              max_non_linear_iter=10,
                              relative_non_linear_tol=1.0e-5,
                              absolute_non_linear_tol=1.0e-8,
-                             print_error_linear=False,
                              print_error_non_linear=True,
                              create_output=True,
                              plots=False):
+            """Module for the solution of non-linear control problems.
+
+            Input:
+                - P                           preconditioner to apply within
+                                              the Krylov method (if None, default
+                                              option is employed)
+
+                - solver_parameters           parameter to pass at the Krylov solver
+
+                - auxiliary_sp                auxiliary parameters for setting solvers
+                                              of inner blocks
+
+                - max_non_linear_iter         maximum number of non-linear iteration
+
+                - relative_non_linear_tol     relative non-linear tolerance
+
+                - absolute_non_linear_tol     absolute non-linear tolerance
+
+                - print_error_non_linear      if True, the L^2 discrepancy between the
+                                              desired state and the numerical solution
+                                              is printed
+
+                - create_output               if True, output is generated
+
+                - plots                       if True, plots of the solutions are generated
+            """
             space_v = self._space_v
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
 
@@ -644,17 +943,21 @@ class Control:
             v_old.assign(self._v)
             zeta_old.assign(self._zeta)
 
+            # construction of the discretized forward and adjoint forms
             D_v = self.construct_D_v(
                 v_trial, v_test, v_old, non_linear_res=True)
             D_zeta = adjoint(D_v)
             M_zeta = -(1.0 / beta) * self._M_zeta
 
+            # construction of the force function and the
+            # desired state
             f = assemble(self._force_function(v_test))
 
             v_d, true_v = self._desired_state(v_test)
             v_d = assemble(v_d)
             self._true_v = true_v
 
+            # construction of the non-linear residual
             rhs_0, rhs_1 = self.non_linear_res_eval(
                 space_v, v_d, f, v_old, zeta_old,
                 D_v, D_zeta, M_zeta, bcs_v, bcs_zeta)
@@ -663,6 +966,7 @@ class Control:
             rhs.sub(0).assign(rhs_0)
             rhs.sub(1).assign(rhs_1)
 
+            # initial norm of non-linear residual
             with rhs.dat.vec_ro as b_v:
                 norm_0 = b_v.norm()
             norm_k = norm_0
@@ -672,16 +976,18 @@ class Control:
             print(f'Initial non-linear residual: {norm_0:.16e}')
 
             while (norm_k > relative_non_linear_tol * norm_0 and norm_k > absolute_non_linear_tol):  # noqa: E501
+                # solving the linearization
                 self.linear_solve(P=P, solver_parameters=solver_parameters,
                                   auxiliary_sp=auxiliary_sp,
                                   v_d=rhs_0, f=rhs_1,
-                                  print_error=print_error_linear,
+                                  print_error=False,
                                   create_output=False,
                                   plots=False)
 
                 delta_v.assign(self._v)
                 delta_zeta.assign(self._zeta)
 
+                # updating the state solution
                 with delta_v.dat.vec_ro as b_v, \
                         v_old.dat.vec as b_1_v:
                     b_1_v.axpy(1.0, b_v)
@@ -689,6 +995,7 @@ class Control:
                     apply_bcs(bcs_v_help, v_old)
                 self.set_v(v_old)
 
+                # updating the adjoint solution
                 with delta_zeta.dat.vec_ro as b_v, \
                         zeta_old.dat.vec as b_1_v:
                     b_1_v.axpy(1.0, b_v)
@@ -702,10 +1009,12 @@ class Control:
 
                 PETSc.garbage_cleanup(self._comm)
 
+                # construction of the discretized forward and adjoint forms
                 D_v = self.construct_D_v(
                     v_trial, v_test, v_old, non_linear_res=True)
                 D_zeta = adjoint(D_v)
 
+                # construction of the non-linear residual
                 rhs_0, rhs_1 = self.non_linear_res_eval(
                     space_v, v_d, f, v_old, zeta_old,
                     D_v, D_zeta, M_zeta, bcs_v, bcs_zeta)
@@ -713,6 +1022,7 @@ class Control:
                 rhs.sub(0).assign(rhs_0)
                 rhs.sub(1).assign(rhs_1)
 
+                # norm of non-linear residual
                 with rhs.dat.vec_ro as b_v:
                     norm_k = b_v.norm()
 
@@ -738,6 +1048,8 @@ class Control:
             del f
             del v_d
 
+            # printing L^2 discrepancy between the desired state and the
+            # numerical solution
             if print_error_non_linear:
                 if norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol:  # noqa: E501
                     if norm_0 > 0.:
@@ -753,6 +1065,7 @@ class Control:
 
             PETSc.garbage_cleanup(self._comm)
 
+            # creating output
             if create_output:
                 v_output = File("v.pvd")
                 v_output.write(self._v)
@@ -766,6 +1079,7 @@ class Control:
                 with CheckpointFile("zeta.h5", "w") as h:
                     h.save_function(self._zeta)
 
+            # plotting the solutions
             if plots:
                 try:
                     import matplotlib.pyplot as plt
@@ -789,6 +1103,46 @@ class Control:
                                         div_v=None, div_zeta=None,
                                         print_error=True, create_output=True,
                                         plots=False):
+            """Module for the solution of linear incompressible control problems.
+
+            Input:
+                - nullspace_p              nullspace of the corresponding forward
+                                           stationary incompressible problem
+
+                - space_p                  pressure space, if not passed to the
+                                           constructor
+
+                - P                        preconditioner to apply within
+                                           the Krylov method (if None, default
+                                           option is employed)
+
+                - solver_parameters        parameter to pass at the Krylov solver
+
+                - auxiliary_sp             auxiliary parameters for setting solvers
+                                           of inner blocks
+
+                - v_d                      when solving non-linear problems, v_d is
+                                           the non-linear residual (adjoint equation)
+
+                - f                        when solving non-linear problems, f is
+                                           the non-linear residual (state equation)
+
+                - div_v                    when solving non-linear problems, div_v is
+                                           the non-linear residual (incompressibility
+                                           constraint on state variable)
+
+                - div_zeta                 when solving non-linear problems, div_zeta is
+                                           the non-linear residual (incompressibility
+                                           constraint on adjoint variable)
+
+                - print_error              if True, the L^2 discrepancy between the
+                                           desired state and the numerical solution
+                                           is printed
+
+                - create_output            if True, output is generated
+
+                - plots                    if True, plots of the solutions are generated
+            """
             space_v = self._space_v
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
             if space_p is None:
@@ -812,9 +1166,14 @@ class Control:
                 bcs_v = self._bcs_v
             bcs_zeta = bcs_v
 
+            # construction of nullspaces
             nullspace_v = DirichletBCNullspace(bcs_v)
             nullspace_zeta = DirichletBCNullspace(bcs_zeta)
 
+            nullspace_0 = (nullspace_v, nullspace_zeta)
+            nullspace_1 = (nullspace_p, nullspace_p)
+
+            # construction of auxiliary spaces
             space_0 = FunctionSpace(
                 space_v.mesh(), space_v.ufl_element() * space_v.ufl_element())
             space_1 = FunctionSpace(
@@ -825,6 +1184,7 @@ class Control:
             v_old = Function(space_v, name="v_old")
             v_old.assign(self._v)
 
+            # construction of discretized forward and adjoint operators
             M_zeta = -(1.0 / beta) * self._M_zeta
             D_v = self.construct_D_v(v_trial, v_test, v_old)
             D_zeta = adjoint(D_v)
@@ -838,6 +1198,7 @@ class Control:
             else:
                 v_inhom = None
 
+            # construction of force function
             if f is None:
                 f = self.construct_f(inhomogeneous_bcs_v, v_test,
                                      D_v, v_inhom, bcs_v)
@@ -845,6 +1206,7 @@ class Control:
             else:
                 check_f = False
 
+            # construction of desired state
             if v_d is None:
                 v_d = self.construct_v_d(v_test, inhomogeneous_bcs_v,
                                          v_inhom, bcs_v)
@@ -852,6 +1214,7 @@ class Control:
             else:
                 check_v_d = False
 
+            # construction of right-hand side
             if div_v is None:
                 div_v = Function(space_p)
                 if inhomogeneous_bcs_v:
@@ -874,6 +1237,7 @@ class Control:
             b_1.sub(0).assign(div_v)
             b_1.sub(1).assign(div_zeta)
 
+            # construction of the system to be solved
             block_00 = {}
             block_00[(0, 0)] = self._M_v
             block_00[(0, 1)] = D_zeta
@@ -895,9 +1259,7 @@ class Control:
             block_11[(1, 0)] = None
             block_11[(1, 1)] = None
 
-            nullspace_0 = (nullspace_v, nullspace_zeta)
-            nullspace_1 = (nullspace_p, nullspace_p)
-
+            # construction of the linear system
             system = MultiBlockSystem(
                 space_v, space_p,
                 block_00=block_00, block_01=block_01,
@@ -905,6 +1267,7 @@ class Control:
                 n_blocks_00=2, n_blocks_11=2,
                 nullspace_0=nullspace_0, nullspace_1=nullspace_1)
 
+            # construction of the preconditioner
             if P is None:
                 block_00_int = {}
                 block_00_int[(0, 0)] = self._M_v
@@ -918,6 +1281,7 @@ class Control:
                 K_p = inner(grad(p_trial), grad(p_test)) * dx
                 M_p = inner(p_trial, p_test) * dx
 
+                # solver parameters for pressure stiffness matrix
                 if "sp_K_p" in auxiliary_sp:
                     sp_K_p = auxiliary_sp["sp_K_p"]
                 else:
@@ -929,6 +1293,7 @@ class Control:
                               "ksp_atol": 0.0,
                               "ksp_rtol": 0.0}
 
+                # solver parameters for pressure mass matrix
                 if "sp_M_p" in auxiliary_sp:
                     sp_M_p = auxiliary_sp["sp_M_p"]
                 else:
@@ -938,6 +1303,7 @@ class Control:
                               "ksp_atol": 0.0,
                               "ksp_rtol": 0.0}
 
+                # building solvers for pressure stiffness and mass matrices
                 solver_K_p = LinearSolver(
                     assemble(K_p),
                     solver_parameters=sp_K_p)
@@ -961,6 +1327,7 @@ class Control:
                 else:
                     block_11_p = - (1.0 / beta) * inner(p_trial, p_test) * dx
 
+                # construction of inner system (coupled velocities)
                 self._inner_system = MultiBlockSystem(
                     space_v, space_v,
                     block_00=block_00_int, block_01=block_01_int,
@@ -968,9 +1335,11 @@ class Control:
                     nullspace_0=(nullspace_v,),
                     nullspace_1=(nullspace_zeta,))
 
+                # construction of inner preconditioner (coupled velocities)
                 self._inner_pc_fn = self.construct_pc(
                     auxiliary_sp, bcs_v, bcs_zeta, D_v, D_zeta)
 
+                # construction of preconditioner for the whole system
                 def pc_fn(u_0, u_1, b_0, b_1):
                     b_0_help = Cofunction(space_v.dual())
                     b_1_help = Cofunction(space_v.dual())
@@ -978,6 +1347,7 @@ class Control:
                     b_0_help.assign(b_0.sub(0))
                     b_1_help.assign(b_0.sub(1))
 
+                    # solver parameters for inner solver
                     if "sp_inner" in auxiliary_sp:
                         inner_solver_parameters = auxiliary_sp["sp_inner"]
                     else:
@@ -994,6 +1364,7 @@ class Control:
                     v_help.zero()
                     zeta_help.zero()
 
+                    # solver for the (1,1)-block
                     try:
                         inner_ksp_solver = self._inner_system.solve(
                             v_help, zeta_help, b_0_help, b_1_help,
@@ -1020,7 +1391,8 @@ class Control:
                     del v_help
                     del zeta_help
 
-                    # solving for the Schur complement approximation
+                    # solving for the Schur complement approximation (apply
+                    # block-pressure convection--diffusion preconditioner)
                     u_1.sub(0).zero()
                     solver_K_p.solve(u_1.sub(0),
                                      b_0_help.copy(deepcopy=True))
@@ -1064,13 +1436,14 @@ class Control:
                           nullspace_v, nullspace_zeta,
                           bcs_v, bcs_zeta)
 
+            # solver parameters for the whole system
             if solver_parameters is None:
                 solver_parameters = {"linear_solver": "fgmres",
                                      "fgmres_restart": 10,
                                      "maximum_iterations": 50,
                                      "relative_tolerance": 1.0e-6,
                                      "absolute_tolerance": 0.0,
-                                     "monitor_convergence": print_error}
+                                     "monitor_convergence": True}
 
             PETSc.garbage_cleanup(self._comm)
 
@@ -1080,6 +1453,7 @@ class Control:
             u_0_sol.zero()
             u_1_sol.zero()
 
+            # solving linear system
             system.solve(
                 u_0_sol, u_1_sol, b_0, b_1,
                 solver_parameters=solver_parameters,
@@ -1093,6 +1467,7 @@ class Control:
             v.assign(u_0_sol.sub(0))
             zeta.assign(u_0_sol.sub(1))
 
+            # applying boundary conditions on state variable
             if inhomogeneous_bcs_v:
                 with v.dat.vec as b_v, \
                         v_inhom.dat.vec_ro as b_1_v:
@@ -1101,6 +1476,7 @@ class Control:
             p.assign(u_1_sol.sub(1))
             mu.assign(u_1_sol.sub(0))
 
+            # updating solutions
             self.set_v(v)
             self.set_zeta(zeta)
 
@@ -1127,6 +1503,7 @@ class Control:
                 del self._inner_system
                 del self._inner_pc_fn
 
+            # creating output
             if create_output:
                 v_output = File("v.pvd")
                 v_output.write(v)
@@ -1152,6 +1529,7 @@ class Control:
                 with CheckpointFile("mu.h5", "w") as h:
                     h.save_function(mu)
 
+            # plotting the solutions
             if plots:
                 try:
                     import matplotlib.pyplot as plt
@@ -1179,6 +1557,8 @@ class Control:
             del p
             del mu
 
+            # printing L^2 discrepancy between the desired state and the
+            # numerical solution
             if print_error:
                 self.print_error()
 
@@ -1190,10 +1570,41 @@ class Control:
                                             max_non_linear_iter=10,
                                             relative_non_linear_tol=1.0e-5,
                                             absolute_non_linear_tol=1.0e-8,
-                                            print_error_linear=False,
                                             print_error_non_linear=True,
                                             create_output=True,
                                             plots=False):
+            """Module for the solution of non-linear incompressible control problems.
+
+            Input:
+                - nullspace_p                nullspace of the corresponding forward
+                                             stationary incompressible problem
+
+                - space_p                    pressure space, if not passed to the
+                                             constructor
+
+                - P                          preconditioner to apply within
+                                             the Krylov method (if None, default
+                                             option is employed)
+
+                - solver_parameters          parameter to pass at the Krylov solver
+
+                - auxiliary_sp               auxiliary parameters for setting solvers
+                                             of inner blocks
+
+                - max_non_linear_iter        maximum number of non-linear iteration
+
+                - relative_non_linear_tol    relative non-linear tolerance
+
+                - absolute_non_linear_tol    absolute non-linear tolerance
+
+                - print_error_non_linear     if True, the L^2 discrepancy between the
+                                             desired state and the numerical solution
+                                             is printed
+
+                - create_output              if True, output is generated
+
+                - plots                      if True, plots of the solutions are generated
+            """
             space_v = self._space_v
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
             if space_p is None:
@@ -1205,6 +1616,7 @@ class Control:
                 self.set_space_p(space_p)
             p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
 
+            # construction of auxiliary spaces
             space_0 = FunctionSpace(
                 space_v.mesh(), space_v.ufl_element() * space_v.ufl_element())
             space_1 = FunctionSpace(
@@ -1239,6 +1651,7 @@ class Control:
             p_old.assign(self._p)
             mu_old.assign(self._mu)
 
+            # construction of discretized forward and adjoint forms
             D_v = self.construct_D_v(
                 v_trial, v_test, v_old, non_linear_res=True)
             D_zeta = adjoint(D_v)
@@ -1247,12 +1660,15 @@ class Control:
             B = - inner(div(v_trial), p_test) * dx
             B_T = - inner(p_trial, div(v_test)) * dx
 
+            # construction of force function and desired state
             f = assemble(self._force_function(v_test))
 
             v_d, true_v = self._desired_state(v_test)
             v_d = assemble(v_d)
             self._true_v = true_v
 
+            # function for the evaluation of the non-linear residual,
+            # in case of incompressible control problems
             def non_linear_res_eval():
                 rhs_00 = Cofunction(space_v.dual(), name="rhs_00")
                 rhs_01 = Cofunction(space_v.dual(), name="rhs_01")
@@ -1299,6 +1715,7 @@ class Control:
 
                 return rhs_00, rhs_01, rhs_10, rhs_11
 
+            # construction of the non-linear residual
             rhs_00, rhs_01, rhs_10, rhs_11 = non_linear_res_eval()
 
             rhs = Cofunction((space_0 * space_1).dual(), name="rhs")
@@ -1307,6 +1724,7 @@ class Control:
             rhs.sub(2).assign(rhs_10)
             rhs.sub(3).assign(rhs_11)
 
+            # initial norm of the non-linear residual
             with rhs.dat.vec_ro as b_v:
                 norm_0 = b_v.norm()
             norm_k = norm_0
@@ -1316,20 +1734,21 @@ class Control:
             print(f'Initial non-linear residual: {norm_0:.16e}')
 
             while (norm_k > relative_non_linear_tol * norm_0 and norm_k > absolute_non_linear_tol):  # noqa: E501
+                # solving for the linearization
                 self.incompressible_linear_solve(
                     nullspace_p, space_p=space_p, P=P,
                     solver_parameters=solver_parameters,
                     auxiliary_sp=auxiliary_sp,
                     v_d=rhs_00, f=rhs_01,
                     div_v=rhs_10, div_zeta=rhs_11,
-                    print_error=print_error_linear,
-                    create_output=False, plots=False)
+                    print_error=False, create_output=False, plots=False)
 
                 delta_v.assign(self._v)
                 delta_zeta.assign(self._zeta)
                 delta_p.assign(self._p)
                 delta_mu.assign(self._mu)
 
+                # updating the solutions
                 with delta_v.dat.vec_ro as b_v, \
                         v_old.dat.vec as b_1_v:
                     b_1_v.axpy(1.0, b_v)
@@ -1362,10 +1781,12 @@ class Control:
 
                 PETSc.garbage_cleanup(self._comm)
 
+                # construction of the discretized forward and adjoint forms
                 D_v = self.construct_D_v(
                     v_trial, v_test, v_old, non_linear_res=True)
                 D_zeta = adjoint(D_v)
 
+                # construction of the non-linear residual
                 rhs_00, rhs_01, rhs_10, rhs_11 = non_linear_res_eval()
 
                 rhs.sub(0).assign(rhs_00)
@@ -1373,6 +1794,7 @@ class Control:
                 rhs.sub(2).assign(rhs_10)
                 rhs.sub(3).assign(rhs_11)
 
+                # norm of the non-linear residual
                 with rhs.dat.vec_ro as b_v:
                     norm_k = b_v.norm()
 
@@ -1406,6 +1828,8 @@ class Control:
             del rhs_11
             del rhs
 
+            # printing L^2 discrepancy between the desired state and the
+            # numerical solution
             if print_error_non_linear:
                 if norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol:  # noqa: E501
                     if norm_0 > 0.:
@@ -1421,6 +1845,7 @@ class Control:
 
             PETSc.garbage_cleanup(self._comm)
 
+            # creating output
             if create_output:
                 v_output = File("v.pvd")
                 v_output.write(self._v)
@@ -1446,6 +1871,7 @@ class Control:
                 with CheckpointFile("mu.h5", "w") as h:
                     h.save_function(self._mu)
 
+            # plotting the solutions
             if plots:
                 try:
                     import matplotlib.pyplot as plt
@@ -1469,22 +1895,60 @@ class Control:
                     warning("Cannot plot figure. Error msg: '%s'" % e)
 
     class Instationary:
+        """Module employed for the solution of instationary control
+        problems."""
         def __init__(self, space_v,
                      forward_form, desired_state=None, force_function=None, *,
                      beta=1.0e-3, space_p=None, Gauss_Newton=False,
                      CN=True, n_t=20, initial_condition=None,
                      time_interval=None, bcs_v=None):
+            """Constructor of the object Instationary.
+
+            Input:
+                - space_v             space whom the solution belongs to
+
+                - forward_form        form that represents the differential
+                                      operator in space
+
+                - desired_state       desired state
+
+                - force_function      force function acting on the system
+
+                - beta                regularization parameter
+
+                - space_p             pressure space (only for incompressible
+                                      problems)
+
+                - Gauss_Newton        if True, a Gauss--Newton linearization is
+                                      employed, otherwise a Picard linearization
+                                      is applied
+
+                - CN                  if True, trapezi is employed as
+                                      discretization in time
+
+                - n_t                 number of points in time
+
+                - initial_condition   initial condition
+
+                - time_interval       interval of time itegration
+
+                - bcs_v               boundary conditions on the state
+            """
+
             if not isinstance(space_v, FunctionSpaceBase):
                 raise TypeError("Space must be a primal space")
             if space_p is not None \
                     and not isinstance(space_p, FunctionSpaceBase):
                 raise TypeError("Space must be a primal space")
 
+            # building auxiliary space
             flattened_space_v = tuple(space_v for i in range(n_t))
             full_space_v = MixedFunctionSpace(flattened_space_v)
 
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
 
+            # in case no desired_state is passed, the solver assumes
+            # zero desired state
             if desired_state is None:
                 def desired_state(test_v, t):
                     space_v = test.function_space()
@@ -1493,6 +1957,8 @@ class Control:
 
                     return inner(v_d, test_v) * dx
 
+            # in case no force_function is passed, the solver assumes
+            # zero force
             if force_function is None:
                 def force_function(test_v, t):
                     space_v = test.function_space()
@@ -1516,6 +1982,7 @@ class Control:
             self._CN = CN
             self._n_t = n_t
 
+            # building bcs at each point in time
             self._f_bcs_v = bcs_v
             full_bcs_v = {}
             if bcs_v is None:
@@ -1568,6 +2035,7 @@ class Control:
                 self._M_p = inner(p_trial, p_test) * dx
                 self._M_mu = inner(p_trial, p_test) * dx
 
+                # building auxiliary space
                 if not CN:
                     flattened_space_p = tuple(space_p for i in range(n_t))
                 else:
@@ -1586,6 +2054,19 @@ class Control:
 
         def set_space_v(self, space_v, *, v=None, zeta=None,
                         bcs_v_new=False, bcs_v=None):
+            """Modifying the space whom the solution belongs to.
+
+            Input:
+                - space_v        new space
+
+                - v              approximation of the state solution
+
+                - zeta           approximation of the adjoint soluton
+
+                - bcs_v_new      if True, new boundary conditions are imposed
+
+                - bcs_v          the boundary conditions on the state
+            """
             self._space_v = space_v
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
 
@@ -1594,9 +2075,11 @@ class Control:
 
             n_t = self._n_t
 
+            # auxiliary space
             flattened_space_v = tuple(space_v for i in range(n_t))
             full_space_v = MixedFunctionSpace(flattened_space_v)
 
+            # assign new value of the state variable
             if v is None:
                 v = Function(full_space_v, name="v")
                 if self._initial_condition is not None:
@@ -1611,6 +2094,7 @@ class Control:
             if bcs_v_new:
                 self._f_bcs_v = bcs_v
 
+            # building the boundary conditions on the state variable
             full_bcs_v = {}
             if self._f_bcs_v is None:
                 for i in range(n_t):
@@ -1640,6 +2124,7 @@ class Control:
                 bcs_v_i = full_bcs_v[(i)]
                 apply_bcs(bcs_v_i, v.sub(i))
 
+            # assign new value to adjoint variable
             if zeta is None:
                 zeta = Function(full_space_v, name="zeta")
                 for i in range(n_t - 1):
@@ -1657,12 +2142,22 @@ class Control:
             self._zeta = zeta
 
         def set_space_p(self, space_p, *, p=None, mu=None):
+            """Modifying the space whom the pressure solution belongs to.
+
+            Input:
+                - space_p        new pressure space
+
+                - p              approximation of the pressure state solution
+
+                - mu             approximation of the pressure adjoint soluton
+            """
             self._space_p = space_p
             p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
 
             self._M_p = inner(p_trial, p_test) * dx
             self._M_mu = inner(p_trial, p_test) * dx
 
+            # auxiliary space
             if not self._CN:
                 flattened_space_p = tuple(space_p for i in range(self._n_t))
             else:
@@ -1671,6 +2166,7 @@ class Control:
 
             full_space_p = MixedFunctionSpace(flattened_space_p)
 
+            # assign new value of state pressure
             if p is None:
                 p = Function(full_space_p, name="p")
                 p.zero()
@@ -1678,6 +2174,7 @@ class Control:
                 if p.function_space() != full_space_p:
                     raise ValueError("Unexpected space")
 
+            # assign new value of adjoint pressure
             if mu is None:
                 mu = Function(full_space_p, name="mu")
                 mu.zero()
@@ -1689,18 +2186,44 @@ class Control:
             self._mu = mu
 
         def set_forward_form(self, forward_form):
+            """Modifying the form that represents the differential operator
+            in space.
+
+            Input:
+                - forward_form        new form
+            """
             self._forward_form = forward_form
 
         def set_desired_state(self, desired_state):
+            """Modifying the desired state.
+
+            Input:
+                - desired_state        new desired state
+            """
             self._desired_state = desired_state
 
         def set_force_function(self, force_function):
+            """Modifying the force function acting on the system.
+
+            Input:
+                - force_function        new force function
+            """
             self._force_function = force_function
 
         def set_beta(self, beta):
+            """Modifying the regularization parameter.
+
+            Input:
+                - beta        new regularization parameter
+            """
             self._beta = beta
 
         def set_initial_condition(self, initial_condition):
+            """Modifying the initial condition.
+
+            Input:
+                - initial_condition    new initial condition
+            """
             self._initial_condition = initial_condition
 
             v_test = TestFunction(self._space_v)
@@ -1710,9 +2233,20 @@ class Control:
             apply_bcs(bcs_v_0, v.sub(0))
 
         def set_time_interval(self, time_interval):
+            """Modifying the time interval.
+
+            Input:
+                - time_interval    new interval of time integration
+            """
             self._time_interval = time_interval
 
         def set_CN(self, *, CN=True):
+            """Modifying the time discretization.
+
+            Input:
+                - CN        if True, trapezi is employed as time discretization,
+                            otherwise backward Euler is applied
+            """
             if (self._CN or CN) and not (self._CN and CN):
                 self._CN = CN
 
@@ -1720,8 +2254,14 @@ class Control:
                     self.set_space_p(self._space_p)
 
         def set_n_t(self, n_t):
+            """Modifying the number of points in time.
+
+            Input:
+                - n_t    new number of points in time
+            """
             self._n_t = n_t
 
+            # changing boundary conditions on the state variable
             full_bcs_v = {}
             if self._f_bcs_v is None:
                 for i in range(n_t):
@@ -1747,9 +2287,11 @@ class Control:
                         full_bcs_v[(i)] = tuple(bcs_v_i)
             self._bcs_v = full_bcs_v
 
+            # auxiliary space
             flattened_space_v = tuple(self._space_v for i in range(n_t))
             full_space_v = MixedFunctionSpace(flattened_space_v)
 
+            # constructing new solutions
             v = Function(full_space_v, name="v")
             if self._initial_condition is not None:
                 v_test = TestFunction(self._space_v)
@@ -1782,6 +2324,14 @@ class Control:
                 self._mu = mu
 
         def set_bcs_v(self, bcs_v, space_v=None):
+            """Modifying the boundary conditions on the state.
+
+            Input:
+                - bcs_v        new boundary conditions
+
+                - space_v      if one wishes to change also the
+                               space of the solution 
+            """
             if space_v is None:
                 self._f_bcs_v = bcs_v
 
@@ -1821,9 +2371,21 @@ class Control:
                 self._set_space_v(space_v, bcs_v_new=True, bcs_v=bcs_v)
 
         def set_Gauss_Newton(self, Gauss_Newton=True):
+            """Modifying the non-linear iteration.
+
+            Input:
+                - Gauss_Newton        if True, Gauss--Newton is applied,
+                                      otherwise a Picard linearization is
+                                      adopted
+            """
             self._Gauss_Newton = Gauss_Newton
 
         def set_v(self, v_new):
+            """Modifying the approximation of the state solution.
+
+            Input:
+                - v_new        new approximation of the state solution
+            """
             if v_new.function_space() != self._v.function_space():
                 raise ValueError("Unexpected space")
             else:
@@ -1833,6 +2395,11 @@ class Control:
                     apply_bcs(bcs_v_i, self._v.sub(i))
 
         def set_zeta(self, zeta_new):
+            """Modifying the approximation of the adjoint solution.
+
+            Input:
+                - zeta_new        new approximation of the adjoint solution
+            """
             if zeta_new.function_space() != self._zeta.function_space():
                 raise ValueError("Unexpected space")
             else:
@@ -1842,6 +2409,11 @@ class Control:
                     apply_bcs(bcs_zeta, self._zeta.sub(i))
 
         def set_p(self, p_new):
+            """Modifying the approximation of the pressure state solution.
+
+            Input:
+                - p_new        new approximation of the pressure state solution
+            """
             if self._space_p is not None:
                 if p_new.function_space() != self._p.function_space():
                     raise ValueError("Unexpected space")
@@ -1851,6 +2423,11 @@ class Control:
                 raise ValueError("Undefined space_p: unable to assign value")
 
         def set_mu(self, mu_new):
+            """Modifying the approximation of the pressure adjoint solution.
+
+            Input:
+                - mu_new        new approximation of the pressure adjoint solution
+            """
             if self._space_p is not None:
                 if mu_new.function_space() != self._mu.function_space():
                     raise ValueError("Unexpected space")
@@ -1860,6 +2437,9 @@ class Control:
                 raise ValueError("Undefined space_p: unable to assign value")
 
         def print_error(self, tau):
+            """Print the difference in the discretized L^2-norm
+            between the numerical solution and the desired state.
+            """
             v_err = self._true_v - self._v
             error = sqrt(tau) * sqrt(abs(assemble(inner(v_err, v_err) * dx)))
 
@@ -1872,9 +2452,31 @@ class Control:
 
         def construct_D_v(self, v_trial, v_test, v_n_help, t, *,
                           non_linear_res=False):
+            """Construction of the discretized forward form.
+
+            Input:
+                - v_trial               trial function
+
+                - v_test                test function
+
+                - v_n_help              approximation of the state solution at time t
+
+                - t                     time point in which evaluating the form
+
+                - non_linear_res        if True, the form is employed in the
+                                        evaluation of the non-linear residual
+
+            Output:
+                - D_v                   discretized forward form
+            """
             if (not self._Gauss_Newton) or non_linear_res:
+                # if Gauss--Newton is not applied or we want to
+                # evaluate the residual, we take the Picard linearization
+                # of the forward form
                 D_v_i = self._forward_form(v_trial, v_test, v_n_help, t)
             else:
+                # if we want to apply Gauss--Newton, we take the
+                # derivative of the form in the direction of v_n_help
                 D_v_i = ufl.derivative(
                     self._forward_form(v_n_help, v_test, v_n_help, t),
                     v_n_help,
@@ -1883,6 +2485,16 @@ class Control:
             return D_v_i
 
         def construct_f(self, full_space_v, v_test):
+            """Construction of the vector containing the force function.
+
+            Input:
+                - full_space_v        full space for time integration
+
+                - v_test              test function
+
+            Output:
+                - f                   discretized force function
+            """
             f = Cofunction(full_space_v.dual(), name="f")
 
             n_t = self._n_t
@@ -1903,6 +2515,16 @@ class Control:
             return f
 
         def construct_v_d(self, full_space_v, v_test):
+            """Construction of the vector containing the desired state.
+
+            Input:
+                - full_space_v        full space for time integration
+
+                - v_test              test function
+
+            Output:
+                - v_d                 discretized desired state
+            """
             v_d = Cofunction(full_space_v.dual(), name="v_d")
             true_v = Function(full_space_v, name="true_v")
 
@@ -1929,6 +2551,31 @@ class Control:
 
         def construct_pc(self, auxiliary_sp, full_space_v,
                          bcs_v, bcs_zeta, block_01, block_10, epsilon=None):
+            """Construction of the preconditioner, based on the matching strategy.
+
+            Input:
+                - auxiliary_sp        auxiliary solver parameters for inner blocks
+
+                - full_space_v        full space for time integration
+
+                - bcs_v               homogenized boundary conditions for the state
+                                      variable
+
+                - bcs_zeta            homogenized boundary conditions for the adjoint
+                                      variable
+
+                - block_01            (1,2)-block of the linear system, containing
+                                      discretized adjoint forms
+
+                - block_10            (2,1)-block of the linear system, containing
+                                      discretized state forms
+
+                - epsilon             parameters employed for the construction of
+                                      the preconditioner for the BE discretization
+
+            Output:
+                - pc_linear           preconditioner to employ within Krylov method
+            """
             space_v = self._space_v
             n_t = self._n_t
             beta = self._beta
@@ -1937,6 +2584,7 @@ class Control:
 
             tau = (T_f - t_0) / (n_t - 1.0)
 
+            # solver parameters for the (1,1)-block
             if "sp_11block" in auxiliary_sp:
                 sp_11block = auxiliary_sp["sp_11block"]
             else:
@@ -1946,6 +2594,8 @@ class Control:
                               "ksp_atol": 0.0,
                               "ksp_rtol": 0.0}
 
+            # solver parameters for the factorization of the Schur complement
+            # approximation
             if "sp_Schur" in auxiliary_sp:
                 sp_Schur = auxiliary_sp["sp_Schur"]
             else:
@@ -1968,6 +2618,7 @@ class Control:
             solver_adj ={}
 
             if self._CN:
+                # building the solvers for the preconditioner for trapezi
                 my_const = 0.5 * Constant(tau / (beta**0.5))
 
                 for i in range(n_t - 1):
@@ -1990,6 +2641,8 @@ class Control:
                         converged, prepend=True)
                     solver_adj[(i)] = solver_i_adj
             else:
+                # building the solvers for the preconditioner for
+                # backward Euler
                 my_const = Constant(tau / (beta**0.5))
 
                 block_ii = block_10[(0, 0)]
@@ -2046,6 +2699,7 @@ class Control:
 
             # definition of preconditioner
             if self._CN:
+                # preconditioner for trapezi
                 def pc_linear(u_0, u_1, b_0, b_1):
                     # solving for the (1,1)-block
                     b_0_help = apply_T_1_inv(b_0, space_v, n_t - 1)
@@ -2179,6 +2833,7 @@ class Control:
                                        b_help.copy(deepcopy=True))
                         del b_help
             else:
+                # preconditioner for backward Euler
                 def pc_linear(u_0, u_1, b_0, b_1):
                     # solving for the (1,1)-block
                     for i in range(n_t):
@@ -2305,6 +2960,34 @@ class Control:
 
         def non_linear_res_eval(self, full_space_v, v_old, zeta_old, v_0,
                                 v_d, f, M_v, bcs_v, bcs_zeta):
+            """Construction of the non-linear residual.
+
+            Input:
+                - full_space_v      full space for time integration
+
+                - v_old             approximation of state variable
+
+                - zeta_old          approximation of adjoint variable
+
+                - v_0               initial condition on state variable
+
+                - v_d               desired state
+
+                - f                 force function
+
+                - M_v               mass matrix on the state space
+
+                - bcs_v             homogenized boundary conditions for the state
+                                    variable
+
+                - bcs_zeta          homogenized boundary conditions for the adjoint
+                                    variable
+
+            Output:
+                - rhs_0             non-linear residual (adjoint equation)
+
+                - rhs_1             non-linear residual (state equation)
+            """
             space_v = self._space_v
             n_t = self._n_t
             beta = self._beta
@@ -2319,6 +3002,7 @@ class Control:
             rhs_1 = Cofunction(full_space_v.dual(), name="rhs_1")
 
             if not self._CN:
+                # evaluating the non-linear residual for backward Euler
                 D_v_i = self.construct_D_v(v_trial, v_test,
                                            v_old.sub(0), Constant(t_0),
                                            non_linear_res=True)
@@ -2481,6 +3165,7 @@ class Control:
                     del b_help
                     apply_bcs(bcs_v, rhs_1.sub(i))
             else:
+                # evaluating non-linear residual for trapezi
                 D_v_i = self.construct_D_v(v_trial, v_test,
                                            v_old.sub(0), Constant(t_0),
                                            non_linear_res=True)
@@ -2684,6 +3369,32 @@ class Control:
                          auxiliary_sp={}, v_d=None, f=None,
                          print_error=True, create_output=True,
                          plots=False):
+            """Module for the solution of linear control problems.
+
+            Input:
+                - P                        preconditioner to apply within
+                                           the Krylov method (if None, default
+                                           option is employed)
+
+                - solver_parameters        parameter to pass at the Krylov solver
+
+                - auxiliary_sp             auxiliary parameters for setting solvers
+                                           of inner blocks
+
+                - v_d                      when solving non-linear problems, v_d is
+                                           the non-linear residual (adjoint equation)
+
+                - f                        when solving non-linear problems, f is
+                                           the non-linear residual (state equation)
+
+                - print_error              if True, the L^2 discrepancy between the
+                                           desired state and the numerical solution
+                                           is printed
+
+                - create_output            if True, output is generated
+
+                - plots                    if True, plots of the solutions are generated
+            """
             space_v = self._space_v
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
 
@@ -2710,9 +3421,11 @@ class Control:
                 bcs_v = self._bcs_v[(1)]
             bcs_zeta = bcs_v
 
+            # construction of nullspaces
             nullspace_v = DirichletBCNullspace(bcs_v)
             nullspace_zeta = DirichletBCNullspace(bcs_zeta)
 
+            # construction of full space for time integration
             full_nullspace_v = ()
             full_nullspace_zeta = ()
             for i in range(n_t - 1):
@@ -2726,17 +3439,20 @@ class Control:
             flattened_space_v = tuple(space_v for i in range(n_t))
             full_space_v = MixedFunctionSpace(flattened_space_v)
 
+            # construction of initial condition
             if self._initial_condition is not None:
                 v_0 = self._initial_condition(v_test)
             else:
                 v_0 = Function(space_v, name="v_0")
 
+            # construction of force function
             if f is None:
                 check_f = True
                 f = self.construct_f(full_space_v, v_test)
             else:
                 check_f = False
 
+            # construction of desired state
             if v_d is None:
                 check_v_d = True
                 v_d = self.construct_v_d(full_space_v, v_test)
@@ -2748,6 +3464,7 @@ class Control:
 
             M_v = inner(v_trial, v_test) * dx
 
+            # construction of the blocks of the system
             block_00 = {}
             block_01 = {}
             block_10 = {}
@@ -2839,6 +3556,7 @@ class Control:
                 block_10[(n_t - 1, n_t - 2)] = - M_v
                 block_10[(n_t - 1, n_t - 1)] = Constant(tau) * D_v_i + M_v
 
+            # construction of right-hand side
             if not self._CN:
                 b_0 = Cofunction(full_space_v.dual(), name="b_0")
                 b_1 = Cofunction(full_space_v.dual(), name="b_1")
@@ -2850,6 +3568,7 @@ class Control:
                 b_1 = Cofunction(full_space_v_help.dual(), name="b_1")
 
             if not self._CN:
+                # backward Euler
                 if check_v_d:
                     b_0.sub(0).assign(tau * v_d.sub(0))
 
@@ -2980,6 +3699,7 @@ class Control:
                 else:
                     b_1.sub(n_t - 1).assign(f.sub(n_t - 1))
             else:
+                # trapezi
                 for i in range(n_t - 1):
                     if check_v_d:
                         b_0.sub(i).assign(
@@ -3086,6 +3806,7 @@ class Control:
                 b_0 = apply_T_1(b_0, space_v, n_t - 1)
                 b_1 = apply_T_2(b_1, space_v, n_t - 1)
 
+            # construction of the preconditioner
             if P is None:
                 if self._CN:
                     pc_fn = self.construct_pc(auxiliary_sp,
@@ -3108,14 +3829,16 @@ class Control:
                               full_space_v,
                               bcs_v, bcs_zeta)
 
+            # solver parameters for the linear system to be solver
             if solver_parameters is None:
                 solver_parameters = {"linear_solver": "gmres",
                                      "gmres_restart": 10,
                                      "maximum_iterations": 50,
                                      "relative_tolerance": 1.0e-6,
                                      "absolute_tolerance": 0.0,
-                                     "monitor_convergence": print_error}
+                                     "monitor_convergence": True}
 
+            # building the system
             if not self._CN:
                 system = MultiBlockSystem(
                     space_v, space_v,
@@ -3145,11 +3868,13 @@ class Control:
             v.zero()
             zeta.zero()
 
+            # solving the system
             system.solve(
                 v, zeta, b_0, b_1,
                 solver_parameters=solver_parameters,
                 pc_fn=pc_fn)
 
+            # updating the solutions
             if self._CN:
                 v_new = Function(full_space_v, name="v_new")
                 zeta_new = Function(full_space_v, name="zeta_new")
@@ -3182,22 +3907,20 @@ class Control:
 
             PETSc.garbage_cleanup(self._comm)
 
+            # printing L^2 discrepancy between the desired state and the
+            # numerical solution
             if print_error:
                 self.print_error(tau)
 
+            # creating output
             if create_output:
-                v_output = File("v.pvd")
-                v_output.write(v)
-
-                zeta_output = File("zeta.pvd")
-                zeta_output.write(zeta)
-
                 with CheckpointFile("v.h5", "w") as h:
                     h.save_function(v)
 
                 with CheckpointFile("zeta.h5", "w") as h:
                     h.save_function(zeta)
 
+            # plotting the solutions
             if plots:
                 for i in range(n_t):
                     try:
@@ -3226,10 +3949,35 @@ class Control:
                              max_non_linear_iter=10,
                              relative_non_linear_tol=1.0e-5,
                              absolute_non_linear_tol=1.0e-8,
-                             print_error_linear=False,
                              print_error_non_linear=True,
                              create_output=True,
                              plots=False):
+            """Module for the solution of non-linear control problems.
+
+            Input:
+                - P                           preconditioner to apply within
+                                              the Krylov method (if None, default
+                                              option is employed)
+
+                - solver_parameters           parameter to pass at the Krylov solver
+
+                - auxiliary_sp                auxiliary parameters for setting solvers
+                                              of inner blocks
+
+                - max_non_linear_iter         maximum number of non-linear iteration
+
+                - relative_non_linear_tol     relative non-linear tolerance
+
+                - absolute_non_linear_tol     absolute non-linear tolerance
+
+                - print_error_non_linear      if True, the L^2 discrepancy between the
+                                              desired state and the numerical solution
+                                              is printed
+
+                - create_output               if True, output is generated
+
+                - plots                       if True, plots of the solutions are generated
+            """
             space_v = self._space_v
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
 
@@ -3251,6 +3999,7 @@ class Control:
                 bcs_v = self._bcs_v[(1)]
             bcs_zeta = bcs_v
 
+            # full space for time integration
             flattened_space_v = tuple(space_v for i in range(n_t))
             full_space_v = MixedFunctionSpace(flattened_space_v)
 
@@ -3262,6 +4011,7 @@ class Control:
             v_old.assign(self._v)
             zeta_old.assign(self._zeta)
 
+            # construction of the initial condition
             if self._initial_condition is not None:
                 v_0 = self._initial_condition(v_test)
             else:
@@ -3271,8 +4021,10 @@ class Control:
                 v_old.sub(0).assign(v_0)
             zeta_old.sub(n_t - 1).assign(Constant(0.0))
 
+            # construction of the force function
             f = self.construct_f(full_space_v, v_test)
 
+            # construction of the desired state
             v_d = self.construct_v_d(full_space_v, v_test)
 
             M_v = inner(v_trial, v_test) * dx
@@ -3281,6 +4033,7 @@ class Control:
                 flattened_space_v_help = tuple(space_v for i in range(n_t - 1))
                 full_space_v_help = MixedFunctionSpace(flattened_space_v_help)
 
+            # building the non-linear residual
             if self._CN:
                 rhs_0, rhs_1 = self.non_linear_res_eval(
                     full_space_v_help, v_old, zeta_old, v_0,
@@ -3301,6 +4054,7 @@ class Control:
                     rhs.sub(i).assign(rhs_0.sub(i))
                     rhs.sub(n_t - 1 + i).assign(rhs_1.sub(i))
 
+            # norm of the initial non-linear residual
             with rhs.dat.vec_ro as b_v:
                 norm_0 = b_v.norm()
             norm_k = norm_0
@@ -3310,16 +4064,16 @@ class Control:
             print(f'Initial non-linear residual: {norm_0:.16e}')
 
             while (norm_k > relative_non_linear_tol * norm_0 and norm_k > absolute_non_linear_tol):  # noqa: E501
-                self.linear_solve(P=P, solver_parameters=solver_parameters,
-                                  auxiliary_sp=auxiliary_sp,
-                                  v_d=rhs_0, f=rhs_1,
-                                  print_error=print_error_linear,
-                                  create_output=False,
-                                  plots=False)
+                # solving for the linearized system
+                self.linear_solve(
+                    P=P, solver_parameters=solver_parameters,
+                    auxiliary_sp=auxiliary_sp, v_d=rhs_0, f=rhs_1,
+                    print_error=False, create_output=False, plots=False)
 
                 delta_v.assign(self._v)
                 delta_zeta.assign(self._zeta)
 
+                # updating the solutions
                 with delta_v.dat.vec_ro as b_v, \
                         v_old.dat.vec as b_0_v:
                     b_0_v.axpy(1.0, b_v)
@@ -3341,6 +4095,7 @@ class Control:
 
                 PETSc.garbage_cleanup(self._comm)
 
+                # evaluating non-linear residual
                 rhs_0, rhs_1 = self.non_linear_res_eval(
                     full_space_v, v_old, zeta_old, v_0,
                     v_d, f, M_v, bcs_v, bcs_zeta)
@@ -3354,6 +4109,7 @@ class Control:
                         rhs.sub(i).assign(rhs_0.sub(i))
                         rhs.sub(n_t - 1 + i).assign(rhs_1.sub(i))
 
+                # norm of non-linear residual
                 with rhs.dat.vec_ro as b_v:
                     norm_k = b_v.norm()
 
@@ -3377,7 +4133,9 @@ class Control:
             del f
             del v_d
 
-            if print_error_non_linear is True:
+            # printing L^2 discrepancy between the desired state and the
+            # numerical solution
+            if print_error_non_linear:
                 if (norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol):  # noqa: E501
                     if norm_0 > 0.:
                         print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')  # noqa: E501
@@ -3392,19 +4150,15 @@ class Control:
 
             PETSc.garbage_cleanup(self._comm)
 
-            if create_output is True:
-                v_output = File("v.pvd")
-                v_output.write(self._v)
-
-                zeta_output = File("zeta.pvd")
-                zeta_output.write(self._zeta)
-
+            # creating output
+            if create_output:
                 with CheckpointFile("v.h5", "w") as h:
                     h.save_function(self._v)
 
                 with CheckpointFile("zeta.h5", "w") as h:
                     h.save_function(self._zeta)
 
+            # plotting the solutions
             if plots:
                 for i in range(n_t):
                     try:
@@ -3429,6 +4183,46 @@ class Control:
                                         div_v=None, div_zeta=None,
                                         print_error=True,
                                         create_output=True, plots=False):
+            """Module for the solution of linear incompressible control problems.
+
+            Input:
+                - nullspace_p              nullspace of the corresponding forward
+                                           stationary incompressible problem
+
+                - space_p                  pressure space, if not passed to the
+                                           constructor
+
+                - P                        preconditioner to apply within
+                                           the Krylov method (if None, default
+                                           option is employed)
+
+                - solver_parameters        parameter to pass at the Krylov solver
+
+                - auxiliary_sp             auxiliary parameters for setting solvers
+                                           of inner blocks
+
+                - v_d                      when solving non-linear problems, v_d is
+                                           the non-linear residual (adjoint equation)
+
+                - f                        when solving non-linear problems, f is
+                                           the non-linear residual (state equation)
+
+                - div_v                    when solving non-linear problems, div_v is
+                                           the non-linear residual (incompressibility
+                                           constraint on state variable)
+
+                - div_zeta                 when solving non-linear problems, div_zeta is
+                                           the non-linear residual (incompressibility
+                                           constraint on adjoint variable)
+
+                - print_error              if True, the L^2 discrepancy between the
+                                           desired state and the numerical solution
+                                           is printed
+
+                - create_output            if True, output is generated
+
+                - plots                    if True, plots of the solutions are generated
+            """
             space_v = self._space_v
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
 
@@ -3464,6 +4258,7 @@ class Control:
                 bcs_v = self._bcs_v[(1)]
             bcs_zeta = bcs_v
 
+            # construction of nullspaces
             nullspace_v = DirichletBCNullspace(bcs_v)
             nullspace_zeta = DirichletBCNullspace(bcs_zeta)
 
@@ -3482,6 +4277,7 @@ class Control:
             full_nullspace_0 = full_nullspace_v + full_nullspace_zeta
             full_nullspace_1 = full_nullspace_p + full_nullspace_p
 
+            # construction of full space for time integration
             flattened_space_v = tuple(space_v for i in range(n_t))
             full_space_v = MixedFunctionSpace(flattened_space_v)
             if not self._CN:
@@ -3515,17 +4311,20 @@ class Control:
             b_1_0 = Cofunction(full_space_p.dual(), name="b_1_0")
             b_1_1 = Cofunction(full_space_p.dual(), name="b_1_1")
 
+            # construction of initial condition
             if self._initial_condition is not None:
                 v_0 = self._initial_condition(v_test)
             else:
                 v_0 = Function(space_v, name="v_0")
 
+            # construction of force function
             if f is None:
                 check_f = True
                 f = self.construct_f(full_space_v, v_test)
             else:
                 check_f = False
 
+            # construction of desired state
             if v_d is None:
                 check_v_d = True
                 v_d = self.construct_v_d(full_space_v, v_test)
@@ -3539,6 +4338,8 @@ class Control:
             B = - inner(div(v_trial), p_test) * dx
             B_T = - inner(p_trial, div(v_test)) * dx
 
+            # construction of the blocks of the whole system and
+            # of the blocks for the inner system
             block_00 = {}
             block_01 = {}
             block_10 = {}
@@ -3790,7 +4591,9 @@ class Control:
             del block_00_p
             del block_11_p
 
+            # construction of the right-hand side
             if not self._CN:
+                # backward Euler
                 if check_v_d:
                     b_0_0.sub(0).assign(tau * v_d.sub(0))
                     if inhomogeneous_bcs_v:
@@ -3942,6 +4745,7 @@ class Control:
                     b_1.sub(i).assign(b_1_0.sub(i))
                     b_1.sub(index).assign(b_1_1.sub(i))
             else:
+                # trapezi
                 for i in range(n_t - 1):
                     if check_v_d:
                         b_0_0.sub(i).assign(
@@ -4081,6 +4885,7 @@ class Control:
             del b_1_0
             del b_1_1
 
+            # construction of the system
             if not self._CN:
                 system = MultiBlockSystem(
                     space_v, space_p,
@@ -4099,15 +4904,18 @@ class Control:
                     nullspace_0=full_nullspace_0, nullspace_1=full_nullspace_1,
                     CN=self._CN)
 
+            # solver parameters for the whole system
             if solver_parameters is None:
                 solver_parameters = {"linear_solver": "fgmres",
                                      "fgmres_restart": 10,
                                      "maximum_iterations": 100,
                                      "relative_tolerance": 1.0e-6,
                                      "absolute_tolerance": 0.0,
-                                     "monitor_convergence": print_error}
+                                     "monitor_convergence": True}
 
+            # construction of the preconditioner
             if P is None:
+                # sp for the pressure stiffness matrix
                 if "sp_K_p" in auxiliary_sp:
                     sp_K_p = auxiliary_sp["sp_K_p"]
                 else:
@@ -4119,6 +4927,7 @@ class Control:
                               "ksp_atol": 0.0,
                               "ksp_rtol": 0.0}
 
+                # sp for the pressure mass matrix
                 if "sp_M_p" in auxiliary_sp:
                     sp_M_p = auxiliary_sp["sp_M_p"]
                 else:
@@ -4128,16 +4937,19 @@ class Control:
                               "ksp_atol": 0.0,
                               "ksp_rtol": 0.0}
 
+                # solver for the pressure stiffness matrix
                 solver_K_p = LinearSolver(
                     assemble(K_p),
                     solver_parameters=sp_K_p)
                 solver_K_p.ksp.addConvergenceTest(converged, prepend=True)
 
+                # solver for the pressure mass matrix
                 solver_M_p = LinearSolver(
                     assemble(M_p),
                     solver_parameters=sp_M_p)
                 solver_M_p.ksp.addConvergenceTest(converged, prepend=True)
 
+                # parameters for the inner system
                 if "sp_inner" in auxiliary_sp:
                     inner_solver_parameters = auxiliary_sp["sp_inner"]
                 else:
@@ -4151,6 +4963,7 @@ class Control:
 
                 # definition of preconditioner
                 if self._CN:
+                    # inner solver for trapezi
                     self._inner_system = MultiBlockSystem(
                         space_v, space_v,
                         block_00=block_00_int, block_01=block_01_int,
@@ -4164,6 +4977,7 @@ class Control:
                         auxiliary_sp, full_space_v_help,
                         bcs_v, bcs_zeta, block_01_int, block_10_int)
 
+                    # preconditioner for trapezi
                     def pc_fn(u_0, u_1, b_0, b_1):
                         b_0_help = Cofunction(full_space_v_help.dual())
                         b_1_help = Cofunction(full_space_v_help.dual())
@@ -4179,6 +4993,7 @@ class Control:
                         v_help.zero()
                         zeta_help.zero()
 
+                        # solving for the (1,1)-block
                         try:
                             inner_ksp_solver = self._inner_system.solve(
                                 v_help, zeta_help, b_0_help, b_1_help,
@@ -4227,7 +5042,8 @@ class Control:
                                     b_1.sub(index).dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
 
-                        # solving for the Schur complement approximation
+                        # solving for the Schur complement approximation (apply
+                        # block-pressure convection--diffusion preconditioner)
                         for i in range(n_t - 1):
                             with b_0_help.sub(i).dat.vec as b_v:
                                 b_v.scale(Constant(1.0 / (tau**2)))
@@ -4321,6 +5137,7 @@ class Control:
 
                         PETSc.garbage_cleanup(self._comm)
                 else:
+                    # inner solver for backward Euler
                     self._inner_system = MultiBlockSystem(
                         space_v, space_v,
                         block_00=block_00_int, block_01=block_01_int,
@@ -4335,6 +5152,7 @@ class Control:
                         bcs_v, bcs_zeta, block_01_int, block_10_int,
                         epsilon=epsilon)
 
+                    # preconditioner for bacward Euler
                     def pc_fn(u_0, u_1, b_0, b_1):
                         b_0_help = Cofunction(full_space_v.dual())
                         b_1_help = Cofunction(full_space_v.dual())
@@ -4350,6 +5168,7 @@ class Control:
                         v_help.zero()
                         zeta_help.zero()
 
+                        # solving for the (1,1)-block
                         try:
                             inner_ksp_solver = self._inner_system.solve(
                                 v_help, zeta_help, b_0_help, b_1_help,
@@ -4396,7 +5215,8 @@ class Control:
                                     b_1.sub(index).dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
 
-                        # solving for the Schur complement approximation
+                        # solving for the Schur complement approximation (apply
+                        # block-pressure convection--diffusion preconditioner)
                         for i in range(n_t):
                             with b_0_help.sub(i).dat.vec as b_v:
                                 b_v.scale(Constant(1.0 / (tau**2)))
@@ -4498,6 +5318,7 @@ class Control:
             u_0_sol.zero()
             u_1_sol.zero()
 
+            # solving the system
             system.solve(
                 u_0_sol, u_1_sol, b_0, b_1,
                 solver_parameters=solver_parameters,
@@ -4512,6 +5333,7 @@ class Control:
             p = Function(full_space_p, name="p")
             mu = Function(full_space_p, name="mu")
 
+            # updating the solutions
             if self._CN:
                 if check_f and check_v_d:
                     v.sub(0).assign(v_0)
@@ -4559,22 +5381,13 @@ class Control:
                 del self._inner_pc_fn
                 del self._inner_system
 
+            # printing L^2 discrepancy between the desired state and the
+            # numerical solution
             if print_error:
                 self.print_error(tau)
 
+            # creating output
             if create_output:
-                v_output = File("v.pvd")
-                v_output.write(v)
-
-                zeta_output = File("zeta.pvd")
-                zeta_output.write(zeta)
-
-                p_output = File("p.pvd")
-                p_output.write(p)
-
-                mu_output = File("mu.pvd")
-                mu_output.write(mu)
-
                 with CheckpointFile("v.h5", "w") as h:
                     h.save_function(v)
 
@@ -4587,6 +5400,7 @@ class Control:
                 with CheckpointFile("mu.h5", "w") as h:
                     h.save_function(mu)
 
+            # plotting the solutions
             if plots:
                 for i in range(n_t - 1):
                     try:
@@ -4663,10 +5477,41 @@ class Control:
                                             max_non_linear_iter=10,
                                             relative_non_linear_tol=1.0e-5,
                                             absolute_non_linear_tol=1.0e-8,
-                                            print_error_linear=False,
                                             print_error_non_linear=True,
                                             create_output=True,
                                             plots=False):
+            """Module for the solution of non-linear incompressible control problems.
+
+            Input:
+                - nullspace_p                nullspace of the corresponding forward
+                                             stationary incompressible problem
+
+                - space_p                    pressure space, if not passed to the
+                                             constructor
+
+                - P                          preconditioner to apply within
+                                             the Krylov method (if None, default
+                                             option is employed)
+
+                - solver_parameters          parameter to pass at the Krylov solver
+
+                - auxiliary_sp               auxiliary parameters for setting solvers
+                                             of inner blocks
+
+                - max_non_linear_iter        maximum number of non-linear iteration
+
+                - relative_non_linear_tol    relative non-linear tolerance
+
+                - absolute_non_linear_tol    absolute non-linear tolerance
+
+                - print_error_non_linear     if True, the L^2 discrepancy between the
+                                             desired state and the numerical solution
+                                             is printed
+
+                - create_output              if True, output is generated
+
+                - plots                      if True, plots of the solutions are generated
+            """
             space_v = self._space_v
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
             if space_p is None:
@@ -4696,6 +5541,7 @@ class Control:
                 bcs_v = self._bcs_v[(1)]
             bcs_zeta = bcs_v
 
+            # construction of the full space for time integration
             flattened_space_v = tuple(space_v for i in range(n_t))
             full_space_v = MixedFunctionSpace(flattened_space_v)
 
@@ -4726,6 +5572,7 @@ class Control:
             p_old.assign(self._p)
             mu_old.assign(self._mu)
 
+            # construction of initial condition
             if self._initial_condition is not None:
                 v_0 = self._initial_condition(v_test)
             else:
@@ -4735,8 +5582,10 @@ class Control:
                 v_old.sub(0).assign(v_0)
             zeta_old.sub(n_t - 1).assign(Constant(0.0))
 
+            # construction of force function
             f = self.construct_f(full_space_v, v_test)
 
+            # construction of desired state
             v_d = self.construct_v_d(full_space_v, v_test)
 
             M_v = inner(v_trial, v_test) * dx
@@ -4744,6 +5593,7 @@ class Control:
             B = - inner(div(v_trial), p_test) * dx
             B_T = - inner(p_trial, div(v_test)) * dx
 
+            # function used for the construction of the non-linear residual
             def non_linear_res_eval():
                 rhs_10 = Cofunction(full_space_p.dual(), name="rhs_10")
                 rhs_11 = Cofunction(full_space_p.dual(), name="rhs_11")
@@ -4848,6 +5698,7 @@ class Control:
 
                 return rhs_00, rhs_01, rhs_10, rhs_11
 
+            # evaluating the non-linear residual
             rhs_00, rhs_01, rhs_10, rhs_11 = non_linear_res_eval()
 
             if not self._CN:
@@ -4865,6 +5716,7 @@ class Control:
                     rhs.sub(2 * n_t - 2 + i).assign(rhs_10.sub(i))
                     rhs.sub(3 * n_t - 3 + i).assign(rhs_11.sub(i))
 
+            # norm of the initial non-linear residual
             with rhs.dat.vec_ro as b_v:
                 norm_0 = b_v.norm()
             norm_k = norm_0
@@ -4879,15 +5731,14 @@ class Control:
             print(f'Initial non-linear residual: {norm_0:.16e}')
 
             while (norm_k > relative_non_linear_tol * norm_0 and norm_k > absolute_non_linear_tol):  # noqa: E501
+                # solving for the linearization
                 self.incompressible_linear_solve(
                     nullspace_p, space_p=space_p,
                     P=P, solver_parameters=solver_parameters,
                     auxiliary_sp=auxiliary_sp,
                     v_d=rhs_00, f=rhs_01,
                     div_v=rhs_10, div_zeta=rhs_11,
-                    print_error=print_error_linear,
-                    create_output=False,
-                    plots=False)
+                    print_error=False, create_output=False, plots=False)
 
                 delta_v.assign(self._v)
                 delta_zeta.assign(self._zeta)
@@ -4895,6 +5746,7 @@ class Control:
                 delta_p.assign(self._p)
                 delta_mu.assign(self._mu)
 
+                # udpating the solutions
                 with delta_v.dat.vec_ro as b_v, \
                         v_old.dat.vec as b_0_v:
                     b_0_v.axpy(1.0, b_v)
@@ -4929,6 +5781,7 @@ class Control:
 
                 PETSc.garbage_cleanup(self._comm)
 
+                # evaluating the non-linear residual
                 rhs_00, rhs_01, rhs_10, rhs_11 = non_linear_res_eval()
 
                 if not self._CN:
@@ -4944,6 +5797,7 @@ class Control:
                         rhs.sub(2 * n_t - 2 + i).assign(rhs_10.sub(i))
                         rhs.sub(3 * n_t - 3 + i).assign(rhs_11.sub(i))
 
+                # norm of the non-linear residual
                 with rhs.dat.vec_ro as b_v:
                     norm_k = b_v.norm()
 
@@ -4981,6 +5835,8 @@ class Control:
             del B
             del B_T
 
+            # printing L^2 discrepancy between the desired state and the
+            # numerical solution
             if print_error_non_linear:
                 if (norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol):  # noqa: E501
                     if norm_0 > 0.:
@@ -4996,19 +5852,8 @@ class Control:
 
             PETSc.garbage_cleanup(self._comm)
 
+            # creating output
             if create_output:
-                v_output = File("v.pvd")
-                v_output.write(self._v)
-
-                zeta_output = File("zeta.pvd")
-                zeta_output.write(self._zeta)
-
-                p_output = File("p.pvd")
-                p_output.write(self._p)
-
-                mu_output = File("mu.pvd")
-                mu_output.write(self._mu)
-
                 with CheckpointFile("v.h5", "w") as h:
                     h.save_function(self._v)
 
@@ -5021,6 +5866,7 @@ class Control:
                 with CheckpointFile("mu.h5", "w") as h:
                     h.save_function(self._mu)
 
+            # plotting the solutions
             if plots:
                 for i in range(n_t - 1):
                     try:
