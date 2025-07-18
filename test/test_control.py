@@ -1,25 +1,25 @@
-#! /usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from firedrake import *
 
 from control.control import *
 from control.preconditioner import *
 
 from tlm_adjoint.firedrake import (
-    Functional, compute_gradient, minimize_scipy, reset_manager,
+    Functional, clear_caches, compute_gradient, minimize_scipy, reset_manager,
     start_manager, stop_manager)
 
 import petsc4py.PETSc as PETSc
-import mpi4py.MPI as MPI
 import numpy as np
 import ufl
 import pytest
 
 
-pytestmark = pytest.mark.skipif(
-    MPI.COMM_WORLD.size not in [1, 4],
-    reason="tests must be run in serial, or with 4 processes")
+@pytest.fixture(autouse=True, scope="module")
+def cleanup():
+    reset_manager("memory", {})
+    clear_caches()
+    yield
+    reset_manager("memory", {})
+    clear_caches()
 
 
 def test_stationary_linear_control():
