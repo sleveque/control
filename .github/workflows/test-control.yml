@@ -31,7 +31,7 @@ jobs:
         run: |
           python3 -m venv --system-site-packages control_venv
           . control_venv/bin/activate
-          python3 -m pip install tlm_adjoint@git+https://github.com/tlm-adjoint/tlm_adjoint.git
+          python3 -m pip install tlm_adjoint@git+https://github.com/tlm-adjoint/tlm_adjoint.git@71a00578b53db6982793a8afc3c2f730f627ff63
       - name: Run tests
         run: |
           . control_venv/bin/activate
