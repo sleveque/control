@@ -1,26 +1,25 @@
-#! /usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from firedrake import *
 
-from preconditioner import *
-
-from control import *
+from control.control import *
+from control.preconditioner import *
 
 from tlm_adjoint.firedrake import (
-    Functional, compute_gradient, minimize_scipy, reset_manager,
+    Functional, clear_caches, compute_gradient, minimize_scipy, reset_manager,
     start_manager, stop_manager)
 
 import petsc4py.PETSc as PETSc
-import mpi4py.MPI as MPI
 import numpy as np
 import ufl
 import pytest
 
 
-pytestmark = pytest.mark.skipif(
-    MPI.COMM_WORLD.size not in [1, 4],
-    reason="tests must be run in serial, or with 4 processes")
+@pytest.fixture(autouse=True, scope="module")
+def cleanup():
+    reset_manager("memory", {})
+    clear_caches()
+    yield
+    reset_manager("memory", {})
+    clear_caches()
 
 
 def test_stationary_linear_control():
@@ -833,7 +832,7 @@ def test_Picard_stationary_non_linear_control_with_reference_sol():
         my_control_stationary.non_linear_solve(
             solver_parameters=solver_parameters,
             max_non_linear_iter=100, relative_non_linear_tol=1.0e-10,
-            print_error_linear=False, create_output=False,
+            create_output=False,
             plots=False)
 
         my_v = Function(space_0)
@@ -993,7 +992,7 @@ def test_GN_stationary_non_linear_control_with_reference_sol():
         my_control_stationary.non_linear_solve(
             solver_parameters=solver_parameters,
             max_non_linear_iter=100, relative_non_linear_tol=1.0e-9,
-            print_error_linear=False, create_output=False,
+            create_output=False,
             plots=False)
 
         my_v = Function(space_0)
@@ -1170,7 +1169,7 @@ def test_stationary_incompressible_non_linear_control():
         ConstantNullspace(), auxiliary_sp=auxiliary_sp,
         max_non_linear_iter=5,
         relative_non_linear_tol=1.0e-5, absolute_non_linear_tol=1.0e-8,
-        print_error_linear=False, print_error_non_linear=False,
+        print_error_non_linear=False,
         create_output=False, plots=False)
 
     my_v = Function(space_v)
@@ -1307,7 +1306,7 @@ def test_MMS_stationary_Navier_Stokes_control():
                 auxiliary_sp=auxiliary_sp,
                 max_non_linear_iter=10, relative_non_linear_tol=1.0e-9,
                 absolute_non_linear_tol=1.0e-9,
-                print_error_linear=False, print_error_non_linear=False,
+                print_error_non_linear=False,
                 create_output=False, plots=False)
 
             my_v = Function(space_0, name="my_v")
@@ -4466,6 +4465,7 @@ def test_MMS_instationary_Stokes_control_CN_convergence_time():
     print(f"{degree=} {zeta_orders=}")
 
 
+@pytest.mark.large
 def test_instationary_Navier_Stokes_BE():
     # defining the mesh
     mesh_size = 3
@@ -4589,7 +4589,7 @@ def test_instationary_Navier_Stokes_BE():
         solver_parameters=solver_parameters,
         auxiliary_sp=auxiliary_sp,
         relative_non_linear_tol=1.0e-3, max_non_linear_iter=10,
-        print_error_linear=False, create_output=False)
+        create_output=False)
 
     del my_control_instationary
     PETSc.garbage_cleanup(space_v.mesh().comm)
@@ -4718,12 +4718,13 @@ def test_instationary_Navier_Stokes_CN():
         solver_parameters=solver_parameters,
         auxiliary_sp=auxiliary_sp,
         relative_non_linear_tol=1.0e-3, max_non_linear_iter=10,
-        print_error_linear=False, create_output=False)
+        create_output=False)
 
     del my_control_instationary
     PETSc.garbage_cleanup(space_v.mesh().comm)
 
 
+@pytest.mark.large
 def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
     degree = 2
     p_range = (1, 3)
@@ -4886,7 +4887,7 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
             auxiliary_sp=auxiliary_sp,
             max_non_linear_iter=10, relative_non_linear_tol=1.0e-4,
             absolute_non_linear_tol=1.0e-4,
-            print_error_linear=False, print_error_non_linear=False,
+            print_error_non_linear=False,
             create_output=False, plots=False)
 
         flattened_space_v = tuple(space_v for i in range(n_t))
@@ -4937,6 +4938,7 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
     print(f"{degree=} {zeta_orders=}")
 
 
+@pytest.mark.large
 def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
     degree = 2
     p_range = (0, 2)
@@ -5098,7 +5100,7 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
             auxiliary_sp=auxiliary_sp,
             max_non_linear_iter=6, relative_non_linear_tol=1.0e-4,
             absolute_non_linear_tol=1.0e-4,
-            print_error_linear=False, print_error_non_linear=False,
+            print_error_non_linear=False,
             create_output=False, plots=False)
 
         flattened_space_v = tuple(space_v for i in range(n_t))
@@ -5310,7 +5312,7 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE():
                 auxiliary_sp=auxiliary_sp,
                 max_non_linear_iter=10, relative_non_linear_tol=1.0e-4,
                 absolute_non_linear_tol=1.0e-4,
-                print_error_linear=False, print_error_non_linear=False,
+                print_error_non_linear=False,
                 create_output=False, plots=False)
 
             flattened_space_v = tuple(space_v for i in range(n_t))
@@ -5361,6 +5363,7 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE():
         print(f"{degree=} {zeta_orders=}")
 
 
+@pytest.mark.large
 def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
     degree = 2
     p_range = (0, 2)
@@ -5521,7 +5524,7 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
             auxiliary_sp=auxiliary_sp,
             max_non_linear_iter=10, relative_non_linear_tol=1.0e-4,
             absolute_non_linear_tol=1.0e-4,
-            print_error_linear=False, print_error_non_linear=False,
+            print_error_non_linear=False,
             create_output=False, plots=False)
 
         flattened_space_v = tuple(space_v for i in range(n_t))

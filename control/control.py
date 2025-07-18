@@ -9,7 +9,7 @@ from firedrake.output import VTKFile as File
 
 import ufl
 
-from preconditioner import *
+from .preconditioner import *
 
 import petsc4py.PETSc as PETSc
 
