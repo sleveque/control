@@ -1,0 +1,4 @@
+[tool.pytest.ini_options]
+
+markers = [
+    "large: tests which use a large amount of memory"]

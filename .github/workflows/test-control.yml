@@ -36,4 +36,5 @@ jobs:
         run: |
           . control_venv/bin/activate
           cd control
-          python -m pytest -v test -n 4 --timeout=300 --timeout-method=thread
+          python -m pytest -v test -n 4 --timeout=300 --timeout-method=thread -m "not large"
+          python -m pytest -v test --timeout=600 --timeout-method=thread -m large

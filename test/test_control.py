@@ -4465,6 +4465,7 @@ def test_MMS_instationary_Stokes_control_CN_convergence_time():
     print(f"{degree=} {zeta_orders=}")
 
 
+@pytest.mark.large
 def test_instationary_Navier_Stokes_BE():
     # defining the mesh
     mesh_size = 3
@@ -4723,6 +4724,7 @@ def test_instationary_Navier_Stokes_CN():
     PETSc.garbage_cleanup(space_v.mesh().comm)
 
 
+@pytest.mark.large
 def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
     degree = 2
     p_range = (1, 3)
@@ -4936,6 +4938,7 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
     print(f"{degree=} {zeta_orders=}")
 
 
+@pytest.mark.large
 def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
     degree = 2
     p_range = (0, 2)
@@ -5360,6 +5363,7 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE():
         print(f"{degree=} {zeta_orders=}")
 
 
+@pytest.mark.large
 def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
     degree = 2
     p_range = (0, 2)
