@@ -1,0 +1,39 @@
+name: test-control
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: firedrakeproject/firedrake-vanilla-default:2025.4.2
+      options: --user root
+    env:
+      OMP_NUM_THREADS: 1
+      OPENBLAS_NUM_THREADS: 1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: 'control'
+      - name: Install dependencies
+        run: |
+          python3 -m venv --system-site-packages control_venv
+          . control_venv/bin/activate
+          python3 -m pip install tlm_adjoint@git+https://github.com/tlm-adjoint/tlm_adjoint.git
+      - name: Run tests
+        run: |
+          . control_venv/bin/activate
+          cd control
+          python -m pytest -v test -n 4 --timeout=300 --timeout-method=thread
