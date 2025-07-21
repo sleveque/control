@@ -1,11 +1,13 @@
 from firedrake import *
+from firedrake.adjoint import (
+    Control as Control_ad, ReducedFunctional, compute_gradient,
+    continue_annotation, get_working_tape, minimize, pause_annotation,
+    set_working_tape)
 
 from control.control import *
 from control.preconditioner import *
 
-from tlm_adjoint.firedrake import (
-    Functional, clear_caches, compute_gradient, minimize_scipy, reset_manager,
-    start_manager, stop_manager)
+from functools import partial
 
 import petsc4py.PETSc as PETSc
 import numpy as np
@@ -15,11 +17,8 @@ import pytest
 
 @pytest.fixture(autouse=True, scope="module")
 def cleanup():
-    reset_manager("memory", {})
-    clear_caches()
-    yield
-    reset_manager("memory", {})
-    clear_caches()
+    with set_working_tape():
+        yield
 
 
 def test_stationary_linear_control():
@@ -709,34 +708,31 @@ def test_stationary_linear_control_with_reference_sol():
                                      "ksp_type": "preonly",
                                      "pc_type": "cholesky"})
 
-            J = Functional(name="J")
-            J.assign(inner(u - u_ref, u - u_ref) * dx
-                     + beta * beta * inner(m_0, m_0) * dx
-                     + inner(m_1, m_1) * ds)
-            return J
+            return assemble(inner(u - u_ref, u - u_ref) * dx
+                            + beta * beta * inner(m_0, m_0) * dx
+                            + inner(m_1, m_1) * ds)
 
         u_ref = Function(space_0, name="u_ref")
         u_ref.interpolate(reference(X))
         m0 = Function(space_0, name="m0")
 
-        def forward_J(m):
-            return forward(u_ref, m)
+        forward_J = partial(forward, u_ref)
 
-        m, result = minimize_scipy(forward_J, m0,
-                                   method="L-BFGS-B",
-                                   options={"ftol": 0.0,
-                                            "gtol": 1.0e-8,
-                                            "disp": False})
-        assert result.success
+        continue_annotation()
+        J = forward_J(m0)
+        pause_annotation()
 
-        m_ = m.copy(deepcopy=True)
-        start_manager()
-        J = forward_J(m_)
-        stop_manager()
-        dJ = compute_gradient(J, m_)
-        reset_manager()
-        stop_manager()
-        del m_
+        m = minimize(
+            ReducedFunctional(J, Control_ad(m0)),
+            method="L-BFGS-B",
+            options={"ftol": 0.0,
+                     "gtol": 1.0e-8},
+            derivative_options={"riesz_representation": "l2"})
+
+        dJ = compute_gradient(
+            J, Control_ad(m0),
+            options={"riesz_representation": "l2"}).riesz_representation("l2")
+        get_working_tape().clear_tape()
 
         dJ_dual = Function(space_0, name="dJ_dual")
         M_solver = LinearSolver(assemble(inner(trial_0, test_0) * dx),
@@ -866,34 +862,31 @@ def test_Picard_stationary_non_linear_control_with_reference_sol():
                                      "ksp_type": "preonly",
                                      "pc_type": "cholesky"})
 
-            J = Functional(name="J")
-            J.assign(inner(u - u_ref, u - u_ref) * dx
-                     + beta * beta * inner(m_0, m_0) * dx
-                     + inner(m_1, m_1) * ds)
-            return J
+            return assemble(inner(u - u_ref, u - u_ref) * dx
+                            + beta * beta * inner(m_0, m_0) * dx
+                            + inner(m_1, m_1) * ds)
 
         u_ref = Function(space_0, name="u_ref")
         u_ref.interpolate(reference(X))
         m0 = Function(space_0, name="m0")
 
-        def forward_J(m):
-            return forward(u_ref, m)
+        forward_J = partial(forward, u_ref)
 
-        m, result = minimize_scipy(forward_J, m0,
-                                   method="L-BFGS-B",
-                                   options={"ftol": 0.0,
-                                            "gtol": 1.0e-8,
-                                            "disp": False})
-        assert result.success
+        continue_annotation()
+        J = forward_J(m0)
+        pause_annotation()
 
-        m_ = m.copy(deepcopy=True)
-        start_manager()
-        J = forward_J(m_)
-        stop_manager()
-        dJ = compute_gradient(J, m_)
-        reset_manager()
-        stop_manager()
-        del m_
+        m = minimize(
+            ReducedFunctional(J, Control_ad(m0)),
+            method="L-BFGS-B",
+            options={"ftol": 0.0,
+                     "gtol": 1.0e-8},
+            derivative_options={"riesz_representation": "l2"})
+
+        dJ = compute_gradient(
+            J, Control_ad(m0),
+            options={"riesz_representation": "l2"}).riesz_representation("l2")
+        get_working_tape().clear_tape()
 
         dJ_dual = Function(space_0, name="dJ_dual")
         M_solver = LinearSolver(assemble(inner(trial_0, test_0) * dx),
@@ -1026,34 +1019,31 @@ def test_GN_stationary_non_linear_control_with_reference_sol():
                                      "ksp_type": "preonly",
                                      "pc_type": "cholesky"})
 
-            J = Functional(name="J")
-            J.assign(inner(u - u_ref, u - u_ref) * dx
-                     + beta * beta * inner(m_0, m_0) * dx
-                     + inner(m_1, m_1) * ds)
-            return J
+            return assemble(inner(u - u_ref, u - u_ref) * dx
+                            + beta * beta * inner(m_0, m_0) * dx
+                            + inner(m_1, m_1) * ds)
 
         u_ref = Function(space_0, name="u_ref")
         u_ref.interpolate(reference(X))
         m0 = Function(space_0, name="m0")
 
-        def forward_J(m):
-            return forward(u_ref, m)
+        forward_J = partial(forward, u_ref)
 
-        m, result = minimize_scipy(forward_J, m0,
-                                   method="L-BFGS-B",
-                                   options={"ftol": 0.0,
-                                            "gtol": 1.0e-9,
-                                            "disp": False})
-        assert result.success
+        continue_annotation()
+        J = forward_J(m0)
+        pause_annotation()
 
-        m_ = m.copy(deepcopy=True)
-        start_manager()
-        J = forward_J(m_)
-        stop_manager()
-        dJ = compute_gradient(J, m_)
-        reset_manager()
-        stop_manager()
-        del m_
+        m = minimize(
+            ReducedFunctional(J, Control_ad(m0)),
+            method="L-BFGS-B",
+            options={"ftol": 0.0,
+                     "gtol": 1.0e-9},
+            derivative_options={"riesz_representation": "l2"})
+
+        dJ = compute_gradient(
+            J, Control_ad(m0),
+            options={"riesz_representation": "l2"}).riesz_representation("l2")
+        get_working_tape().clear_tape()
 
         dJ_dual = Function(space_0, name="dJ_dual")
         M_solver = LinearSolver(assemble(inner(trial_0, test_0) * dx),
