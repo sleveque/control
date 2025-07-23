@@ -161,7 +161,7 @@ class Control:
             # zero desired state
             if desired_state is None:
                 def desired_state(test_v):
-                    space_v = test.function_space()
+                    space_v = test_v.function_space()
 
                     v_d = Function(space_v, name="v_d")
 
@@ -171,7 +171,7 @@ class Control:
             # zero force
             if force_function is None:
                 def force_function(test_v):
-                    space_v = test.function_space()
+                    space_v = test_v.function_space()
 
                     f = Function(space_v, name="f")
 
@@ -1951,7 +1951,7 @@ class Control:
             # zero desired state
             if desired_state is None:
                 def desired_state(test_v, t):
-                    space_v = test.function_space()
+                    space_v = test_v.function_space()
 
                     v_d = Function(space_v, name="v_d")
 
@@ -1961,7 +1961,7 @@ class Control:
             # zero force
             if force_function is None:
                 def force_function(test_v, t):
-                    space_v = test.function_space()
+                    space_v = test_v.function_space()
 
                     f = Function(space_v, name="f")
 
