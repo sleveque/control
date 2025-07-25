@@ -3,7 +3,7 @@ from firedrake import (
     FunctionSpace, MixedFunctionSpace, homogenize, adjoint,
     grad, div, assemble, Cofunction, action, LinearSolver, Constant,
     sqrt, tripcolor, CheckpointFile
-    )
+)
 from firedrake.functionspaceimpl import WithGeometry as FunctionSpaceBase
 from firedrake.output import VTKFile as File
 
@@ -136,8 +136,8 @@ class Control:
                                       problems)
 
                 - Gauss_Newton        if True, a Gauss--Newton linearization is
-                                      employed, otherwise a Picard linearization
-                                      is applied
+                                      employed, otherwise a Picard
+                                      linearization is applied
 
                 - bcs_v               boundary conditions on the state
             """
@@ -349,7 +349,7 @@ class Control:
                 - bcs_v        new boundary conditions
 
                 - space_v      if one wishes to change also the
-                               space of the solution 
+                               space of the solution
             """
             if space_v is None:
                 if bcs_v is None:
@@ -422,7 +422,8 @@ class Control:
             """Modifying the approximation of the pressure adjoint solution.
 
             Input:
-                - mu_new        new approximation of the pressure adjoint solution
+                - mu_new        new approximation of the pressure adjoint
+                                solution
             """
             if self._space_p is not None:
                 if mu_new.function_space() != self._space_p:
@@ -491,11 +492,13 @@ class Control:
 
                 - D_v                        discretized forward form
 
-                - v_inhom                    function that is zero in the interior
-                                             of the domain and interpolates the state
-                                             on the boundary
+                - v_inhom                    function that is zero in the
+                                             interior of the domain and
+                                             interpolates the state variable on
+                                             the boundary
 
-                - bcs_v                      homogenization of the bcs on the state
+                - bcs_v                      homogenization of the bcs on the
+                                             state variable
 
             Output:
                 - f                          discretized force function
@@ -519,11 +522,13 @@ class Control:
                 - inhomogeneous_bcs_v        if True, inhomogeneous bcs have to
                                              be imposed
 
-                - v_inhom                    function that is zero in the interior
-                                             of the domain and interpolates the state
-                                             on the boundary
+                - v_inhom                    function that is zero in the
+                                             interior of the domain and
+                                             interpolates the state variable on
+                                             the boundary
 
-                - bcs_v                      homogenization of the bcs on the state
+                - bcs_v                      homogenization of the bcs on the
+                                             state variable
 
             Output:
                 - v_d                        discretized desired state
@@ -545,20 +550,22 @@ class Control:
             """Construction of the preconditioner, based on the matching strategy.
 
             Input:
-                - auxiliary_sp        auxiliary solver parameters for inner blocks
+                - auxiliary_sp        auxiliary solver parameters for inner
+                                      blocks
 
-                - bcs_v               homogenized boundary conditions for the state
-                                      variable
+                - bcs_v               homogenized boundary conditions for the
+                                      state variable
 
-                - bcs_zeta            homogenized boundary conditions for the adjoint
-                                      variable
+                - bcs_zeta            homogenized boundary conditions for the
+                                      adjoint variable
 
                 - D_v                 discretized forward form
 
                 - D_zeta              discretized adjoint form
 
             Output:
-                - pc_linear           preconditioner to employ within Krylov method
+                - pc_linear           preconditioner to employ within Krylov
+                                      method
             """
             beta = self._beta
 
@@ -592,12 +599,12 @@ class Control:
 
             solver_1 = LinearSolver(
                 assemble(D_v + (1.0 / beta**0.5) * self._M_v,
-                    bcs=bcs_zeta),
+                         bcs=bcs_zeta),
                 solver_parameters=sp_Schur)
 
             solver_2 = LinearSolver(
                 assemble(D_zeta + (1.0 / beta**0.5) * self._M_zeta,
-                    bcs=bcs_zeta),
+                         bcs=bcs_zeta),
                 solver_parameters=sp_Schur)
 
             solver_0.ksp.addConvergenceTest(converged, prepend=True)
@@ -714,24 +721,28 @@ class Control:
                                            the Krylov method (if None, default
                                            option is employed)
 
-                - solver_parameters        parameter to pass at the Krylov solver
+                - solver_parameters        parameter to pass at the Krylov
+                                           solver
 
-                - auxiliary_sp             auxiliary parameters for setting solvers
-                                           of inner blocks
+                - auxiliary_sp             auxiliary parameters for setting
+                                           solvers of inner blocks
 
-                - v_d                      when solving non-linear problems, v_d is
-                                           the non-linear residual (adjoint equation)
+                - v_d                      when solving non-linear problems,
+                                           v_d is the non-linear residual
+                                           (adjoint equation)
 
-                - f                        when solving non-linear problems, f is
-                                           the non-linear residual (state equation)
+                - f                        when solving non-linear problems, f
+                                           is the non-linear residual (state
+                                           equation)
 
-                - print_error              if True, the L^2 discrepancy between the
-                                           desired state and the numerical solution
-                                           is printed
+                - print_error              if True, the L^2 discrepancy between
+                                           the desired state and the numerical
+                                           solution is printed
 
                 - create_output            if True, output is generated
 
-                - plots                    if True, plots of the solutions are generated
+                - plots                    if True, plots of the solutions are
+                                           generated
             """
             space_v = self._space_v
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
@@ -896,27 +907,30 @@ class Control:
 
             Input:
                 - P                           preconditioner to apply within
-                                              the Krylov method (if None, default
-                                              option is employed)
+                                              the Krylov method (if None,
+                                              default option is employed)
 
-                - solver_parameters           parameter to pass at the Krylov solver
+                - solver_parameters           parameter to pass at the Krylov
+                                              solver
 
-                - auxiliary_sp                auxiliary parameters for setting solvers
-                                              of inner blocks
+                - auxiliary_sp                auxiliary parameters for setting
+                                              solvers of inner blocks
 
-                - max_non_linear_iter         maximum number of non-linear iteration
+                - max_non_linear_iter         maximum number of non-linear
+                                              iteration
 
                 - relative_non_linear_tol     relative non-linear tolerance
 
                 - absolute_non_linear_tol     absolute non-linear tolerance
 
-                - print_error_non_linear      if True, the L^2 discrepancy between the
-                                              desired state and the numerical solution
-                                              is printed
+                - print_error_non_linear      if True, the L^2 discrepancy
+                                              between the desired state and the
+                                              numerical solution is printed
 
                 - create_output               if True, output is generated
 
-                - plots                       if True, plots of the solutions are generated
+                - plots                       if True, plots of the solutions
+                                              are generated
             """
             space_v = self._space_v
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
@@ -1106,8 +1120,9 @@ class Control:
             """Module for the solution of linear incompressible control problems.
 
             Input:
-                - nullspace_p              nullspace of the corresponding forward
-                                           stationary incompressible problem
+                - nullspace_p              nullspace of the corresponding
+                                           forward stationary incompressible
+                                           problem
 
                 - space_p                  pressure space, if not passed to the
                                            constructor
@@ -1116,32 +1131,38 @@ class Control:
                                            the Krylov method (if None, default
                                            option is employed)
 
-                - solver_parameters        parameter to pass at the Krylov solver
+                - solver_parameters        parameter to pass at the Krylov
+                                           solver
 
-                - auxiliary_sp             auxiliary parameters for setting solvers
-                                           of inner blocks
+                - auxiliary_sp             auxiliary parameters for setting
+                                           solvers of inner blocks
 
-                - v_d                      when solving non-linear problems, v_d is
-                                           the non-linear residual (adjoint equation)
+                - v_d                      when solving non-linear problems,
+                                           v_d is the non-linear residual
+                                           (adjoint equation)
 
-                - f                        when solving non-linear problems, f is
-                                           the non-linear residual (state equation)
+                - f                        when solving non-linear problems, f
+                                           is the non-linear residual (state
+                                           equation)
 
-                - div_v                    when solving non-linear problems, div_v is
-                                           the non-linear residual (incompressibility
-                                           constraint on state variable)
+                - div_v                    when solving non-linear problems,
+                                           div_v is the non-linear residual
+                                           (incompressibility constraint on
+                                           state variable)
 
-                - div_zeta                 when solving non-linear problems, div_zeta is
-                                           the non-linear residual (incompressibility
-                                           constraint on adjoint variable)
+                - div_zeta                 when solving non-linear problems,
+                                           div_zeta is the non-linear residual
+                                           (incompressibility constraint on
+                                           adjoint variable)
 
-                - print_error              if True, the L^2 discrepancy between the
-                                           desired state and the numerical solution
-                                           is printed
+                - print_error              if True, the L^2 discrepancy between
+                                           the desired state and the numerical
+                                           solution is printed
 
                 - create_output            if True, output is generated
 
-                - plots                    if True, plots of the solutions are generated
+                - plots                    if True, plots of the solutions are
+                                           generated
             """
             space_v = self._space_v
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
@@ -1351,12 +1372,13 @@ class Control:
                     if "sp_inner" in auxiliary_sp:
                         inner_solver_parameters = auxiliary_sp["sp_inner"]
                     else:
-                        inner_solver_parameters = {"preconditioner": True,
-                                                   "linear_solver": "gmres",
-                                                   "maximum_iterations": 5,
-                                                   "relative_tolerance": 0.0,
-                                                   "absolute_tolerance": 0.0,
-                                                   "monitor_convergence": False}
+                        inner_solver_parameters = {
+                            "preconditioner": True,
+                            "linear_solver": "gmres",
+                            "maximum_iterations": 5,
+                            "relative_tolerance": 0.0,
+                            "absolute_tolerance": 0.0,
+                            "monitor_convergence": False}
 
                     v_help = Function(space_v)
                     zeta_help = Function(space_v)
@@ -1576,34 +1598,38 @@ class Control:
             """Module for the solution of non-linear incompressible control problems.
 
             Input:
-                - nullspace_p                nullspace of the corresponding forward
-                                             stationary incompressible problem
+                - nullspace_p                nullspace of the corresponding
+                                             forward stationary incompressible
+                                             problem
 
-                - space_p                    pressure space, if not passed to the
-                                             constructor
+                - space_p                    pressure space, if not passed to
+                                             the constructor
 
                 - P                          preconditioner to apply within
-                                             the Krylov method (if None, default
-                                             option is employed)
+                                             the Krylov method (if None,
+                                             default option is employed)
 
-                - solver_parameters          parameter to pass at the Krylov solver
+                - solver_parameters          parameter to pass at the Krylov
+                                             solver
 
-                - auxiliary_sp               auxiliary parameters for setting solvers
-                                             of inner blocks
+                - auxiliary_sp               auxiliary parameters for setting
+                                             solvers of inner blocks
 
-                - max_non_linear_iter        maximum number of non-linear iteration
+                - max_non_linear_iter        maximum number of non-linear
+                                             iteration
 
                 - relative_non_linear_tol    relative non-linear tolerance
 
                 - absolute_non_linear_tol    absolute non-linear tolerance
 
-                - print_error_non_linear     if True, the L^2 discrepancy between the
-                                             desired state and the numerical solution
-                                             is printed
+                - print_error_non_linear     if True, the L^2 discrepancy
+                                             between the desired state and the
+                                             numerical solution is printed
 
                 - create_output              if True, output is generated
 
-                - plots                      if True, plots of the solutions are generated
+                - plots                      if True, plots of the solutions
+                                             are generated
             """
             space_v = self._space_v
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
@@ -1920,11 +1946,11 @@ class Control:
                                       problems)
 
                 - Gauss_Newton        if True, a Gauss--Newton linearization is
-                                      employed, otherwise a Picard linearization
-                                      is applied
+                                      employed, otherwise a Picard
+                                      linearization is applied
 
-                - CN                  if True, trapezi is employed as
-                                      discretization in time
+                - CN                  if True, the trapezoidal rule is employed
+                                      as discretization in time
 
                 - n_t                 number of points in time
 
@@ -2244,8 +2270,8 @@ class Control:
             """Modifying the time discretization.
 
             Input:
-                - CN        if True, trapezi is employed as time discretization,
-                            otherwise backward Euler is applied
+                - CN        if True, the trapezoidal rule is employed as time
+                            discretization, otherwise backward Euler is applied
             """
             if (self._CN or CN) and not (self._CN and CN):
                 self._CN = CN
@@ -2330,7 +2356,7 @@ class Control:
                 - bcs_v        new boundary conditions
 
                 - space_v      if one wishes to change also the
-                               space of the solution 
+                               space of the solution
             """
             if space_v is None:
                 self._f_bcs_v = bcs_v
@@ -2426,7 +2452,8 @@ class Control:
             """Modifying the approximation of the pressure adjoint solution.
 
             Input:
-                - mu_new        new approximation of the pressure adjoint solution
+                - mu_new        new approximation of the pressure adjoint
+                                solution
             """
             if self._space_p is not None:
                 if mu_new.function_space() != self._mu.function_space():
@@ -2459,7 +2486,8 @@ class Control:
 
                 - v_test                test function
 
-                - v_n_help              approximation of the state solution at time t
+                - v_n_help              approximation of the state solution at
+                                        time t
 
                 - t                     time point in which evaluating the form
 
@@ -2554,27 +2582,30 @@ class Control:
             """Construction of the preconditioner, based on the matching strategy.
 
             Input:
-                - auxiliary_sp        auxiliary solver parameters for inner blocks
+                - auxiliary_sp        auxiliary solver parameters for inner
+                                      blocks
 
                 - full_space_v        full space for time integration
 
-                - bcs_v               homogenized boundary conditions for the state
-                                      variable
+                - bcs_v               homogenized boundary conditions for the
+                                      state variable
 
-                - bcs_zeta            homogenized boundary conditions for the adjoint
-                                      variable
+                - bcs_zeta            homogenized boundary conditions for the
+                                      adjoint variable
 
-                - block_01            (1,2)-block of the linear system, containing
-                                      discretized adjoint forms
+                - block_01            (1,2)-block of the linear system,
+                                      containing discretized adjoint forms
 
-                - block_10            (2,1)-block of the linear system, containing
-                                      discretized state forms
+                - block_10            (2,1)-block of the linear system,
+                                      containing discretized state forms
 
-                - epsilon             parameters employed for the construction of
-                                      the preconditioner for the BE discretization
+                - epsilon             parameters employed for the construction
+                                      of the preconditioner for the BE
+                                      discretization
 
             Output:
-                - pc_linear           preconditioner to employ within Krylov method
+                - pc_linear           preconditioner to employ within Krylov
+                                      method
             """
             space_v = self._space_v
             n_t = self._n_t
@@ -2615,10 +2646,11 @@ class Control:
             solver_0.ksp.addConvergenceTest(converged, prepend=True)
 
             solver_state = {}
-            solver_adj ={}
+            solver_adj = {}
 
             if self._CN:
-                # building the solvers for the preconditioner for trapezi
+                # building the solvers for the preconditioner for the
+                # trapezoidal rule
                 my_const = 0.5 * Constant(tau / (beta**0.5))
 
                 for i in range(n_t - 1):
@@ -2662,18 +2694,18 @@ class Control:
                 for i in range(1, n_t - 1):
                     block_ii = block_10[(i, i)]
                     solver_i_state = LinearSolver(
-                            assemble(block_ii + my_const * self._M_v,
-                                     bcs=bcs_zeta),
-                            solver_parameters=sp_Schur)
+                        assemble(block_ii + my_const * self._M_v,
+                                 bcs=bcs_zeta),
+                        solver_parameters=sp_Schur)
                     solver_i_state.ksp.addConvergenceTest(
                         converged, prepend=True)
                     solver_state[(i)] = solver_i_state
 
                     block_ii = block_01[(i, i)]
                     solver_i_adj = LinearSolver(
-                            assemble(block_ii + my_const * self._M_v,
-                                     bcs=bcs_zeta),
-                            solver_parameters=sp_Schur)
+                        assemble(block_ii + my_const * self._M_v,
+                                 bcs=bcs_zeta),
+                        solver_parameters=sp_Schur)
                     solver_i_adj.ksp.addConvergenceTest(
                         converged, prepend=True)
                     solver_adj[(i)] = solver_i_adj
@@ -2699,7 +2731,7 @@ class Control:
 
             # definition of preconditioner
             if self._CN:
-                # preconditioner for trapezi
+                # preconditioner for the trapezoidal rule
                 def pc_linear(u_0, u_1, b_0, b_1):
                     # solving for the (1,1)-block
                     b_0_help = apply_T_1_inv(b_0, space_v, n_t - 1)
@@ -2977,11 +3009,11 @@ class Control:
 
                 - M_v               mass matrix on the state space
 
-                - bcs_v             homogenized boundary conditions for the state
-                                    variable
+                - bcs_v             homogenized boundary conditions for the
+                                    state variable
 
-                - bcs_zeta          homogenized boundary conditions for the adjoint
-                                    variable
+                - bcs_zeta          homogenized boundary conditions for the
+                                    adjoint variable
 
             Output:
                 - rhs_0             non-linear residual (adjoint equation)
@@ -3094,7 +3126,7 @@ class Control:
                 b_help.assign(zeta_old.sub(n_t - 1))
                 b = assemble(action(Constant(tau) * D_zeta_i + M_v, b_help))
                 rhs_0.sub(n_t - 1).assign(-b)
-                apply_bcs(bcs_zeta, rhs_0.sub(n_t -1))
+                apply_bcs(bcs_zeta, rhs_0.sub(n_t - 1))
 
                 t = t_0
                 for i in range(1, n_t - 1):
@@ -3165,7 +3197,7 @@ class Control:
                     del b_help
                     apply_bcs(bcs_v, rhs_1.sub(i))
             else:
-                # evaluating non-linear residual for trapezi
+                # evaluating non-linear residual for the trapezoidal rule
                 D_v_i = self.construct_D_v(v_trial, v_test,
                                            v_old.sub(0), Constant(t_0),
                                            non_linear_res=True)
@@ -3376,24 +3408,28 @@ class Control:
                                            the Krylov method (if None, default
                                            option is employed)
 
-                - solver_parameters        parameter to pass at the Krylov solver
+                - solver_parameters        parameter to pass at the Krylov
+                                           solver
 
-                - auxiliary_sp             auxiliary parameters for setting solvers
-                                           of inner blocks
+                - auxiliary_sp             auxiliary parameters for setting
+                                           solvers of inner blocks
 
-                - v_d                      when solving non-linear problems, v_d is
-                                           the non-linear residual (adjoint equation)
+                - v_d                      when solving non-linear problems,
+                                           v_d is the non-linear residual
+                                           (adjoint equation)
 
-                - f                        when solving non-linear problems, f is
-                                           the non-linear residual (state equation)
+                - f                        when solving non-linear problems, f
+                                           is the non-linear residual (state
+                                           equation)
 
-                - print_error              if True, the L^2 discrepancy between the
-                                           desired state and the numerical solution
-                                           is printed
+                - print_error              if True, the L^2 discrepancy between
+                                           the desired state and the numerical
+                                           solution is printed
 
                 - create_output            if True, output is generated
 
-                - plots                    if True, plots of the solutions are generated
+                - plots                    if True, plots of the solutions are
+                                           generated
             """
             space_v = self._space_v
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
@@ -3699,7 +3735,7 @@ class Control:
                 else:
                     b_1.sub(n_t - 1).assign(f.sub(n_t - 1))
             else:
-                # trapezi
+                # trapezoidal rule
                 for i in range(n_t - 1):
                     if check_v_d:
                         b_0.sub(i).assign(
@@ -3956,27 +3992,30 @@ class Control:
 
             Input:
                 - P                           preconditioner to apply within
-                                              the Krylov method (if None, default
-                                              option is employed)
+                                              the Krylov method (if None,
+                                              default option is employed)
 
-                - solver_parameters           parameter to pass at the Krylov solver
+                - solver_parameters           parameter to pass at the Krylov
+                                              solver
 
-                - auxiliary_sp                auxiliary parameters for setting solvers
-                                              of inner blocks
+                - auxiliary_sp                auxiliary parameters for setting
+                                              solvers of inner blocks
 
-                - max_non_linear_iter         maximum number of non-linear iteration
+                - max_non_linear_iter         maximum number of non-linear
+                                              iteration
 
                 - relative_non_linear_tol     relative non-linear tolerance
 
                 - absolute_non_linear_tol     absolute non-linear tolerance
 
-                - print_error_non_linear      if True, the L^2 discrepancy between the
-                                              desired state and the numerical solution
-                                              is printed
+                - print_error_non_linear      if True, the L^2 discrepancy
+                                              between the desired state and the
+                                              numerical solution is printed
 
                 - create_output               if True, output is generated
 
-                - plots                       if True, plots of the solutions are generated
+                - plots                       if True, plots of the solutions
+                                              are generated
             """
             space_v = self._space_v
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
@@ -4186,42 +4225,49 @@ class Control:
             """Module for the solution of linear incompressible control problems.
 
             Input:
-                - nullspace_p              nullspace of the corresponding forward
-                                           stationary incompressible problem
+                - nullspace_p              nullspace of the corresponding
+                                           forward stationary incompressible
+                                           problem
 
-                - space_p                  pressure space, if not passed to the
-                                           constructor
+                - space_p                  pressure space, if not passed to
+                                           the constructor
 
                 - P                        preconditioner to apply within
                                            the Krylov method (if None, default
                                            option is employed)
 
-                - solver_parameters        parameter to pass at the Krylov solver
+                - solver_parameters        parameter to pass at the Krylov
+                                           solver
 
-                - auxiliary_sp             auxiliary parameters for setting solvers
-                                           of inner blocks
+                - auxiliary_sp             auxiliary parameters for setting
+                                           solvers of inner blocks
 
-                - v_d                      when solving non-linear problems, v_d is
-                                           the non-linear residual (adjoint equation)
+                - v_d                      when solving non-linear problems,
+                                           v_d is the non-linear residual
+                                           (adjoint equation)
 
-                - f                        when solving non-linear problems, f is
-                                           the non-linear residual (state equation)
+                - f                        when solving non-linear problems, f
+                                           is the non-linear residual (state
+                                           equation)
 
-                - div_v                    when solving non-linear problems, div_v is
-                                           the non-linear residual (incompressibility
-                                           constraint on state variable)
+                - div_v                    when solving non-linear problems,
+                                           div_v is the non-linear residual
+                                           (incompressibility constraint on
+                                           state variable)
 
-                - div_zeta                 when solving non-linear problems, div_zeta is
-                                           the non-linear residual (incompressibility
-                                           constraint on adjoint variable)
+                - div_zeta                 when solving non-linear problems,
+                                           div_zeta is the non-linear residual
+                                           (incompressibility constraint on
+                                           adjoint variable)
 
-                - print_error              if True, the L^2 discrepancy between the
-                                           desired state and the numerical solution
-                                           is printed
+                - print_error              if True, the L^2 discrepancy between
+                                           the desired state and the numerical
+                                           solution is printed
 
                 - create_output            if True, output is generated
 
-                - plots                    if True, plots of the solutions are generated
+                - plots                    if True, plots of the solutions
+                                           are generated
             """
             space_v = self._space_v
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
@@ -4598,7 +4644,7 @@ class Control:
                     b_0_0.sub(0).assign(tau * v_d.sub(0))
                     if inhomogeneous_bcs_v:
                         v_inhom = Function(space_v)
-                        apply_bcs(bcs_v_help[(0)],v_inhom)
+                        apply_bcs(bcs_v_help[(0)], v_inhom)
                         b_help = assemble(
                             action(Constant(tau) * self._M_v, v_inhom))
                         with b_0_0.sub(0).dat.vec as b_v, \
@@ -4745,7 +4791,7 @@ class Control:
                     b_1.sub(i).assign(b_1_0.sub(i))
                     b_1.sub(index).assign(b_1_1.sub(i))
             else:
-                # trapezi
+                # trapezoidal rule
                 for i in range(n_t - 1):
                     if check_v_d:
                         b_0_0.sub(i).assign(
@@ -4954,16 +5000,16 @@ class Control:
                     inner_solver_parameters = auxiliary_sp["sp_inner"]
                 else:
                     inner_solver_parameters = {
-                            "preconditioner": True,
-                            "linear_solver": "gmres",
-                            "maximum_iterations": 5,
-                            "relative_tolerance": 0.0,
-                            "absolute_tolerance": 0.0,
-                            "monitor_convergence": False}
+                        "preconditioner": True,
+                        "linear_solver": "gmres",
+                        "maximum_iterations": 5,
+                        "relative_tolerance": 0.0,
+                        "absolute_tolerance": 0.0,
+                        "monitor_convergence": False}
 
                 # definition of preconditioner
                 if self._CN:
-                    # inner solver for trapezi
+                    # inner solver for the trapezoidal rule
                     self._inner_system = MultiBlockSystem(
                         space_v, space_v,
                         block_00=block_00_int, block_01=block_01_int,
@@ -4977,7 +5023,7 @@ class Control:
                         auxiliary_sp, full_space_v_help,
                         bcs_v, bcs_zeta, block_01_int, block_10_int)
 
-                    # preconditioner for trapezi
+                    # preconditioner for the trapezoidal rule
                     def pc_fn(u_0, u_1, b_0, b_1):
                         b_0_help = Cofunction(full_space_v_help.dual())
                         b_1_help = Cofunction(full_space_v_help.dual())
@@ -5483,34 +5529,38 @@ class Control:
             """Module for the solution of non-linear incompressible control problems.
 
             Input:
-                - nullspace_p                nullspace of the corresponding forward
-                                             stationary incompressible problem
+                - nullspace_p                nullspace of the corresponding
+                                             forward stationary incompressible
+                                             problem
 
-                - space_p                    pressure space, if not passed to the
-                                             constructor
+                - space_p                    pressure space, if not passed to
+                                             the constructor
 
                 - P                          preconditioner to apply within
-                                             the Krylov method (if None, default
-                                             option is employed)
+                                             the Krylov method (if None,
+                                             default option is employed)
 
-                - solver_parameters          parameter to pass at the Krylov solver
+                - solver_parameters          parameter to pass at the Krylov
+                                             solver
 
-                - auxiliary_sp               auxiliary parameters for setting solvers
-                                             of inner blocks
+                - auxiliary_sp               auxiliary parameters for setting
+                                             solvers of inner blocks
 
-                - max_non_linear_iter        maximum number of non-linear iteration
+                - max_non_linear_iter        maximum number of non-linear
+                                             iteration
 
                 - relative_non_linear_tol    relative non-linear tolerance
 
                 - absolute_non_linear_tol    absolute non-linear tolerance
 
-                - print_error_non_linear     if True, the L^2 discrepancy between the
-                                             desired state and the numerical solution
-                                             is printed
+                - print_error_non_linear     if True, the L^2 discrepancy
+                                             between the desired state and the
+                                             numerical solution is printed
 
                 - create_output              if True, output is generated
 
-                - plots                      if True, plots of the solutions are generated
+                - plots                      if True, plots of the solutions
+                                             are generated
             """
             space_v = self._space_v
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)

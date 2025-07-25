@@ -61,7 +61,7 @@ def apply_bcs(bcs, u):
     for bc in bcs:
         if isinstance(bc.function_arg, Cofunction):
             bc = bc.reconstruct(g=bc.function_arg.riesz_representation("l2"))
-        if isinstance(u, Cofunction) and isinstance(bc.function_arg, (ufl.classes.Zero, Function)):
+        if isinstance(u, Cofunction) and isinstance(bc.function_arg, (ufl.classes.Zero, Function)):  # noqa: E501
             bc.apply(u.riesz_representation("l2"))
         else:
             bc.apply(u)
