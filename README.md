@@ -1,4 +1,4 @@
-control is a library for solving certain PDE-constrained optimization problems. The software employs the Firedrake
+The software control is a library for solving certain PDE-constrained optimization problems. The software employs the Firedrake
 system to derive the finite element discretization of the problems considered, using the Python interface to PETSc
 for the derivation of the KKT conditions and the definition of the linear solvers.
 
@@ -8,9 +8,9 @@ $\min_{v, u} \frac{1}{2} \int_0^{t_f} \| v - v_d \|^2_{L^2(\Omega)} \mathrm{d} t
 
 subject to
 
-$-\nabla^2 v = u + f$, in  $\Omega \times (0, t_f)$
+$\dfrac{\partial v}{\partial t} -\nabla^2 v = u + f$, in  $\Omega \times (0, t_f)$
 
-provided with suitable initial and boundary conditions $v(\mathbf{x},0)=v_0$ in $\Omega$ and $v(\mathbf{x},t)=g(\mathbf{x},t)$
+provided with suitable initial and boundary conditions $v(\mathbf{x},0)=v_0(\mathbf{x})$ in $\Omega$ and $v(\mathbf{x},t)=g(\mathbf{x},t)$
 on $\partial \Omega \times(0, t_f)$, where, for example, $\Omega = (-1, 1)^2$, $\beta = 10^{-4}$, and $t_f = 2$.
 
 The problem is defined in a compact way by providing the weak form representing the forward differential operator
