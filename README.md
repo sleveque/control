@@ -22,8 +22,7 @@ of the state $v$. For instationary problems one has to include also the time $t$
 instantiating an Instationary object. For the example considered, the code looks as follows:
 
 	from firedrake import *
-	from preconditioner import *
-	from control import *
+	from control.control import *
 
 	mesh = RectangleMesh(10, 10, 2.0, 2.0)
 	space_0 = FunctionSpace(mesh, "Lagrange", 1)
@@ -65,7 +64,7 @@ instantiating an Instationary object. For the example considered, the code looks
 
 For instationary problems, the user can also provide a callable for the definition of a different initial condition,
 passing the argument initial_condition. The discretization in time can be set to backward Euler by passing
-the argument CN = False to the call; the default discretization in time is trapezi.
+the argument CN = False to the call; the default discretization in time is the trapezoidal rule.
 
 Control problems which include incompressibility constraints are defined by passing to the extra argument
 space_p, the space to which the pressure belongs. The software assumes that inf-sup stable finite
@@ -78,5 +77,5 @@ Picard iteration, but it can be set to a Gauss-Newton method by passing the argu
 to the definition of the object. In the following section, we give details of the in-built preconditioners employed
 in our software.
 
-The cose is based on the work "Automatic Differentiation for All-at-once Systems Arising in Certain PDE-Constrained
+The code is based on the work "Automatic Differentiation for All-at-once Systems Arising in Certain PDE-Constrained
 Optimization Problems" by Santolo Leveque, James R. Maddison, and John W. Pearson.
