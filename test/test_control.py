@@ -3285,7 +3285,8 @@ def test_instationary_Stokes_control_BE_with_exact_sol():
 
     my_control_instationary = Control.Instationary(
         space_v, forw_diff_operator_v, desired_state=desired_state_v,
-        force_function=force_f_v, beta=beta, initial_condition=initial_condition_v,
+        force_function=force_f_v, beta=beta,
+        initial_condition=initial_condition_v,
         time_interval=time_interval, CN=False, n_t=n_t,
         bcs_v=my_DirichletBC_t_v)
 
@@ -3293,15 +3294,16 @@ def test_instationary_Stokes_control_BE_with_exact_sol():
     e_min_v = 0.25
     e_max_v = 1.5625
 
-    sp_11block = {"ksp_type": "chebyshev",
-                  "pc_type": "jacobi",
-                  "ksp_chebyshev_eigenvalues": f"{e_min_v:.16e}, {e_max_v:.16e}",
-                  "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
-                  "ksp_chebyshev_esteig_steps": 0,
-                  "ksp_chebyshev_esteig_noisy": False,
-                  "ksp_max_it": 20,
-                  "ksp_atol": 0.0,
-                  "ksp_rtol": 0.0}
+    sp_11block = {
+        "ksp_type": "chebyshev",
+        "pc_type": "jacobi",
+        "ksp_chebyshev_eigenvalues": f"{e_min_v:.16e}, {e_max_v:.16e}",
+        "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
+        "ksp_chebyshev_esteig_steps": 0,
+        "ksp_chebyshev_esteig_noisy": False,
+        "ksp_max_it": 20,
+        "ksp_atol": 0.0,
+        "ksp_rtol": 0.0}
 
     # employing Chebyshev for the pressure-mass matrix
     e_min_p = 0.25
@@ -3442,7 +3444,8 @@ def test_instationary_Stokes_control_CN_with_exact_sol():
 
     my_control_instationary = Control.Instationary(
         space_v, forw_diff_operator_v, desired_state=desired_state_v,
-        force_function=force_f_v, beta=beta, initial_condition=initial_condition_v,
+        force_function=force_f_v, beta=beta,
+        initial_condition=initial_condition_v,
         time_interval=time_interval, CN=True, n_t=n_t,
         bcs_v=my_DirichletBC_t_v)
 
@@ -3450,15 +3453,16 @@ def test_instationary_Stokes_control_CN_with_exact_sol():
     e_min_v = 0.25
     e_max_v = 1.5625
 
-    sp_11block = {"ksp_type": "chebyshev",
-                  "pc_type": "jacobi",
-                  "ksp_chebyshev_eigenvalues": f"{e_min_v:.16e}, {e_max_v:.16e}",
-                  "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
-                  "ksp_chebyshev_esteig_steps": 0,
-                  "ksp_chebyshev_esteig_noisy": False,
-                  "ksp_max_it": 20,
-                  "ksp_atol": 0.0,
-                  "ksp_rtol": 0.0}
+    sp_11block = {
+        "ksp_type": "chebyshev",
+        "pc_type": "jacobi",
+        "ksp_chebyshev_eigenvalues": f"{e_min_v:.16e}, {e_max_v:.16e}",
+        "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
+        "ksp_chebyshev_esteig_steps": 0,
+        "ksp_chebyshev_esteig_noisy": False,
+        "ksp_max_it": 20,
+        "ksp_atol": 0.0,
+        "ksp_rtol": 0.0}
 
     # employing Chebyshev for the pressure-mass matrix
     e_min_p = 0.25
@@ -4531,7 +4535,8 @@ def test_instationary_Navier_Stokes_BE():
 
     my_control_instationary = Control.Instationary(
         space_v, forw_diff_operator_v, desired_state=desired_state_v,
-        force_function=force_f_v, beta=beta, initial_condition=initial_condition_v,
+        force_function=force_f_v, beta=beta,
+        initial_condition=initial_condition_v,
         time_interval=time_interval, CN=False, n_t=n_t,
         bcs_v=my_DirichletBC_t_v)
 
@@ -4660,7 +4665,8 @@ def test_instationary_Navier_Stokes_CN():
 
     my_control_instationary = Control.Instationary(
         space_v, forw_diff_operator_v, desired_state=desired_state_v,
-        force_function=force_f_v, beta=beta, initial_condition=initial_condition_v,
+        force_function=force_f_v, beta=beta,
+        initial_condition=initial_condition_v,
         time_interval=time_interval, CN=True, n_t=n_t,
         bcs_v=my_DirichletBC_t_v)
 
