@@ -26,36 +26,36 @@ def run_example_notebook(filename, tmp_path):
 
 
 def test_0_stationary_linear_control(tmp_path):
-    run_example_notebook(pathlib.Path(__file__).parent.parent / "documentation" / "0_stationary_linear_control.ipynb",  # noqa: E501
+    run_example_notebook(pathlib.Path(__file__).parent.parent / "documentation" / "0_stationary_linear_control.ipynb",
                          tmp_path)
 
 
 def test_1_stationary_incompressible_linear_control(tmp_path):
-    run_example_notebook(pathlib.Path(__file__).parent.parent / "documentation" / "1_stationary_incompressible_linear_control.ipynb",  # noqa: E501
+    run_example_notebook(pathlib.Path(__file__).parent.parent / "documentation" / "1_stationary_incompressible_linear_control.ipynb",
                          tmp_path)
 
 
 def test_2_stationary_non_linear_control(tmp_path):
-    run_example_notebook(pathlib.Path(__file__).parent.parent / "documentation" / "2_stationary_non_linear_control.ipynb",  # noqa: E501
+    run_example_notebook(pathlib.Path(__file__).parent.parent / "documentation" / "2_stationary_non_linear_control.ipynb",
                          tmp_path)
 
 
 def test_3_instationary_control(tmp_path):
-    run_example_notebook(pathlib.Path(__file__).parent.parent / "documentation" / "3_instationary_control.ipynb",  # noqa: E501
+    run_example_notebook(pathlib.Path(__file__).parent.parent / "documentation" / "3_instationary_control.ipynb",
                          tmp_path)
 
 
 def test_4_instationary_incompressible_control(tmp_path):
-    run_example_notebook(pathlib.Path(__file__).parent.parent / "documentation" / "4_instationary_incompressible_control.ipynb",  # noqa: E501
+    run_example_notebook(pathlib.Path(__file__).parent.parent / "documentation" / "4_instationary_incompressible_control.ipynb",
                          tmp_path)
 
 
 def test_5_preconditioning_stationary_control(tmp_path):
-    run_example_notebook(pathlib.Path(__file__).parent.parent / "documentation" / "5_preconditioning_stationary_control.ipynb",  # noqa: E501
+    run_example_notebook(pathlib.Path(__file__).parent.parent / "documentation" / "5_preconditioning_stationary_control.ipynb",
                          tmp_path)
 
 
 @pytest.mark.xfail(reason="preconditioner not implemented")
 def test_6_preconditioning_instationary_control(tmp_path):
-    run_example_notebook(pathlib.Path(__file__).parent.parent / "documentation" / "6_preconditioning_instationary_control.ipynb",  # noqa: E501
+    run_example_notebook(pathlib.Path(__file__).parent.parent / "documentation" / "6_preconditioning_instationary_control.ipynb",
                          tmp_path)

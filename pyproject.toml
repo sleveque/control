@@ -2,3 +2,9 @@
 
 markers = [
     "large: tests which use a large amount of memory"]
+
+[tool.ruff.lint]
+
+ignore = ["E501", "F403", "F405"]
+preview = true
+select = ["E", "EXE", "F", "PIE", "UP", "W"]

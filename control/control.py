@@ -27,6 +27,28 @@ def converged(ksp, it, rnorm):
     return it >= ksp.max_it
 
 
+def garbage_cleanup(comm):
+    def wrapper(fn):
+        def wrapped_fn(*args, **kwargs):
+            return_value = fn(*args, **kwargs)
+            PETSc.garbage_cleanup(comm)
+            return return_value
+        return wrapped_fn
+
+    return wrapper
+
+
+def garbage_cleanup_method(attr_name):
+    def wrapper(fn):
+        def wrapped_fn(self, *args, **kwargs):
+            return_value = fn(self, *args, **kwargs)
+            PETSc.garbage_cleanup(getattr(self, attr_name))
+            return return_value
+        return wrapped_fn
+
+    return wrapper
+
+
 # definition of application of T_1 and T_2 for CN discretization
 def apply_T_1(x_old, space_v, n_blocks):
     flattened_space = tuple(space_v for i in range(n_blocks))
@@ -445,8 +467,6 @@ class Control:
             del v_err
             del error
 
-            PETSc.garbage_cleanup(self._comm)
-
         def construct_D_v(self, v_trial, v_test, v_old, *,
                           non_linear_res=False):
             """Construction of the discretized forward form.
@@ -612,6 +632,7 @@ class Control:
             solver_2.ksp.addConvergenceTest(converged, prepend=True)
 
             # definition of preconditioners
+            @garbage_cleanup(self._comm)
             def pc_linear(u_0, u_1, b_0, b_1):
                 # solving for the (1,1)-block
                 u_0.zero()
@@ -641,6 +662,7 @@ class Control:
 
             return pc_linear
 
+        @garbage_cleanup_method("_comm")
         def non_linear_res_eval(self, space_v, v_d, f, v_old, zeta_old,
                                 D_v, D_zeta, M_zeta, bcs_v, bcs_zeta):
             """Construction of the non-linear residual.
@@ -709,6 +731,7 @@ class Control:
 
             return rhs_0, rhs_1
 
+        @garbage_cleanup_method("_comm")
         def linear_solve(self, *,
                          P=None, solver_parameters=None,
                          auxiliary_sp={}, v_d=None, f=None,
@@ -883,7 +906,7 @@ class Control:
                     fig_true_v.colorbar(colors)
                     plt.show()
                 except Exception as e:
-                    warning("Cannot plot figure. Error msg: '%s'" % e)
+                    warning(f"Cannot plot figure. Error msg: '{e}'")
 
             del v
             del zeta
@@ -892,8 +915,7 @@ class Control:
             if print_error:
                 self.print_error()
 
-            PETSc.garbage_cleanup(self._comm)
-
+        @garbage_cleanup_method("_comm")
         def non_linear_solve(self, *,
                              P=None, solver_parameters=None,
                              auxiliary_sp={},
@@ -989,7 +1011,7 @@ class Control:
 
             print(f'Initial non-linear residual: {norm_0:.16e}')
 
-            while (norm_k > relative_non_linear_tol * norm_0 and norm_k > absolute_non_linear_tol):  # noqa: E501
+            while (norm_k > relative_non_linear_tol * norm_0 and norm_k > absolute_non_linear_tol):
                 # solving the linearization
                 self.linear_solve(P=P, solver_parameters=solver_parameters,
                                   auxiliary_sp=auxiliary_sp,
@@ -1020,8 +1042,6 @@ class Control:
                 del D_zeta
                 del rhs_0
                 del rhs_1
-
-                PETSc.garbage_cleanup(self._comm)
 
                 # construction of the discretized forward and adjoint forms
                 D_v = self.construct_D_v(
@@ -1065,19 +1085,17 @@ class Control:
             # printing L^2 discrepancy between the desired state and the
             # numerical solution
             if print_error_non_linear:
-                if norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol:  # noqa: E501
+                if norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol:
                     if norm_0 > 0.:
-                        print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')  # noqa: E501
+                        print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')
                     print(f'Absolute non-linear residual: {norm_k:.16e}')
                     print(f'Number of non-linear iterations: {k:d}')
                 else:
                     print('The non-linear iteration did not converge')
                     if norm_0 > 0.:
-                        print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')  # noqa: E501
+                        print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')
                     print(f'Absolute non-linear residual: {norm_k:.16e}')
                 self.print_error()
-
-            PETSc.garbage_cleanup(self._comm)
 
             # creating output
             if create_output:
@@ -1108,8 +1126,9 @@ class Control:
                     fig_true_v.colorbar(colors)
                     plt.show()
                 except Exception as e:
-                    warning("Cannot plot figure. Error msg: '%s'" % e)
+                    warning(f"Cannot plot figure. Error msg: '{e}'")
 
+        @garbage_cleanup_method("_comm")
         def incompressible_linear_solve(self, nullspace_p, *, space_p=None,
                                         P=None, solver_parameters=None,
                                         auxiliary_sp={},
@@ -1361,6 +1380,7 @@ class Control:
                     auxiliary_sp, bcs_v, bcs_zeta, D_v, D_zeta)
 
                 # construction of preconditioner for the whole system
+                @garbage_cleanup(self._comm)
                 def pc_fn(u_0, u_1, b_0, b_1):
                     b_0_help = Cofunction(space_v.dual())
                     b_1_help = Cofunction(space_v.dual())
@@ -1393,7 +1413,7 @@ class Control:
                             solver_parameters=inner_solver_parameters,
                             pc_fn=self._inner_pc_fn)
                     except ConvergenceError:
-                        assert inner_ksp_solver.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
+                        assert inner_ksp_solver.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT
 
                     u_0.sub(0).assign(v_help)
                     u_0.sub(1).assign(zeta_help)
@@ -1451,8 +1471,6 @@ class Control:
 
                     del b_0_help
                     del b_1_help
-
-                    PETSc.garbage_cleanup(self._comm)
             else:
                 pc_fn = P(self, D_zeta, D_v, B,
                           nullspace_v, nullspace_zeta,
@@ -1466,8 +1484,6 @@ class Control:
                                      "relative_tolerance": 1.0e-6,
                                      "absolute_tolerance": 0.0,
                                      "monitor_convergence": True}
-
-            PETSc.garbage_cleanup(self._comm)
 
             u_0_sol = Function(space_0)
             u_1_sol = Function(space_1)
@@ -1572,7 +1588,7 @@ class Control:
                     fig_true_v.colorbar(colors)
                     plt.show()
                 except Exception as e:
-                    warning("Cannot plot figure. Error msg: '%s'" % e)
+                    warning(f"Cannot plot figure. Error msg: '{e}'")
 
             del v
             del zeta
@@ -1584,8 +1600,7 @@ class Control:
             if print_error:
                 self.print_error()
 
-            PETSc.garbage_cleanup(self._comm)
-
+        @garbage_cleanup_method("_comm")
         def incompressible_non_linear_solve(self, nullspace_p, *, space_p=None,
                                             P=None, solver_parameters=None,
                                             auxiliary_sp={},
@@ -1695,6 +1710,7 @@ class Control:
 
             # function for the evaluation of the non-linear residual,
             # in case of incompressible control problems
+            @garbage_cleanup(self._comm)
             def non_linear_res_eval():
                 rhs_00 = Cofunction(space_v.dual(), name="rhs_00")
                 rhs_01 = Cofunction(space_v.dual(), name="rhs_01")
@@ -1759,7 +1775,7 @@ class Control:
 
             print(f'Initial non-linear residual: {norm_0:.16e}')
 
-            while (norm_k > relative_non_linear_tol * norm_0 and norm_k > absolute_non_linear_tol):  # noqa: E501
+            while (norm_k > relative_non_linear_tol * norm_0 and norm_k > absolute_non_linear_tol):
                 # solving for the linearization
                 self.incompressible_linear_solve(
                     nullspace_p, space_p=space_p, P=P,
@@ -1805,8 +1821,6 @@ class Control:
                 del rhs_10
                 del rhs_11
 
-                PETSc.garbage_cleanup(self._comm)
-
                 # construction of the discretized forward and adjoint forms
                 D_v = self.construct_D_v(
                     v_trial, v_test, v_old, non_linear_res=True)
@@ -1833,43 +1847,20 @@ class Control:
                 if k + 1 > max_non_linear_iter:
                     break
 
-            del v_old
-            del zeta_old
-            del p_old
-            del mu_old
-            del delta_v
-            del delta_zeta
-            del delta_p
-            del delta_mu
-            del D_v
-            del D_zeta
-            del M_zeta
-            del B
-            del B_T
-            del f
-            del v_d
-            del rhs_00
-            del rhs_01
-            del rhs_10
-            del rhs_11
-            del rhs
-
             # printing L^2 discrepancy between the desired state and the
             # numerical solution
             if print_error_non_linear:
-                if norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol:  # noqa: E501
+                if norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol:
                     if norm_0 > 0.:
-                        print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')  # noqa: E501
+                        print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')
                     print(f'Absolute non-linear residual: {norm_k:.16e}')
                     print(f'Number of non-linear iterations: {k:d}')
                 else:
                     print('The non-linear iteration did not converge')
                     if norm_0 > 0.:
-                        print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')  # noqa: E501
+                        print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')
                     print(f'Absolute non-linear residual: {norm_k:.16e}')
                 self.print_error()
-
-            PETSc.garbage_cleanup(self._comm)
 
             # creating output
             if create_output:
@@ -1918,7 +1909,7 @@ class Control:
                     fig_true_v.colorbar(colors)
                     plt.show()
                 except Exception as e:
-                    warning("Cannot plot figure. Error msg: '%s'" % e)
+                    warning(f"Cannot plot figure. Error msg: '{e}'")
 
     class Instationary:
         """Module employed for the solution of instationary control
@@ -2475,8 +2466,6 @@ class Control:
             del v_err
             del error
 
-            PETSc.garbage_cleanup(self._comm)
-
         def construct_D_v(self, v_trial, v_test, v_n_help, t, *,
                           non_linear_res=False):
             """Construction of the discretized forward form.
@@ -2732,6 +2721,7 @@ class Control:
             # definition of preconditioner
             if self._CN:
                 # preconditioner for the trapezoidal rule
+                @garbage_cleanup(self._comm)
                 def pc_linear(u_0, u_1, b_0, b_1):
                     # solving for the (1,1)-block
                     b_0_help = apply_T_1_inv(b_0, space_v, n_t - 1)
@@ -2850,7 +2840,7 @@ class Control:
                     for i in range(n_t - 3, -1, -1):
                         b_help = Function(space_v)
                         b_help.assign(u_1.sub(i + 1))
-                        block_ij = block_01[(i, i + 1)] + my_const * self._M_zeta  # noqa: E501
+                        block_ij = block_01[(i, i + 1)] + my_const * self._M_zeta
                         b_help_new = assemble(action(block_ij, b_help))
                         with b.sub(i).dat.vec as b_v, \
                                 b_help_new.dat.vec_ro as b_1_v:
@@ -2866,6 +2856,7 @@ class Control:
                         del b_help
             else:
                 # preconditioner for backward Euler
+                @garbage_cleanup(self._comm)
                 def pc_linear(u_0, u_1, b_0, b_1):
                     # solving for the (1,1)-block
                     for i in range(n_t):
@@ -2990,6 +2981,7 @@ class Control:
 
             return pc_linear
 
+        @garbage_cleanup_method("_comm")
         def non_linear_res_eval(self, full_space_v, v_old, zeta_old, v_0,
                                 v_d, f, M_v, bcs_v, bcs_zeta):
             """Construction of the non-linear residual.
@@ -3392,10 +3384,9 @@ class Control:
                     del b_help
                     apply_bcs(bcs_v, rhs_1.sub(i))
 
-            PETSc.garbage_cleanup(self._comm)
-
             return rhs_0, rhs_1
 
+        @garbage_cleanup_method("_comm")
         def linear_solve(self, *,
                          P=None, solver_parameters=None,
                          auxiliary_sp={}, v_d=None, f=None,
@@ -3535,7 +3526,7 @@ class Control:
                             block_00[(i, j)] = None
                             block_01[(i, j)] = -M_v
                             block_10[(i, j)] = None
-                            block_11[(i + 1, j)] = - Constant(tau / beta) * self._M_zeta  # noqa: E501
+                            block_11[(i + 1, j)] = - Constant(tau / beta) * self._M_zeta
                         else:
                             block_00[(i, j)] = None
                             block_01[(i, j)] = None
@@ -3554,18 +3545,18 @@ class Control:
                         if j == i - 1:
                             block_00[(i, j)] = Constant(0.5 * tau) * self._M_v
                             block_01[(i, j)] = None
-                            block_10[(i, j)] = Constant(0.5 * tau) * D_v_i - M_v  # noqa: E501
+                            block_10[(i, j)] = Constant(0.5 * tau) * D_v_i - M_v
                             block_11[(i, j)] = None
                         elif j == i:
                             block_00[(i, j)] = Constant(0.5 * tau) * self._M_v
-                            block_01[(i, j)] = Constant(0.5 * tau) * D_zeta_i + M_v  # noqa: E501
-                            block_10[(i, j)] = Constant(0.5 * tau) * D_v_i_plus + M_v  # noqa: E501
-                            block_11[(i, j)] = Constant(-0.5 * tau / beta) * self._M_zeta  # noqa: E501
+                            block_01[(i, j)] = Constant(0.5 * tau) * D_zeta_i + M_v
+                            block_10[(i, j)] = Constant(0.5 * tau) * D_v_i_plus + M_v
+                            block_11[(i, j)] = Constant(-0.5 * tau / beta) * self._M_zeta
                         elif j == i + 1:
                             block_00[(i, j)] = None
-                            block_01[(i, j)] = Constant(0.5 * tau) * D_zeta_i_plus - M_v  # noqa: E501
+                            block_01[(i, j)] = Constant(0.5 * tau) * D_zeta_i_plus - M_v
                             block_10[(i, j)] = None
-                            block_11[(i, j)] = Constant(-0.5 * tau / beta) * self._M_zeta  # noqa: E501
+                            block_11[(i, j)] = Constant(-0.5 * tau / beta) * self._M_zeta
                         else:
                             block_00[(i, j)] = None
                             block_01[(i, j)] = None
@@ -3941,8 +3932,6 @@ class Control:
             del system
             del pc_fn
 
-            PETSc.garbage_cleanup(self._comm)
-
             # printing L^2 discrepancy between the desired state and the
             # numerical solution
             if print_error:
@@ -3972,13 +3961,12 @@ class Control:
                         fig_true_v.colorbar(colors)
                         plt.show()
                     except Exception as e:
-                        warning("Cannot plot figure. Error msg: '%s'" % e)
+                        warning(f"Cannot plot figure. Error msg: '{e}'")
 
             del v
             del zeta
 
-            PETSc.garbage_cleanup(self._comm)
-
+        @garbage_cleanup_method("_comm")
         def non_linear_solve(self, *,
                              P=None, solver_parameters=None,
                              auxiliary_sp={},
@@ -4083,12 +4071,12 @@ class Control:
                     v_d, f, M_v, bcs_v, bcs_zeta)
 
             if not self._CN:
-                rhs = Cofunction((full_space_v * full_space_v).dual(), name="rhs")  # noqa: E501
+                rhs = Cofunction((full_space_v * full_space_v).dual(), name="rhs")
                 for i in range(n_t):
                     rhs.sub(i).assign(rhs_0.sub(i))
                     rhs.sub(n_t + i).assign(rhs_1.sub(i))
             else:
-                rhs = Cofunction((full_space_v_help * full_space_v_help).dual(), name="rhs")  # noqa: E501
+                rhs = Cofunction((full_space_v_help * full_space_v_help).dual(), name="rhs")
                 for i in range(n_t - 1):
                     rhs.sub(i).assign(rhs_0.sub(i))
                     rhs.sub(n_t - 1 + i).assign(rhs_1.sub(i))
@@ -4102,7 +4090,7 @@ class Control:
 
             print(f'Initial non-linear residual: {norm_0:.16e}')
 
-            while (norm_k > relative_non_linear_tol * norm_0 and norm_k > absolute_non_linear_tol):  # noqa: E501
+            while (norm_k > relative_non_linear_tol * norm_0 and norm_k > absolute_non_linear_tol):
                 # solving for the linearized system
                 self.linear_solve(
                     P=P, solver_parameters=solver_parameters,
@@ -4131,8 +4119,6 @@ class Control:
 
                 del rhs_0
                 del rhs_1
-
-                PETSc.garbage_cleanup(self._comm)
 
                 # evaluating non-linear residual
                 rhs_0, rhs_1 = self.non_linear_res_eval(
@@ -4175,19 +4161,17 @@ class Control:
             # printing L^2 discrepancy between the desired state and the
             # numerical solution
             if print_error_non_linear:
-                if (norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol):  # noqa: E501
+                if (norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol):
                     if norm_0 > 0.:
-                        print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')  # noqa: E501
+                        print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')
                     print(f'Absolute non-linear residual: {norm_k:.16e}')
                     print(f'Number of non-linear iterations: {k:d}')
                 else:
                     print('The non-linear iteration did not converge')
                     if norm_0 > 0.:
-                        print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')  # noqa: E501
+                        print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')
                     print(f'Absolute non-linear residual: {norm_k:.16e}')
                 self.print_error(tau)
-
-            PETSc.garbage_cleanup(self._comm)
 
             # creating output
             if create_output:
@@ -4213,8 +4197,9 @@ class Control:
                         fig_true_v.colorbar(colors)
                         plt.show()
                     except Exception as e:
-                        warning("Cannot plot figure. Error msg: '%s'" % e)
+                        warning(f"Cannot plot figure. Error msg: '{e}'")
 
+        @garbage_cleanup_method("_comm")
         def incompressible_linear_solve(self, nullspace_p, *, space_p=None,
                                         P=None, solver_parameters=None,
                                         auxiliary_sp={},
@@ -4406,11 +4391,11 @@ class Control:
                     if self._M_p is not None:
                         block_00_p = Constant(0.5 * tau) * self._M_p
                     else:
-                        block_00_p = Constant(0.5 * tau) * inner(p_trial, p_test) * dx  # noqa: E501
+                        block_00_p = Constant(0.5 * tau) * inner(p_trial, p_test) * dx
                     if self._M_mu is not None:
-                        block_11_p = - Constant(0.5 * (tau / beta)) * self._M_mu  # noqa: E501
+                        block_11_p = - Constant(0.5 * (tau / beta)) * self._M_mu
                     else:
-                        block_11_p = - Constant(0.5 * (tau / beta)) * inner(p_trial, p_test) * dx  # noqa: E501
+                        block_11_p = - Constant(0.5 * (tau / beta)) * inner(p_trial, p_test) * dx
                 else:
                     if self._M_p is not None:
                         block_00_p = Constant(tau) * self._M_p
@@ -4420,7 +4405,7 @@ class Control:
                     if self._M_mu is not None:
                         block_11_p = - Constant(tau / beta) * self._M_mu
                     else:
-                        block_11_p = - Constant(tau / beta) * inner(p_trial, p_test) * dx  # noqa: E501
+                        block_11_p = - Constant(tau / beta) * inner(p_trial, p_test) * dx
 
                 K_p = inner(grad(p_trial), grad(p_test)) * dx
                 M_p = inner(p_trial, p_test) * dx
@@ -4484,29 +4469,29 @@ class Control:
                                 block_10_int_p[(i, j)] = -M_p
                         elif j == i:
                             block_00[(i, j)] = Constant(tau) * self._M_v
-                            block_00[(i, n_t + j)] = Constant(tau) * D_zeta_i + M_v  # noqa: E501
-                            block_00[(n_t + i, j)] = Constant(tau) * D_v_i + M_v  # noqa: E501
+                            block_00[(i, n_t + j)] = Constant(tau) * D_zeta_i + M_v
+                            block_00[(n_t + i, j)] = Constant(tau) * D_v_i + M_v
                             block_00[(n_t + i + 1, n_t + j)] = None
 
                             block_00_int[(i, j)] = Constant(tau) * self._M_v
-                            block_01_int[(i, j)] = Constant(tau) * D_zeta_i + M_v  # noqa: E501
+                            block_01_int[(i, j)] = Constant(tau) * D_zeta_i + M_v
                             block_10_int[(i, j)] = Constant(tau) * D_v_i + M_v
                             block_11_int[(i + 1, j)] = None
 
                             if P is None:
                                 block_00_int_p[(i, j)] = block_00_p
-                                block_01_int_p[(i, j)] = Constant(tau) * D_mu_i + M_p  # noqa: E501
-                                block_10_int_p[(i, j)] = Constant(tau) * D_p_i + M_p  # noqa: E501
+                                block_01_int_p[(i, j)] = Constant(tau) * D_mu_i + M_p
+                                block_10_int_p[(i, j)] = Constant(tau) * D_p_i + M_p
                         elif j == i + 1:
                             block_00[(i, j)] = None
                             block_00[(i, n_t + j)] = -M_v
                             block_00[(n_t + i, j)] = None
-                            block_00[(n_t + i + 1, n_t + j)] = - Constant(tau / beta) * self._M_zeta  # noqa: E501
+                            block_00[(n_t + i + 1, n_t + j)] = - Constant(tau / beta) * self._M_zeta
 
                             block_00_int[(i, j)] = None
                             block_01_int[(i, j)] = -M_v
                             block_10_int[(i, j)] = None
-                            block_11_int[(i + 1, j)] = - Constant(tau / beta) * self._M_zeta  # noqa: E501
+                            block_11_int[(i + 1, j)] = - Constant(tau / beta) * self._M_zeta
 
                             if P is None:
                                 block_01_int_p[(i, j)] = -M_p
@@ -4540,46 +4525,46 @@ class Control:
                         if j == i - 1:
                             block_00[(i, j)] = Constant(0.5 * tau) * self._M_v
                             block_00[(i, n_t + j - 1)] = None
-                            block_00[(n_t + i - 1, j)] = Constant(0.5 * tau) * D_v_i - M_v  # noqa: E501
+                            block_00[(n_t + i - 1, j)] = Constant(0.5 * tau) * D_v_i - M_v
                             block_00[(n_t + i - 1, n_t + j - 1)] = None
 
-                            block_00_int[(i, j)] = Constant(0.5 * tau) * self._M_v  # noqa: E501
+                            block_00_int[(i, j)] = Constant(0.5 * tau) * self._M_v
                             block_01_int[(i, j)] = None
-                            block_10_int[(i, j)] = Constant(0.5 * tau) * D_v_i - M_v  # noqa: E501
+                            block_10_int[(i, j)] = Constant(0.5 * tau) * D_v_i - M_v
                             block_11_int[(i, j)] = None
 
                             if P is None:
                                 block_00_int_p[(i, j)] = block_00_p
-                                block_10_int_p[(i, j)] = Constant(0.5 * tau) * D_p_i - M_p  # noqa: E501
+                                block_10_int_p[(i, j)] = Constant(0.5 * tau) * D_p_i - M_p
                         elif j == i:
                             block_00[(i, j)] = Constant(0.5 * tau) * self._M_v
-                            block_00[(i, n_t + j - 1)] = Constant(0.5 * tau) * D_zeta_i + M_v  # noqa: E501
-                            block_00[(n_t + i - 1, j)] = Constant(0.5 * tau) * D_v_i_plus + M_v  # noqa: E501
-                            block_00[(n_t + i - 1, n_t + j - 1)] = - Constant(0.5 * (tau / beta)) * self._M_zeta  # noqa: E501
+                            block_00[(i, n_t + j - 1)] = Constant(0.5 * tau) * D_zeta_i + M_v
+                            block_00[(n_t + i - 1, j)] = Constant(0.5 * tau) * D_v_i_plus + M_v
+                            block_00[(n_t + i - 1, n_t + j - 1)] = - Constant(0.5 * (tau / beta)) * self._M_zeta
 
-                            block_00_int[(i, j)] = Constant(0.5 * tau) * self._M_v  # noqa: E501
-                            block_01_int[(i, j)] = Constant(0.5 * tau) * D_zeta_i + M_v  # noqa: E501
-                            block_10_int[(i, j)] = Constant(0.5 * tau) * D_v_i_plus + M_v  # noqa: E501
-                            block_11_int[(i, j)] = - Constant(0.5 * (tau / beta)) * self._M_zeta  # noqa: E501
+                            block_00_int[(i, j)] = Constant(0.5 * tau) * self._M_v
+                            block_01_int[(i, j)] = Constant(0.5 * tau) * D_zeta_i + M_v
+                            block_10_int[(i, j)] = Constant(0.5 * tau) * D_v_i_plus + M_v
+                            block_11_int[(i, j)] = - Constant(0.5 * (tau / beta)) * self._M_zeta
 
                             if P is None:
                                 block_00_int_p[(i, j)] = block_00_p
-                                block_01_int_p[(i, j)] = Constant(0.5 * tau) * D_mu_i + M_p  # noqa: E501
-                                block_10_int_p[(i, j)] = Constant(0.5 * tau) * D_p_i_plus + M_p  # noqa: E501
+                                block_01_int_p[(i, j)] = Constant(0.5 * tau) * D_mu_i + M_p
+                                block_10_int_p[(i, j)] = Constant(0.5 * tau) * D_p_i_plus + M_p
                                 block_11_int_p[(i, j)] = block_11_p
                         elif j == i + 1:
                             block_00[(i, j)] = None
-                            block_00[(i, n_t + j - 1)] = Constant(0.5 * tau) * D_zeta_i_plus - M_v  # noqa: E501
+                            block_00[(i, n_t + j - 1)] = Constant(0.5 * tau) * D_zeta_i_plus - M_v
                             block_00[(n_t + i - 1, j)] = None
-                            block_00[(n_t + i - 1, n_t + j - 1)] = - Constant(0.5 * (tau / beta)) * self._M_zeta  # noqa: E501
+                            block_00[(n_t + i - 1, n_t + j - 1)] = - Constant(0.5 * (tau / beta)) * self._M_zeta
 
                             block_00_int[(i, j)] = None
-                            block_01_int[(i, j)] = Constant(0.5 * tau) * D_zeta_i_plus - M_v  # noqa: E501
+                            block_01_int[(i, j)] = Constant(0.5 * tau) * D_zeta_i_plus - M_v
                             block_10_int[(i, j)] = None
-                            block_11_int[(i, j)] = - Constant(0.5 * (tau / beta)) * self._M_zeta  # noqa: E501
+                            block_11_int[(i, j)] = - Constant(0.5 * (tau / beta)) * self._M_zeta
 
                             if P is None:
-                                block_01_int_p[(i, j)] = Constant(0.5 * tau) * D_mu_i_plus - M_p  # noqa: E501
+                                block_01_int_p[(i, j)] = Constant(0.5 * tau) * D_mu_i_plus - M_p
                                 block_11_int_p[(i, j)] = block_11_p
                         else:
                             block_00[(i, j)] = None
@@ -4618,21 +4603,21 @@ class Control:
                 block_00[(n_t - 1, n_t - 2)] = None
                 block_00[(n_t - 1, n_t - 1)] = None
                 block_00[(n_t - 1, 2 * n_t - 2)] = None
-                block_00[(n_t - 1, 2 * n_t - 1)] = Constant(tau) * D_zeta_i + M_v  # noqa: E501
+                block_00[(n_t - 1, 2 * n_t - 1)] = Constant(tau) * D_zeta_i + M_v
                 block_00[(2 * n_t - 1, n_t - 2)] = - M_v
                 block_00[(2 * n_t - 1, n_t - 1)] = Constant(tau) * D_v_i + M_v
 
                 block_00_int[(n_t - 1, n_t - 2)] = None
                 block_00_int[(n_t - 1, n_t - 1)] = None
                 block_01_int[(n_t - 1, n_t - 2)] = None
-                block_01_int[(n_t - 1, n_t - 1)] = Constant(tau) * D_zeta_i + M_v  # noqa: E501
+                block_01_int[(n_t - 1, n_t - 1)] = Constant(tau) * D_zeta_i + M_v
                 block_10_int[(n_t - 1, n_t - 2)] = - M_v
                 block_10_int[(n_t - 1, n_t - 1)] = Constant(tau) * D_v_i + M_v
 
                 if P is None:
-                    block_01_int_p[(n_t - 1, n_t - 1)] = Constant(tau) * D_mu_i + M_p  # noqa: E501
+                    block_01_int_p[(n_t - 1, n_t - 1)] = Constant(tau) * D_mu_i + M_p
                     block_10_int_p[(n_t - 1, n_t - 2)] = - M_p
-                    block_10_int_p[(n_t - 1, n_t - 1)] = Constant(tau) * D_p_i + M_p  # noqa: E501
+                    block_10_int_p[(n_t - 1, n_t - 1)] = Constant(tau) * D_p_i + M_p
 
             del block_00_p
             del block_11_p
@@ -5024,6 +5009,7 @@ class Control:
                         bcs_v, bcs_zeta, block_01_int, block_10_int)
 
                     # preconditioner for the trapezoidal rule
+                    @garbage_cleanup(self._comm)
                     def pc_fn(u_0, u_1, b_0, b_1):
                         b_0_help = Cofunction(full_space_v_help.dual())
                         b_1_help = Cofunction(full_space_v_help.dual())
@@ -5046,7 +5032,7 @@ class Control:
                                 solver_parameters=inner_solver_parameters,
                                 pc_fn=self._inner_pc_fn)
                         except ConvergenceError:
-                            assert inner_ksp_solver.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
+                            assert inner_ksp_solver.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT
 
                         for i in range(n_t - 1):
                             u_0.sub(i).assign(v_help.sub(i))
@@ -5057,8 +5043,6 @@ class Control:
                         del zeta_help
                         del b_0_help
                         del b_1_help
-
-                        PETSc.garbage_cleanup(self._comm)
 
                         # u_1 = - b_1 + block_10 * u_0
                         b_0_help = Cofunction(full_space_p.dual())
@@ -5180,8 +5164,6 @@ class Control:
                         del p_help
                         del b_0_help
                         del b_1_help
-
-                        PETSc.garbage_cleanup(self._comm)
                 else:
                     # inner solver for backward Euler
                     self._inner_system = MultiBlockSystem(
@@ -5199,6 +5181,7 @@ class Control:
                         epsilon=epsilon)
 
                     # preconditioner for bacward Euler
+                    @garbage_cleanup(self._comm)
                     def pc_fn(u_0, u_1, b_0, b_1):
                         b_0_help = Cofunction(full_space_v.dual())
                         b_1_help = Cofunction(full_space_v.dual())
@@ -5221,7 +5204,7 @@ class Control:
                                 solver_parameters=inner_solver_parameters,
                                 pc_fn=self._inner_pc_fn)
                         except ConvergenceError:
-                            assert inner_ksp_solver.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
+                            assert inner_ksp_solver.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT
 
                         for i in range(n_t):
                             u_0.sub(i).assign(v_help.sub(i))
@@ -5232,8 +5215,6 @@ class Control:
                         del zeta_help
                         del b_0_help
                         del b_1_help
-
-                        PETSc.garbage_cleanup(self._comm)
 
                         # u_1 = - b_1 + block_10 * u_0
                         b_0_help = Cofunction(full_space_p.dual())
@@ -5350,8 +5331,6 @@ class Control:
                         del p_help
                         del b_0_help
                         del b_1_help
-
-                        PETSc.garbage_cleanup(self._comm)
             else:
                 pc_fn = P(self, block_00_int, block_01_int,
                           block_10_int, block_11_int, B,
@@ -5468,7 +5447,7 @@ class Control:
                         fig_true_v.colorbar(colors)
                         plt.show()
                     except Exception as e:
-                        warning("Cannot plot figure. Error msg: '%s'" % e)
+                        warning(f"Cannot plot figure. Error msg: '{e}'")
 
                 if self._CN:
                     try:
@@ -5485,7 +5464,7 @@ class Control:
                         fig_true_v.colorbar(colors)
                         plt.show()
                     except Exception as e:
-                        warning("Cannot plot figure. Error msg: '%s'" % e)
+                        warning(f"Cannot plot figure. Error msg: '{e}'")
                 else:
                     try:
                         import matplotlib.pyplot as plt
@@ -5507,15 +5486,14 @@ class Control:
                         fig_true_v.colorbar(colors)
                         plt.show()
                     except Exception as e:
-                        warning("Cannot plot figure. Error msg: '%s'" % e)
+                        warning(f"Cannot plot figure. Error msg: '{e}'")
 
             del v
             del zeta
             del p
             del mu
 
-            PETSc.garbage_cleanup(self._comm)
-
+        @garbage_cleanup_method("_comm")
         def incompressible_non_linear_solve(self, nullspace_p, *,
                                             space_p=None, P=None,
                                             solver_parameters=None,
@@ -5644,6 +5622,7 @@ class Control:
             B_T = - inner(p_trial, div(v_test)) * dx
 
             # function used for the construction of the non-linear residual
+            @garbage_cleanup(self._comm)
             def non_linear_res_eval():
                 rhs_10 = Cofunction(full_space_p.dual(), name="rhs_10")
                 rhs_11 = Cofunction(full_space_p.dual(), name="rhs_11")
@@ -5752,14 +5731,14 @@ class Control:
             rhs_00, rhs_01, rhs_10, rhs_11 = non_linear_res_eval()
 
             if not self._CN:
-                rhs = Cofunction((full_space_v * full_space_v * full_space_p * full_space_p).dual(), name="rhs")  # noqa: E501
+                rhs = Cofunction((full_space_v * full_space_v * full_space_p * full_space_p).dual(), name="rhs")
                 for i in range(n_t):
                     rhs.sub(i).assign(rhs_00.sub(i))
                     rhs.sub(n_t + i).assign(rhs_01.sub(i))
                     rhs.sub(2 * n_t + i).assign(rhs_10.sub(i))
                     rhs.sub(3 * n_t + i).assign(rhs_11.sub(i))
             else:
-                rhs = Cofunction((full_space_v_help * full_space_v_help * full_space_p * full_space_p).dual(), name="rhs")  # noqa: E501
+                rhs = Cofunction((full_space_v_help * full_space_v_help * full_space_p * full_space_p).dual(), name="rhs")
                 for i in range(n_t - 1):
                     rhs.sub(i).assign(rhs_00.sub(i))
                     rhs.sub(n_t - 1 + i).assign(rhs_01.sub(i))
@@ -5780,7 +5759,7 @@ class Control:
 
             print(f'Initial non-linear residual: {norm_0:.16e}')
 
-            while (norm_k > relative_non_linear_tol * norm_0 and norm_k > absolute_non_linear_tol):  # noqa: E501
+            while (norm_k > relative_non_linear_tol * norm_0 and norm_k > absolute_non_linear_tol):
                 # solving for the linearization
                 self.incompressible_linear_solve(
                     nullspace_p, space_p=space_p,
@@ -5829,8 +5808,6 @@ class Control:
                 del rhs_10
                 del rhs_11
 
-                PETSc.garbage_cleanup(self._comm)
-
                 # evaluating the non-linear residual
                 rhs_00, rhs_01, rhs_10, rhs_11 = non_linear_res_eval()
 
@@ -5865,42 +5842,20 @@ class Control:
                 if k + 1 > max_non_linear_iter:
                     break
 
-            del v_old
-            del zeta_old
-            del p_old
-            del mu_old
-            del delta_v
-            del delta_zeta
-            del delta_p
-            del delta_mu
-            del rhs_00
-            del rhs_01
-            del rhs_10
-            del rhs_11
-            del rhs
-            del f
-            del v_d
-            del v_0
-            del M_v
-            del B
-            del B_T
-
             # printing L^2 discrepancy between the desired state and the
             # numerical solution
             if print_error_non_linear:
-                if (norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol):  # noqa: E501
+                if (norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol):
                     if norm_0 > 0.:
-                        print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')  # noqa: E501
+                        print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')
                     print(f'Absolute non-linear residual: {norm_k:.16e}')
                     print(f'Number of non-linear iterations: {k:d}')
                 else:
                     print('The non-linear iteration did not converge')
                     if norm_0 > 0.:
-                        print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')  # noqa: E501
+                        print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')
                     print(f'Absolute non-linear residual: {norm_k:.16e}')
                 self.print_error(tau)
-
-            PETSc.garbage_cleanup(self._comm)
 
             # creating output
             if create_output:
@@ -5938,7 +5893,7 @@ class Control:
                         fig_true_v.colorbar(colors)
                         plt.show()
                     except Exception as e:
-                        warning("Cannot plot figure. Error msg: '%s'" % e)
+                        warning(f"Cannot plot figure. Error msg: '{e}'")
 
                 if self._CN:
                     try:
@@ -5955,7 +5910,7 @@ class Control:
                         fig_true_v.colorbar(colors)
                         plt.show()
                     except Exception as e:
-                        warning("Cannot plot figure. Error msg: '%s'" % e)
+                        warning(f"Cannot plot figure. Error msg: '{e}'")
                 else:
                     try:
                         import matplotlib.pyplot as plt
@@ -5977,4 +5932,4 @@ class Control:
                         fig_true_v.colorbar(colors)
                         plt.show()
                     except Exception as e:
-                        warning("Cannot plot figure. Error msg: '%s'" % e)
+                        warning(f"Cannot plot figure. Error msg: '{e}'")

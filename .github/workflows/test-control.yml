@@ -29,9 +29,17 @@ jobs:
           path: 'control'
       - name: Install dependencies
         run: |
+          apt-get update
+          apt-get install -y flake8
           python3 -m venv --system-site-packages control_venv
           . control_venv/bin/activate
-          python3 -m pip install vtk
+          python3 -m pip install ruff vtk
+      - name: Lint
+        run: |
+          . control_venv/bin/activate
+          cd control
+          flake8
+          ruff check
       - name: Run tests
         run: |
           . control_venv/bin/activate

@@ -236,7 +236,7 @@ def test_MMS_stationary_linear_Poisson_control():
         print(f"{degree=} {v_orders=}")
 
         zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)  # noqa: E501
+        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
         print(f"{degree=} {zeta_orders=}")
 
 
@@ -596,19 +596,19 @@ def test_MMS_stationary_Stokes_control():
             mu_error_norms.append(mu_error_norm)
 
         v_error_norms = np.array(v_error_norms)
-        v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)  # noqa: E501
+        v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
         print(f"{degree=} {v_orders=}")
 
         zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)  # noqa: E501
+        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
         print(f"{degree=} {zeta_orders=}")
 
         p_error_norms = np.array(p_error_norms)
-        p_orders = np.log(p_error_norms[:-1] / p_error_norms[1:]) / np.log(2.0)  # noqa: E501
+        p_orders = np.log(p_error_norms[:-1] / p_error_norms[1:]) / np.log(2.0)
         print(f"{degree=} {p_orders=}")
 
         mu_error_norms = np.array(mu_error_norms)
-        mu_orders = np.log(mu_error_norms[:-1] / mu_error_norms[1:]) / np.log(2.0)  # noqa: E501
+        mu_orders = np.log(mu_error_norms[:-1] / mu_error_norms[1:]) / np.log(2.0)
         print(f"{degree=} {mu_orders=}")
 
 
@@ -1339,7 +1339,7 @@ def test_MMS_stationary_Navier_Stokes_control():
         print(f"{degree=} {v_orders=}")
 
         zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)  # noqa: E501
+        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
         print(f"{degree=} {zeta_orders=}")
 
 
@@ -1951,7 +1951,7 @@ def test_MMS_instationary_heat_control_BE_convergence_FE():
         print(f"{degree=} {v_orders=}")
 
         zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)  # noqa: E501
+        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
         print(f"{degree=} {zeta_orders=}")
 
 
@@ -2105,7 +2105,7 @@ def test_MMS_instationary_heat_control_BE_convergence_time():
         print(f"{degree=} {v_orders=}")
 
         zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)  # noqa: E501
+        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
         print(f"{degree=} {zeta_orders=}")
 
 
@@ -2262,7 +2262,7 @@ def test_MMS_instationary_heat_control_CN_convergence_FE():
         print(f"{degree=} {v_orders=}")
 
         zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)  # noqa: E501
+        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
         print(f"{degree=} {zeta_orders=}")
 
 
@@ -2419,7 +2419,7 @@ def test_MMS_instationary_heat_control_CN_convergence_time():
         print(f"{degree=} {v_orders=}")
 
         zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)  # noqa: E501
+        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
         print(f"{degree=} {zeta_orders=}")
 
 
@@ -2616,7 +2616,7 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_FE():
         print(f"{degree=} {v_orders=}")
 
         zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)  # noqa: E501
+        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
         print(f"{degree=} {zeta_orders=}")
 
 
@@ -2797,7 +2797,7 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_time():
         print(f"{degree=} {v_orders=}")
 
         zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)  # noqa: E501
+        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
         print(f"{degree=} {zeta_orders=}")
 
 
@@ -2982,7 +2982,7 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_FE():
         print(f"{degree=} {v_orders=}")
 
         zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)  # noqa: E501
+        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
         print(f"{degree=} {zeta_orders=}")
 
 
@@ -3167,7 +3167,7 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_time():
         print(f"{degree=} {v_orders=}")
 
         zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)  # noqa: E501
+        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
         print(f"{degree=} {zeta_orders=}")
 
 
@@ -3219,14 +3219,14 @@ def test_instationary_Stokes_control_BE_with_exact_sol():
 
         v_d_help = Function(space, name="v_d_help")
         v_d_help.interpolate(as_vector([
-            4. * beta * y * (2. * (3. * x * x - 1.) * (y * y - 1.) + 3. * (x * x - 1.)**2),  # noqa: E501
-            -4. * beta * x * (3. * (y * y - 1.)**2 + 2. * (x * x - 1.) * (3. * y * y - 1.))]))  # noqa: E501
+            4. * beta * y * (2. * (3. * x * x - 1.) * (y * y - 1.) + 3. * (x * x - 1.)**2),
+            -4. * beta * x * (3. * (y * y - 1.)**2 + 2. * (x * x - 1.) * (3. * y * y - 1.))]))
 
         # desired state
         v_d = Function(space, name="v_d")
         v_d.interpolate(as_vector([
-            exp(T_f - t) * (x * y**3 + 2. * beta * y * (((x * x - 1.)**2) * (y * y - 7.) - 4. * (3. * x * x - 1.) * (y * y - 1.) + 2.)),  # noqa: E501
-            exp(T_f - t) * ((1. / 4.) * (x**4 - y**4) - 2. * beta * x * (((y * y - 1.)**2) * (x * x - 7.) - 4. * (x * x - 1.) * (3. * y * y - 1.) - 2.))]))  # noqa: E501
+            exp(T_f - t) * (x * y**3 + 2. * beta * y * (((x * x - 1.)**2) * (y * y - 7.) - 4. * (3. * x * x - 1.) * (y * y - 1.) + 2.)),
+            exp(T_f - t) * ((1. / 4.) * (x**4 - y**4) - 2. * beta * x * (((y * y - 1.)**2) * (x * x - 7.) - 4. * (x * x - 1.) * (3. * y * y - 1.) - 2.))]))
 
         with v_d.dat.vec as b_v, \
                 v_d_help.dat.vec_ro as b_1_v:
@@ -3274,8 +3274,8 @@ def test_instationary_Stokes_control_BE_with_exact_sol():
         # force function
         f = Function(space)
         f.interpolate(as_vector([
-            exp(T_f - t) * (-x * y**3 - 2. * y * (x * x - 1.)**2 * (y * y - 1.)),  # noqa: E501
-            exp(T_f - t) * ((1. / 4.) * (y**4 - x**4) + 2. * x * (x * x - 1.) * (y * y - 1.)**2)]))  # noqa: E501
+            exp(T_f - t) * (-x * y**3 - 2. * y * (x * x - 1.)**2 * (y * y - 1.)),
+            exp(T_f - t) * ((1. / 4.) * (y**4 - x**4) + 2. * x * (x * x - 1.) * (y * y - 1.)**2)]))
 
         with f.dat.vec as b_v, \
                 f_help.dat.vec_ro as b_1_v:
@@ -3378,14 +3378,14 @@ def test_instationary_Stokes_control_CN_with_exact_sol():
 
         v_d_help = Function(space, name="v_d_help")
         v_d_help.interpolate(as_vector([
-            4. * beta * y * (2. * (3. * x * x - 1.) * (y * y - 1.) + 3. * (x * x - 1.)**2),  # noqa: E501
-            -4. * beta * x * (3. * (y * y - 1.)**2 + 2. * (x * x - 1.) * (3. * y * y - 1.))]))  # noqa: E501
+            4. * beta * y * (2. * (3. * x * x - 1.) * (y * y - 1.) + 3. * (x * x - 1.)**2),
+            -4. * beta * x * (3. * (y * y - 1.)**2 + 2. * (x * x - 1.) * (3. * y * y - 1.))]))
 
         # desired state
         v_d = Function(space, name="v_d")
         v_d.interpolate(as_vector([
-            exp(T_f - t) * (x * y**3 + 2. * beta * y * (((x * x - 1.)**2) * (y * y - 7.) - 4. * (3. * x * x - 1.) * (y * y - 1.) + 2.)),  # noqa: E501
-            exp(T_f - t) * ((1. / 4.) * (x**4 - y**4) - 2. * beta * x * (((y * y - 1.)**2) * (x * x - 7.) - 4. * (x * x - 1.) * (3. * y * y - 1.) - 2.))]))  # noqa: E501
+            exp(T_f - t) * (x * y**3 + 2. * beta * y * (((x * x - 1.)**2) * (y * y - 7.) - 4. * (3. * x * x - 1.) * (y * y - 1.) + 2.)),
+            exp(T_f - t) * ((1. / 4.) * (x**4 - y**4) - 2. * beta * x * (((y * y - 1.)**2) * (x * x - 7.) - 4. * (x * x - 1.) * (3. * y * y - 1.) - 2.))]))
 
         with v_d.dat.vec as b_v, \
                 v_d_help.dat.vec_ro as b_1_v:
@@ -3433,8 +3433,8 @@ def test_instationary_Stokes_control_CN_with_exact_sol():
         # force function
         f = Function(space)
         f.interpolate(as_vector([
-            exp(T_f - t) * (-x * y**3 - 2. * y * (x * x - 1.)**2 * (y * y - 1.)),  # noqa: E501
-            exp(T_f - t) * ((1. / 4.) * (y**4 - x**4) + 2. * x * (x * x - 1.) * (y * y - 1.)**2)]))  # noqa: E501
+            exp(T_f - t) * (-x * y**3 - 2. * y * (x * x - 1.)**2 * (y * y - 1.)),
+            exp(T_f - t) * ((1. / 4.) * (y**4 - x**4) + 2. * x * (x * x - 1.) * (y * y - 1.)**2)]))
 
         with f.dat.vec as b_v, \
                 f_help.dat.vec_ro as b_1_v:
@@ -3750,7 +3750,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
         print(f"{degree=} {v_orders=}")
 
         zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)  # noqa: E501
+        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
         print(f"{degree=} {zeta_orders=}")
 
 
@@ -3813,14 +3813,14 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
 
         v_d_help = Function(space, name="v_d_help")
         v_d_help.interpolate(as_vector([
-            4. * beta * y * (2. * (3. * x * x - 1.) * (y * y - 1.) + 3. * (x * x - 1.)**2),  # noqa: E501
-            -4. * beta * x * (3. * (y * y - 1.)**2 + 2. * (x * x - 1.) * (3. * y * y - 1.))]))  # noqa: E501
+            4. * beta * y * (2. * (3. * x * x - 1.) * (y * y - 1.) + 3. * (x * x - 1.)**2),
+            -4. * beta * x * (3. * (y * y - 1.)**2 + 2. * (x * x - 1.) * (3. * y * y - 1.))]))
 
         # desired state
         v_d = Function(space, name="v_d")
         v_d.interpolate(as_vector([
-            exp(a - t) * (x * y**3 + 2. * beta * y * (((x * x - 1.)**2) * (y * y - 7.) - 4. * (3. * x * x - 1.) * (y * y - 1.) + 2.)),  # noqa: E501
-            exp(a - t) * ((1. / 4.) * (x**4 - y**4) - 2. * beta * x * (((y * y - 1.)**2) * (x * x - 7.) - 4. * (x * x - 1.) * (3. * y * y - 1.) - 2.))]))  # noqa: E501
+            exp(a - t) * (x * y**3 + 2. * beta * y * (((x * x - 1.)**2) * (y * y - 7.) - 4. * (3. * x * x - 1.) * (y * y - 1.) + 2.)),
+            exp(a - t) * ((1. / 4.) * (x**4 - y**4) - 2. * beta * x * (((y * y - 1.)**2) * (x * x - 7.) - 4. * (x * x - 1.) * (3. * y * y - 1.) - 2.))]))
 
         with v_d.dat.vec as b_v, \
                 v_d_help.dat.vec_ro as b_1_v:
@@ -3865,8 +3865,8 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
         # force function
         f = Function(space, name="f")
         f.interpolate(as_vector([
-            exp(a - t) * (-x * y**3 - 2. * y * (x * x - 1.)**2 * (y * y - 1.)),  # noqa: E501
-            exp(a - t) * ((1. / 4.) * (y**4 - x**4) + 2. * x * (x * x - 1.) * (y * y - 1.)**2)]))  # noqa: E501
+            exp(a - t) * (-x * y**3 - 2. * y * (x * x - 1.)**2 * (y * y - 1.)),
+            exp(a - t) * ((1. / 4.) * (y**4 - x**4) + 2. * x * (x * x - 1.) * (y * y - 1.)**2)]))
 
         with f.dat.vec as b_v, \
                 f_help.dat.vec_ro as b_1_v:
@@ -3986,7 +3986,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
     print(f"{degree=} {v_orders=}")
 
     zeta_error_norms = np.array(zeta_error_norms)
-    zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)  # noqa: E501
+    zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {zeta_orders=}")
 
 
@@ -4047,14 +4047,14 @@ def test_MMS_instationary_Stokes_control_CN_convergence_FE():
 
         v_d_help = Function(space)
         v_d_help.interpolate(as_vector([
-            4. * beta * y * (2. * (3. * x * x - 1.) * (y * y - 1.) + 3. * (x * x - 1.)**2),  # noqa: E501
-            -4. * beta * x * (3. * (y * y - 1.)**2 + 2. * (x * x - 1.) * (3. * y * y - 1.))]))  # noqa: E501
+            4. * beta * y * (2. * (3. * x * x - 1.) * (y * y - 1.) + 3. * (x * x - 1.)**2),
+            -4. * beta * x * (3. * (y * y - 1.)**2 + 2. * (x * x - 1.) * (3. * y * y - 1.))]))
 
         # desired state
         v_d = Function(space)
         v_d.interpolate(as_vector([
-            exp(t_f - t) * (x * y**3 + 2. * beta * y * (((x * x - 1.)**2) * (y * y - 7.) - 4. * (3. * x * x - 1.) * (y * y - 1.) + 2.)),  # noqa: E501
-            exp(t_f - t) * ((1. / 4.) * (x**4 - y**4) - 2. * beta * x * (((y * y - 1.)**2) * (x * x - 7.) - 4. * (x * x - 1.) * (3. * y * y - 1.) - 2.))]))  # noqa: E501
+            exp(t_f - t) * (x * y**3 + 2. * beta * y * (((x * x - 1.)**2) * (y * y - 7.) - 4. * (3. * x * x - 1.) * (y * y - 1.) + 2.)),
+            exp(t_f - t) * ((1. / 4.) * (x**4 - y**4) - 2. * beta * x * (((y * y - 1.)**2) * (x * x - 7.) - 4. * (x * x - 1.) * (3. * y * y - 1.) - 2.))]))
 
         with v_d.dat.vec as b_v, \
                 v_d_help.dat.vec_ro as b_1_v:
@@ -4099,8 +4099,8 @@ def test_MMS_instationary_Stokes_control_CN_convergence_FE():
         # force function
         f = Function(space)
         f.interpolate(as_vector([
-            exp(t_f - t) * (-x * y**3 - 2. * y * (x * x - 1.)**2 * (y * y - 1.)),  # noqa: E501
-            exp(t_f - t) * ((1. / 4.) * (y**4 - x**4) + 2. * x * (x * x - 1.) * (y * y - 1.)**2)]))  # noqa: E501
+            exp(t_f - t) * (-x * y**3 - 2. * y * (x * x - 1.)**2 * (y * y - 1.)),
+            exp(t_f - t) * ((1. / 4.) * (y**4 - x**4) + 2. * x * (x * x - 1.) * (y * y - 1.)**2)]))
 
         with f.dat.vec as b_v, \
                 f_help.dat.vec_ro as b_1_v:
@@ -4221,7 +4221,7 @@ def test_MMS_instationary_Stokes_control_CN_convergence_FE():
         print(f"{degree=} {v_orders=}")
 
         zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)  # noqa: E501
+        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
         print(f"{degree=} {zeta_orders=}")
 
 
@@ -4283,14 +4283,14 @@ def test_MMS_instationary_Stokes_control_CN_convergence_time():
 
         v_d_help = Function(space)
         v_d_help.interpolate(as_vector([
-            4. * beta * y * (2. * (3. * x * x - 1.) * (y * y - 1.) + 3. * (x * x - 1.)**2),  # noqa: E501
-            -4. * beta * x * (3. * (y * y - 1.)**2 + 2. * (x * x - 1.) * (3. * y * y - 1.))]))  # noqa: E501
+            4. * beta * y * (2. * (3. * x * x - 1.) * (y * y - 1.) + 3. * (x * x - 1.)**2),
+            -4. * beta * x * (3. * (y * y - 1.)**2 + 2. * (x * x - 1.) * (3. * y * y - 1.))]))
 
         # desired state
         v_d = Function(space)
         v_d.interpolate(as_vector([
-            exp(a - t) * (x * y**3 + 2. * beta * y * (((x * x - 1.)**2) * (y * y - 7.) - 4. * (3. * x * x - 1.) * (y * y - 1.) + 2.)),  # noqa: E501
-            exp(a - t) * ((1. / 4.) * (x**4 - y**4) - 2. * beta * x * (((y * y - 1.)**2) * (x * x - 7.) - 4. * (x * x - 1.) * (3. * y * y - 1.) - 2.))]))  # noqa: E501
+            exp(a - t) * (x * y**3 + 2. * beta * y * (((x * x - 1.)**2) * (y * y - 7.) - 4. * (3. * x * x - 1.) * (y * y - 1.) + 2.)),
+            exp(a - t) * ((1. / 4.) * (x**4 - y**4) - 2. * beta * x * (((y * y - 1.)**2) * (x * x - 7.) - 4. * (x * x - 1.) * (3. * y * y - 1.) - 2.))]))
 
         with v_d.dat.vec as b_v, \
                 v_d_help.dat.vec_ro as b_1_v:
@@ -4334,8 +4334,8 @@ def test_MMS_instationary_Stokes_control_CN_convergence_time():
         # force function
         f = Function(space)
         f.interpolate(as_vector([
-            exp(a - t) * (-x * y**3 - 2. * y * (x * x - 1.)**2 * (y * y - 1.)),  # noqa: E501
-            exp(a - t) * ((1. / 4.) * (y**4 - x**4) + 2. * x * (x * x - 1.) * (y * y - 1.)**2)]))  # noqa: E501
+            exp(a - t) * (-x * y**3 - 2. * y * (x * x - 1.)**2 * (y * y - 1.)),
+            exp(a - t) * ((1. / 4.) * (y**4 - x**4) + 2. * x * (x * x - 1.) * (y * y - 1.)**2)]))
 
         with f.dat.vec as b_v, \
                 f_help.dat.vec_ro as b_1_v:
@@ -4455,7 +4455,7 @@ def test_MMS_instationary_Stokes_control_CN_convergence_time():
     print(f"{degree=} {v_orders=}")
 
     zeta_error_norms = np.array(zeta_error_norms)
-    zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)  # noqa: E501
+    zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {zeta_orders=}")
 
 
@@ -4510,7 +4510,7 @@ def test_instationary_Navier_Stokes_BE():
                 c_1 * cos(pi * t / 2.0) * as_vector((b * y, -a * (x - 0.5))),
                 ufl.conditional(
                     c_2 >= 0.0,
-                    c_2 * cos(pi * t / 2.0) * as_vector((-b * y, a * (x + 0.5))),  # noqa: E501
+                    c_2 * cos(pi * t / 2.0) * as_vector((-b * y, a * (x + 0.5))),
                     as_vector((0.0, 0.0)))),
         )
 
@@ -4640,7 +4640,7 @@ def test_instationary_Navier_Stokes_CN():
                 c_1 * cos(pi * t / 2.0) * as_vector((b * y, -a * (x - 0.5))),
                 ufl.conditional(
                     c_2 >= 0.0,
-                    c_2 * cos(pi * t / 2.0) * as_vector((-b * y, a * (x + 0.5))),  # noqa: E501
+                    c_2 * cos(pi * t / 2.0) * as_vector((-b * y, a * (x + 0.5))),
                     as_vector((0.0, 0.0)))),
         )
 
@@ -4757,7 +4757,7 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
             space_v,
             as_vector([
                 (a - t) * x * (y ** 3),
-                (a - t) * (1. / 4.) * (x ** 4 - y ** 4)]),  # noqa: E501
+                (a - t) * (1. / 4.) * (x ** 4 - y ** 4)]),
             "on_boundary")
 
         return my_bcs
@@ -4930,7 +4930,7 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
     print(f"{degree=} {v_orders=}")
 
     zeta_error_norms = np.array(zeta_error_norms)
-    zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)  # noqa: E501
+    zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {zeta_orders=}")
 
 
@@ -5143,7 +5143,7 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
     print(f"{degree=} {v_orders=}")
 
     zeta_error_norms = np.array(zeta_error_norms)
-    zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)  # noqa: E501
+    zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {zeta_orders=}")
 
 
@@ -5167,7 +5167,7 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE():
         return v, v_xy
 
     def ref_sol_zeta(x_1, x_2, t):
-        zeta = as_vector([0.0, 0.0])  # noqa: E501
+        zeta = as_vector([0.0, 0.0])
 
         return zeta
 
@@ -5355,7 +5355,7 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE():
         print(f"{degree=} {v_orders=}")
 
         zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)  # noqa: E501
+        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
         print(f"{degree=} {zeta_orders=}")
 
 
@@ -5380,7 +5380,7 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
         return v, v_xy
 
     def ref_sol_zeta(x_1, x_2, t):
-        zeta = as_vector([0.0, 0.0])  # noqa: E501
+        zeta = as_vector([0.0, 0.0])
 
         return zeta
 
@@ -5567,5 +5567,5 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
     print(f"{degree=} {v_orders=}")
 
     zeta_error_norms = np.array(zeta_error_norms)
-    zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)  # noqa: E501
+    zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {zeta_orders=}")
