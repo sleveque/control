@@ -632,6 +632,7 @@ class Control:
             solver_2.ksp.addConvergenceTest(converged, prepend=True)
 
             # definition of preconditioners
+            @garbage_cleanup(self._comm)
             def pc_linear(u_0, u_1, b_0, b_1):
                 # solving for the (1,1)-block
                 u_0.zero()
@@ -2720,6 +2721,7 @@ class Control:
             # definition of preconditioner
             if self._CN:
                 # preconditioner for the trapezoidal rule
+                @garbage_cleanup(self._comm)
                 def pc_linear(u_0, u_1, b_0, b_1):
                     # solving for the (1,1)-block
                     b_0_help = apply_T_1_inv(b_0, space_v, n_t - 1)
@@ -2854,6 +2856,7 @@ class Control:
                         del b_help
             else:
                 # preconditioner for backward Euler
+                @garbage_cleanup(self._comm)
                 def pc_linear(u_0, u_1, b_0, b_1):
                     # solving for the (1,1)-block
                     for i in range(n_t):
