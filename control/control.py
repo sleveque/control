@@ -27,21 +27,25 @@ def converged(ksp, it, rnorm):
     return it >= ksp.max_it
 
 
-def garbage_cleanup(attr_name, *, self=None):
-    if self is None:
-        def wrapper(fn):
-            def wrapped_fn(self, *args, **kwargs):
-                return_value = fn(self, *args, **kwargs)
-                PETSc.garbage_cleanup(getattr(self, attr_name))
-                return return_value
-            return wrapped_fn
-    else:
-        def wrapper(fn):
-            def wrapped_fn(*args, **kwargs):
-                return_value = fn(*args, **kwargs)
-                PETSc.garbage_cleanup(getattr(self, attr_name))
-                return return_value
-            return wrapped_fn
+def garbage_cleanup(comm):
+    def wrapper(fn):
+        def wrapped_fn(*args, **kwargs):
+            return_value = fn(*args, **kwargs)
+            PETSc.garbage_cleanup(comm)
+            return return_value
+        return wrapped_fn
+
+    return wrapper
+
+
+def garbage_cleanup_method(attr_name):
+    def wrapper(fn):
+        def wrapped_fn(self, *args, **kwargs):
+            return_value = fn(self, *args, **kwargs)
+            PETSc.garbage_cleanup(getattr(self, attr_name))
+            return return_value
+        return wrapped_fn
+
     return wrapper
 
 
@@ -657,7 +661,7 @@ class Control:
 
             return pc_linear
 
-        @garbage_cleanup("_comm")
+        @garbage_cleanup_method("_comm")
         def non_linear_res_eval(self, space_v, v_d, f, v_old, zeta_old,
                                 D_v, D_zeta, M_zeta, bcs_v, bcs_zeta):
             """Construction of the non-linear residual.
@@ -726,7 +730,7 @@ class Control:
 
             return rhs_0, rhs_1
 
-        @garbage_cleanup("_comm")
+        @garbage_cleanup_method("_comm")
         def linear_solve(self, *,
                          P=None, solver_parameters=None,
                          auxiliary_sp={}, v_d=None, f=None,
@@ -910,7 +914,7 @@ class Control:
             if print_error:
                 self.print_error()
 
-        @garbage_cleanup("_comm")
+        @garbage_cleanup_method("_comm")
         def non_linear_solve(self, *,
                              P=None, solver_parameters=None,
                              auxiliary_sp={},
@@ -1123,7 +1127,7 @@ class Control:
                 except Exception as e:
                     warning(f"Cannot plot figure. Error msg: '{e}'")
 
-        @garbage_cleanup("_comm")
+        @garbage_cleanup_method("_comm")
         def incompressible_linear_solve(self, nullspace_p, *, space_p=None,
                                         P=None, solver_parameters=None,
                                         auxiliary_sp={},
@@ -1375,7 +1379,7 @@ class Control:
                     auxiliary_sp, bcs_v, bcs_zeta, D_v, D_zeta)
 
                 # construction of preconditioner for the whole system
-                @garbage_cleanup("_comm", self=self)
+                @garbage_cleanup(self._comm)
                 def pc_fn(u_0, u_1, b_0, b_1):
                     b_0_help = Cofunction(space_v.dual())
                     b_1_help = Cofunction(space_v.dual())
@@ -1595,7 +1599,7 @@ class Control:
             if print_error:
                 self.print_error()
 
-        @garbage_cleanup("_comm")
+        @garbage_cleanup_method("_comm")
         def incompressible_non_linear_solve(self, nullspace_p, *, space_p=None,
                                             P=None, solver_parameters=None,
                                             auxiliary_sp={},
@@ -1705,7 +1709,7 @@ class Control:
 
             # function for the evaluation of the non-linear residual,
             # in case of incompressible control problems
-            @garbage_cleanup("_comm", self=self)
+            @garbage_cleanup(self._comm)
             def non_linear_res_eval():
                 rhs_00 = Cofunction(space_v.dual(), name="rhs_00")
                 rhs_01 = Cofunction(space_v.dual(), name="rhs_01")
@@ -2974,7 +2978,7 @@ class Control:
 
             return pc_linear
 
-        @garbage_cleanup("_comm")
+        @garbage_cleanup_method("_comm")
         def non_linear_res_eval(self, full_space_v, v_old, zeta_old, v_0,
                                 v_d, f, M_v, bcs_v, bcs_zeta):
             """Construction of the non-linear residual.
@@ -3379,7 +3383,7 @@ class Control:
 
             return rhs_0, rhs_1
 
-        @garbage_cleanup("_comm")
+        @garbage_cleanup_method("_comm")
         def linear_solve(self, *,
                          P=None, solver_parameters=None,
                          auxiliary_sp={}, v_d=None, f=None,
@@ -3959,7 +3963,7 @@ class Control:
             del v
             del zeta
 
-        @garbage_cleanup("_comm")
+        @garbage_cleanup_method("_comm")
         def non_linear_solve(self, *,
                              P=None, solver_parameters=None,
                              auxiliary_sp={},
@@ -4192,7 +4196,7 @@ class Control:
                     except Exception as e:
                         warning(f"Cannot plot figure. Error msg: '{e}'")
 
-        @garbage_cleanup("_comm")
+        @garbage_cleanup_method("_comm")
         def incompressible_linear_solve(self, nullspace_p, *, space_p=None,
                                         P=None, solver_parameters=None,
                                         auxiliary_sp={},
@@ -5002,7 +5006,7 @@ class Control:
                         bcs_v, bcs_zeta, block_01_int, block_10_int)
 
                     # preconditioner for the trapezoidal rule
-                    @garbage_cleanup("_comm", self=self)
+                    @garbage_cleanup(self._comm)
                     def pc_fn(u_0, u_1, b_0, b_1):
                         b_0_help = Cofunction(full_space_v_help.dual())
                         b_1_help = Cofunction(full_space_v_help.dual())
@@ -5174,7 +5178,7 @@ class Control:
                         epsilon=epsilon)
 
                     # preconditioner for bacward Euler
-                    @garbage_cleanup("_comm", self=self)
+                    @garbage_cleanup(self._comm)
                     def pc_fn(u_0, u_1, b_0, b_1):
                         b_0_help = Cofunction(full_space_v.dual())
                         b_1_help = Cofunction(full_space_v.dual())
@@ -5486,7 +5490,7 @@ class Control:
             del p
             del mu
 
-        @garbage_cleanup("_comm")
+        @garbage_cleanup_method("_comm")
         def incompressible_non_linear_solve(self, nullspace_p, *,
                                             space_p=None, P=None,
                                             solver_parameters=None,
@@ -5615,7 +5619,7 @@ class Control:
             B_T = - inner(p_trial, div(v_test)) * dx
 
             # function used for the construction of the non-linear residual
-            @garbage_cleanup("_comm", self=self)
+            @garbage_cleanup(self._comm)
             def non_linear_res_eval():
                 rhs_10 = Cofunction(full_space_p.dual(), name="rhs_10")
                 rhs_11 = Cofunction(full_space_p.dual(), name="rhs_11")
