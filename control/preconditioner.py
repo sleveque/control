@@ -61,7 +61,7 @@ def apply_bcs(bcs, u):
     for bc in bcs:
         if isinstance(bc.function_arg, Cofunction):
             bc = bc.reconstruct(g=bc.function_arg.riesz_representation("l2"))
-        if isinstance(u, Cofunction) and isinstance(bc.function_arg, (ufl.classes.Zero, Function)):  # noqa: E501
+        if isinstance(u, Cofunction) and isinstance(bc.function_arg, (ufl.classes.Zero, Function)):
             bc.apply(u.riesz_representation("l2"))
         else:
             bc.apply(u)
@@ -301,25 +301,25 @@ class MultiBlockSystem:
             if block_ij is None:
                 self._matrices_00[(i, j)] = None
             else:
-                self._matrices_00[(i, j)] = assemble(block_ij, form_compiler_parameters=form_compiler_parameters)  # noqa: E501
+                self._matrices_00[(i, j)] = assemble(block_ij, form_compiler_parameters=form_compiler_parameters)
         self._matrices_01 = {}
         for (i, j), block_ij in block_01.items():
             if block_ij is None:
                 self._matrices_01[(i, j)] = None
             else:
-                self._matrices_01[(i, j)] = assemble(block_ij, form_compiler_parameters=form_compiler_parameters)  # noqa: E501
+                self._matrices_01[(i, j)] = assemble(block_ij, form_compiler_parameters=form_compiler_parameters)
         self._matrices_10 = {}
         for (i, j), block_ij in block_10.items():
             if block_ij is None:
                 self._matrices_10[(i, j)] = None
             else:
-                self._matrices_10[(i, j)] = assemble(block_ij, form_compiler_parameters=form_compiler_parameters)  # noqa: E501
+                self._matrices_10[(i, j)] = assemble(block_ij, form_compiler_parameters=form_compiler_parameters)
         self._matrices_11 = {}
         for (i, j), block_ij in block_11.items():
             if block_ij is None:
                 self._matrices_11[(i, j)] = None
             else:
-                self._matrices_11[(i, j)] = assemble(block_ij, form_compiler_parameters=form_compiler_parameters)  # noqa: E501
+                self._matrices_11[(i, j)] = assemble(block_ij, form_compiler_parameters=form_compiler_parameters)
 
         nullspaces = ()
         nullspaces = nullspaces + tuple(nullspace_0)
@@ -377,12 +377,12 @@ class MultiBlockSystem:
                 for i in range(self._n_blocks_00):
                     x_c_0_help.assign(self._x_fn.sub(i))
                     nullspace_help = self._nullspaces[i]
-                    x_c_0_i = nullspace_help.pre_mult_corrected_lhs(x_c_0_help)  # noqa: E501
+                    x_c_0_i = nullspace_help.pre_mult_corrected_lhs(x_c_0_help)
                     x_c_new.sub(i).assign(x_c_0_i)
                 for i in range(self._n_blocks_11):
                     x_c_1_help.assign(self._x_fn.sub(self._n_blocks_00 + i))
                     nullspace_help = self._nullspaces[self._n_blocks_00 + i]
-                    x_c_1_i = nullspace_help.pre_mult_corrected_lhs(x_c_1_help)  # noqa: E501
+                    x_c_1_i = nullspace_help.pre_mult_corrected_lhs(x_c_1_help)
                     x_c_new.sub(self._n_blocks_00 + i).assign(x_c_1_i)
 
                 del x_c_0_help
@@ -414,32 +414,32 @@ class MultiBlockSystem:
                     if block_ij is not None:
                         x_help_0.assign(x_c_new.sub(j))
                         with x_help_0.dat.vec_ro as x_0_v, \
-                                self._y_fn.sub(self._n_blocks_00 + i).dat.vec as y_0_v:  # noqa: E501
+                                self._y_fn.sub(self._n_blocks_00 + i).dat.vec as y_0_v:
                             block_ij.petscmat.multAdd(x_0_v, y_0_v, y_0_v)
 
                 for (i, j), block_ij in self._matrices_11.items():
                     if block_ij is not None:
                         x_help_1.assign(x_c_new.sub(self._n_blocks_00 + j))
                         with x_help_1.dat.vec_ro as x_0_v, \
-                                self._y_fn.sub(self._n_blocks_00 + i).dat.vec as y_0_v:  # noqa: E501
+                                self._y_fn.sub(self._n_blocks_00 + i).dat.vec as y_0_v:
                             block_ij.petscmat.multAdd(x_0_v, y_0_v, y_0_v)
 
                 del x_help_0
                 del x_help_1
 
                 if self._CN:
-                    if self._sub_n_blocks_00_0 is None and self._sub_n_blocks_11_0 is None:  # noqa: E501
+                    if self._sub_n_blocks_00_0 is None and self._sub_n_blocks_11_0 is None:
                         if self._n_blocks_00 == 1:
                             space_0_help = self._space_0
                         else:
-                            flattened_space_0 = tuple(self._space_0 for i in range(self._n_blocks_00))  # noqa: E501
-                            space_0_help = MixedFunctionSpace(flattened_space_0)  # noqa: E501
+                            flattened_space_0 = tuple(self._space_0 for i in range(self._n_blocks_00))
+                            space_0_help = MixedFunctionSpace(flattened_space_0)
 
                         if self._n_blocks_11 == 1:
                             space_1_help = self._space_1
                         else:
-                            flattened_space_1 = tuple(self._space_1 for i in range(self._n_blocks_11))  # noqa: E501
-                            space_1_help = MixedFunctionSpace(flattened_space_1)  # noqa: E501
+                            flattened_space_1 = tuple(self._space_1 for i in range(self._n_blocks_11))
+                            space_1_help = MixedFunctionSpace(flattened_space_1)
 
                         y_help_0 = Function(space_0_help)
                         y_help_1 = Function(space_1_help)
@@ -450,8 +450,8 @@ class MultiBlockSystem:
                             index = self._n_blocks_00 + i
                             y_help_1.sub(i).assign(self._y_fn.sub(index))
 
-                        y_help_0 = apply_T_1(y_help_0, self._space_0, self._n_blocks_00)  # noqa: E501
-                        y_help_1 = apply_T_2(y_help_1, self._space_1, self._n_blocks_11)  # noqa: E501
+                        y_help_0 = apply_T_1(y_help_0, self._space_0, self._n_blocks_00)
+                        y_help_1 = apply_T_2(y_help_1, self._space_1, self._n_blocks_11)
 
                         for i in range(self._n_blocks_00):
                             self._y_fn.sub(i).assign(y_help_0.sub(i))
@@ -462,19 +462,19 @@ class MultiBlockSystem:
                         del y_help_0
                         del y_help_1
                     else:
-                        flattened_space_0_0 = tuple(self._space_0 for i in range(self._sub_n_blocks_00_0))  # noqa: E501
+                        flattened_space_0_0 = tuple(self._space_0 for i in range(self._sub_n_blocks_00_0))
                         space_0_0_help = MixedFunctionSpace(
                             flattened_space_0_0)
 
-                        flattened_space_0_1 = tuple(self._space_0 for i in range(self._sub_n_blocks_00_1))  # noqa: E501
+                        flattened_space_0_1 = tuple(self._space_0 for i in range(self._sub_n_blocks_00_1))
                         space_0_1_help = MixedFunctionSpace(
                             flattened_space_0_1)
 
-                        flattened_space_1_0 = tuple(self._space_1 for i in range(self._sub_n_blocks_11_0))  # noqa: E501
+                        flattened_space_1_0 = tuple(self._space_1 for i in range(self._sub_n_blocks_11_0))
                         space_1_0_help = MixedFunctionSpace(
                             flattened_space_1_0)
 
-                        flattened_space_1_1 = tuple(self._space_1 for i in range(self._sub_n_blocks_11_1))  # noqa: E501
+                        flattened_space_1_1 = tuple(self._space_1 for i in range(self._sub_n_blocks_11_1))
                         space_1_1_help = MixedFunctionSpace(
                             flattened_space_1_1)
 
@@ -492,13 +492,13 @@ class MultiBlockSystem:
                             index = self._n_blocks_00 + i
                             y_help_1_0.sub(i).assign(self._y_fn.sub(index))
                         for i in range(self._sub_n_blocks_11_1):
-                            index = self._n_blocks_00 + self._sub_n_blocks_11_0 + i  # noqa: E501
+                            index = self._n_blocks_00 + self._sub_n_blocks_11_0 + i
                             y_help_1_1.sub(i).assign(self._y_fn.sub(index))
 
-                        y_help_0_0 = apply_T_1(y_help_0_0, self._space_0, self._sub_n_blocks_00_0)  # noqa: E501
-                        y_help_0_1 = apply_T_2(y_help_0_1, self._space_0, self._sub_n_blocks_00_1)  # noqa: E501
-                        y_help_1_0 = apply_T_2(y_help_1_0, self._space_1, self._sub_n_blocks_11_0)  # noqa: E501
-                        y_help_1_1 = apply_T_1(y_help_1_1, self._space_1, self._sub_n_blocks_11_1)  # noqa: E501
+                        y_help_0_0 = apply_T_1(y_help_0_0, self._space_0, self._sub_n_blocks_00_0)
+                        y_help_0_1 = apply_T_2(y_help_0_1, self._space_0, self._sub_n_blocks_00_1)
+                        y_help_1_0 = apply_T_2(y_help_1_0, self._space_1, self._sub_n_blocks_11_0)
+                        y_help_1_1 = apply_T_1(y_help_1_1, self._space_1, self._sub_n_blocks_11_1)
 
                         for i in range(self._sub_n_blocks_00_0):
                             self._y_fn.sub(i).assign(y_help_0_0.sub(i))
@@ -509,7 +509,7 @@ class MultiBlockSystem:
                             index = self._n_blocks_00 + i
                             self._y_fn.sub(index).assign(y_help_1_0.sub(i))
                         for i in range(self._sub_n_blocks_11_1):
-                            index = self._n_blocks_00 + self._sub_n_blocks_11_0 + i  # noqa: E501
+                            index = self._n_blocks_00 + self._sub_n_blocks_11_0 + i
                             self._y_fn.sub(index).assign(y_help_1_1.sub(i))
 
                         del y_help_0_0
@@ -523,11 +523,11 @@ class MultiBlockSystem:
                 for i in range(self._n_blocks_00):
                     x_c_0_help.assign(self._x_fn.sub(i))
                     nullspace_help = self._nullspaces[i]
-                    nullspace_help.post_mult_correct_lhs(x_c_0_help, self._y_fn.sub(i))  # noqa: E501
+                    nullspace_help.post_mult_correct_lhs(x_c_0_help, self._y_fn.sub(i))
                 for i in range(self._n_blocks_11):
                     x_c_1_help.assign(self._x_fn.sub(self._n_blocks_00 + i))
                     nullspace_help = self._nullspaces[self._n_blocks_00 + i]
-                    nullspace_help.post_mult_correct_lhs(x_c_1_help, self._y_fn.sub(self._n_blocks_00 + i))  # noqa: E501
+                    nullspace_help.post_mult_correct_lhs(x_c_1_help, self._y_fn.sub(self._n_blocks_00 + i))
 
                 del x_c_0_help
                 del x_c_1_help
@@ -562,13 +562,13 @@ class MultiBlockSystem:
                 if self._n_blocks_00 == 1:
                     space_help_0 = self._space_0
                 else:
-                    flattened_space_0 = tuple(space_0 for i in range(self._n_blocks_00))  # noqa: E501
+                    flattened_space_0 = tuple(space_0 for i in range(self._n_blocks_00))
                     space_help_0 = MixedFunctionSpace(flattened_space_0)
 
                 if self._n_blocks_11 == 1:
                     space_help_1 = self._space_1
                 else:
-                    flattened_space_1 = tuple(space_1 for i in range(self._n_blocks_11))  # noqa: E501
+                    flattened_space_1 = tuple(space_1 for i in range(self._n_blocks_11))
                     space_help_1 = MixedFunctionSpace(flattened_space_1)
 
                 b_0 = Cofunction(space_help_0.dual(), name="b_0")
@@ -583,7 +583,7 @@ class MultiBlockSystem:
                     b_1.assign(self._x_fn.sub(self._n_blocks_00))
                 else:
                     for i in range(self._n_blocks_11):
-                        b_1.sub(i).assign(self._x_fn.sub(self._n_blocks_00 + i))  # noqa: E501
+                        b_1.sub(i).assign(self._x_fn.sub(self._n_blocks_00 + i))
 
                 b_0_c = Cofunction(space_help_0.dual(), name="b_0_c")
                 b_1_c = Cofunction(space_help_1.dual(), name="b_1_c")
@@ -595,7 +595,7 @@ class MultiBlockSystem:
                     for i in range(self._n_blocks_00):
                         b_0_c_help.assign(b_0.sub(i))
                         nullspace_help = self._nullspaces[i]
-                        b_0_c.sub(i).assign(nullspace_help.pc_pre_mult_corrected(b_0_c_help))  # noqa: E501
+                        b_0_c.sub(i).assign(nullspace_help.pc_pre_mult_corrected(b_0_c_help))
                     del b_0_c_help
 
                 if self._n_blocks_11 == 1:
@@ -605,8 +605,8 @@ class MultiBlockSystem:
                     b_1_c_help = Cofunction(space_1.dual())
                     for i in range(self._n_blocks_11):
                         b_1_c_help.assign(b_1.sub(i))
-                        nullspace_help = self._nullspaces[self._n_blocks_00 + i]  # noqa: E501
-                        b_1_c.sub(i).assign(nullspace_help.pc_pre_mult_corrected(b_1_c_help))  # noqa: E501
+                        nullspace_help = self._nullspaces[self._n_blocks_00 + i]
+                        b_1_c.sub(i).assign(nullspace_help.pc_pre_mult_corrected(b_1_c_help))
                     del b_1_c_help
 
                 u_0 = Function(space_help_0, name="u_0")
@@ -621,27 +621,27 @@ class MultiBlockSystem:
                 if self._n_blocks_00 == 1:
                     self._y_fn.sub(0).assign(u_0)
                     nullspace_help = self._nullspaces[0]
-                    nullspace_help.pc_post_mult_correct(self._y_fn.sub(0), b_0)  # noqa: E501
+                    nullspace_help.pc_post_mult_correct(self._y_fn.sub(0), b_0)
                 else:
                     y_c_0_help = Cofunction(space_0.dual())
                     for i in range(self._n_blocks_00):
                         y_c_0_help.assign(b_0.sub(i))
                         self._y_fn.sub(i).assign(u_0.sub(i))
                         nullspace_help = self._nullspaces[i]
-                        nullspace_help.pc_post_mult_correct(self._y_fn.sub(i), y_c_0_help)  # noqa: E501
+                        nullspace_help.pc_post_mult_correct(self._y_fn.sub(i), y_c_0_help)
                     del y_c_0_help
 
                 if self._n_blocks_11 == 1:
                     self._y_fn.sub(self._n_blocks_00).assign(u_1)
                     nullspace_help = self._nullspaces[self._n_blocks_00]
-                    nullspace_help.pc_post_mult_correct(self._y_fn.sub(self._n_blocks_00), b_1)  # noqa: E501
+                    nullspace_help.pc_post_mult_correct(self._y_fn.sub(self._n_blocks_00), b_1)
                 else:
                     y_c_1_help = Cofunction(space_1.dual())
                     for i in range(self._n_blocks_11):
                         y_c_1_help.assign(b_1.sub(i))
-                        self._y_fn.sub(self._n_blocks_00 + i).assign(u_1.sub(i))  # noqa: E501
-                        nullspace_help = self._nullspaces[self._n_blocks_00 + i]  # noqa: E501
-                        nullspace_help.pc_post_mult_correct(self._y_fn.sub(self._n_blocks_00 + i), y_c_1_help)  # noqa: E501
+                        self._y_fn.sub(self._n_blocks_00 + i).assign(u_1.sub(i))
+                        nullspace_help = self._nullspaces[self._n_blocks_00 + i]
+                        nullspace_help.pc_post_mult_correct(self._y_fn.sub(self._n_blocks_00 + i), y_c_1_help)
                     del y_c_1_help
 
                 with self._y_fn.dat.vec_ro as y_v:
