@@ -464,9 +464,6 @@ class Control:
             error = sqrt(abs(assemble(inner(v_err, v_err) * dx)))
             print(f'Estimated error in the L2-norm: {error:.16e}')
 
-            del v_err
-            del error
-
         def construct_D_v(self, v_trial, v_test, v_old, *,
                           non_linear_res=False):
             """Construction of the discretized forward form.
@@ -649,7 +646,6 @@ class Control:
                 apply_bcs(bcs_zeta, b)
                 u_1.zero()
                 solver_1.solve(u_1, b.copy(deepcopy=True))
-                del b
 
                 # multiply for the (1,1)-block
                 b = assemble(action(self._M_v, u_1))
@@ -658,7 +654,6 @@ class Control:
                 apply_bcs(bcs_zeta, b)
                 u_1.zero()
                 solver_2.solve(u_1, b.copy(deepcopy=True))
-                del b
 
             return pc_linear
 
@@ -706,24 +701,20 @@ class Control:
             with b.dat.vec_ro as b_v, \
                     rhs_0.dat.vec as b_1_v:
                 b_1_v.axpy(-1.0, b_v)
-            del b
             b = assemble(action(D_zeta, zeta_old))
             with b.dat.vec_ro as b_v, \
                     rhs_0.dat.vec as b_1_v:
                 b_1_v.axpy(-1.0, b_v)
-            del b
 
             # evaluating non-linear residual (state equation)
             b = assemble(action(D_v, v_old))
             with b.dat.vec_ro as b_v, \
                     rhs_1.dat.vec as b_1_v:
                 b_1_v.axpy(-1.0, b_v)
-            del b
             b = assemble(action(M_zeta, zeta_old))
             with b.dat.vec_ro as b_v, \
                     rhs_1.dat.vec as b_1_v:
                 b_1_v.axpy(-1.0, b_v)
-            del b
 
             # applying bcs
             apply_bcs(bcs_v, rhs_0)
@@ -805,16 +796,10 @@ class Control:
             if f is None:
                 f = self.construct_f(inhomogeneous_bcs_v, v_test,
                                      D_v, v_inhom, bcs_v)
-                check_f = True
-            else:
-                check_f = False
 
             if v_d is None:
                 v_d = self.construct_v_d(v_test, inhomogeneous_bcs_v,
                                          v_inhom, bcs_v)
-                check_v_d = True
-            else:
-                check_v_d = False
 
             # construction of the preconditioner
             if P is None:
@@ -870,12 +855,7 @@ class Control:
             self.set_v(v)
             self.set_zeta(zeta)
 
-            if check_v_d:
-                del v_d
-            if check_f:
-                del f
-            del system
-            del pc_fn
+            del system, pc_fn
 
             # creating output
             if create_output:
@@ -907,9 +887,6 @@ class Control:
                     plt.show()
                 except Exception as e:
                     warning(f"Cannot plot figure. Error msg: '{e}'")
-
-            del v
-            del zeta
 
             # printing the error
             if print_error:
@@ -1038,11 +1015,6 @@ class Control:
                 apply_bcs(bcs_zeta, zeta_old)
                 self.set_zeta(zeta_old)
 
-                del D_v
-                del D_zeta
-                del rhs_0
-                del rhs_1
-
                 # construction of the discretized forward and adjoint forms
                 D_v = self.construct_D_v(
                     v_trial, v_test, v_old, non_linear_res=True)
@@ -1068,19 +1040,6 @@ class Control:
 
                 if k + 1 > max_non_linear_iter:
                     break
-
-            del v_old
-            del zeta_old
-            del delta_v
-            del delta_zeta
-            del D_v
-            del D_zeta
-            del M_zeta
-            del rhs_0
-            del rhs_1
-            del rhs
-            del f
-            del v_d
 
             # printing L^2 discrepancy between the desired state and the
             # numerical solution
@@ -1242,32 +1201,20 @@ class Control:
             if f is None:
                 f = self.construct_f(inhomogeneous_bcs_v, v_test,
                                      D_v, v_inhom, bcs_v)
-                check_f = True
-            else:
-                check_f = False
 
             # construction of desired state
             if v_d is None:
                 v_d = self.construct_v_d(v_test, inhomogeneous_bcs_v,
                                          v_inhom, bcs_v)
-                check_v_d = True
-            else:
-                check_v_d = False
 
             # construction of right-hand side
             if div_v is None:
                 div_v = Function(space_p)
                 if inhomogeneous_bcs_v:
                     div_v = assemble(- action(B, v_inhom))
-                check_div_v = True
-            else:
-                check_div_v = False
 
             if div_zeta is None:
                 div_zeta = Cofunction(space_p.dual())
-                check_div_zeta = True
-            else:
-                check_div_zeta = False
 
             b_0 = Cofunction(space_0.dual(), name="b_0")
             b_1 = Cofunction(space_1.dual(), name="b_1")
@@ -1430,9 +1377,6 @@ class Control:
                             b_1.sub(1).dat.vec_ro as b_1_v:
                         b_v.axpy(-1.0, b_1_v)
 
-                    del v_help
-                    del zeta_help
-
                     # solving for the Schur complement approximation (apply
                     # block-pressure convection--diffusion preconditioner)
                     u_1.sub(0).zero()
@@ -1442,9 +1386,6 @@ class Control:
                     u_1.sub(1).zero()
                     solver_K_p.solve(u_1.sub(1),
                                      b_1_help.copy(deepcopy=True))
-
-                    del b_0_help
-                    del b_1_help
 
                     b_0_help = Cofunction(space_p.dual())
                     b_1_help = Cofunction(space_p.dual())
@@ -1458,8 +1399,6 @@ class Control:
                     b_1_help.assign(assemble(
                         action(block_10_p, b_c_0_help)
                         + action(block_11_p, b_c_1_help)))
-                    del b_c_0_help
-                    del b_c_1_help
 
                     u_1.sub(0).zero()
                     solver_M_p.solve(u_1.sub(0),
@@ -1468,9 +1407,6 @@ class Control:
                     u_1.sub(1).zero()
                     solver_M_p.solve(u_1.sub(1),
                                      b_1_help.copy(deepcopy=True))
-
-                    del b_0_help
-                    del b_1_help
             else:
                 pc_fn = P(self, D_zeta, D_v, B,
                           nullspace_v, nullspace_zeta,
@@ -1521,25 +1457,9 @@ class Control:
             self.set_p(p)
             self.set_mu(mu)
 
-            del u_0_sol
-            del u_1_sol
-            if check_v_d:
-                del v_d
-            if check_f:
-                del f
-            if not (check_f and check_v_d):
-                del b_0
-            if check_div_v:
-                del div_v
-            if check_div_zeta:
-                del div_zeta
-            if not (check_div_v and check_div_zeta):
-                del b_1
-            del system
-            del pc_fn
+            del system, pc_fn
             if P is None:
-                del self._inner_system
-                del self._inner_pc_fn
+                del self._inner_system, self._inner_pc_fn
 
             # creating output
             if create_output:
@@ -1589,11 +1509,6 @@ class Control:
                     plt.show()
                 except Exception as e:
                     warning(f"Cannot plot figure. Error msg: '{e}'")
-
-            del v
-            del zeta
-            del p
-            del mu
 
             # printing L^2 discrepancy between the desired state and the
             # numerical solution
@@ -1725,32 +1640,25 @@ class Control:
                 rhs_00.assign(rhs_0)
                 rhs_01.assign(rhs_1)
 
-                del rhs_0
-                del rhs_1
-
                 b = assemble(action(B_T, mu_old))
                 with b.dat.vec_ro as b_v, \
                         rhs_00.dat.vec as b_1_v:
                     b_1_v.axpy(-1.0, b_v)
-                del b
 
                 b = assemble(action(B_T, p_old))
                 with b.dat.vec_ro as b_v, \
                         rhs_01.dat.vec as b_1_v:
                     b_1_v.axpy(-1.0, b_v)
-                del b
 
                 b = assemble(action(B, v_old))
                 with b.dat.vec_ro as b_v, \
                         rhs_10.dat.vec as b_1_v:
                     b_1_v.axpy(-1.0, b_v)
-                del b
 
                 b = assemble(action(B, zeta_old))
                 with b.dat.vec_ro as b_v, \
                         rhs_11.dat.vec as b_1_v:
                     b_1_v.axpy(-1.0, b_v)
-                del b
 
                 apply_bcs(bcs_v, rhs_00)
                 apply_bcs(bcs_zeta, rhs_01)
@@ -1813,13 +1721,6 @@ class Control:
                         mu_old.dat.vec as b_1_v:
                     b_1_v.axpy(1.0, b_v)
                 self.set_mu(mu_old)
-
-                del D_v
-                del D_zeta
-                del rhs_00
-                del rhs_01
-                del rhs_10
-                del rhs_11
 
                 # construction of the discretized forward and adjoint forms
                 D_v = self.construct_D_v(
@@ -2463,9 +2364,6 @@ class Control:
 
             print(f'Estimated error in the L2-norm: {error:.16e}')
 
-            del v_err
-            del error
-
         def construct_D_v(self, v_trial, v_test, v_n_help, t, *,
                           non_linear_res=False):
             """Construction of the discretized forward form.
@@ -2715,8 +2613,7 @@ class Control:
                 solver_i_adj.ksp.addConvergenceTest(converged, prepend=True)
                 solver_adj[(n_t - 1)] = solver_i_adj
 
-            del solver_i_state
-            del solver_i_adj
+            del solver_i_state, solver_i_adj
 
             # definition of preconditioner
             if self._CN:
@@ -2732,14 +2629,12 @@ class Control:
                         u_0.sub(i).zero()
                         solver_0.solve(u_0.sub(i),
                                        b.copy(deepcopy=True))
-                        del b
                         with u_0.sub(i).dat.vec as x_v:
                             x_v.scale(2.0 / Constant(tau))
 
                     b_0_help = apply_T_2_inv(u_0, space_v, n_t - 1)
                     for i in range(n_t - 1):
                         u_0.sub(i).assign(b_0_help.sub(i))
-                    del b_0_help
 
                     # u_1 = - b_1 + D_v * u_0
                     b = Cofunction(full_space_v.dual())
@@ -2748,7 +2643,6 @@ class Control:
                     b_help.assign(u_0.sub(0))
                     b.sub(0).assign(assemble(action(block_ii, b_help)))
                     apply_bcs(bcs_zeta, b.sub(0))
-                    del b_help
 
                     for i in range(1, n_t - 1):
                         block_ij = block_10[(i, i - 1)]
@@ -2761,8 +2655,6 @@ class Control:
                         with b.sub(i).dat.vec as b_v, \
                                 b_help_new.dat.vec_ro as b_1_v:
                             b_v.axpy(1.0, b_1_v)
-                        del b_help
-                        del b_help_new
                         apply_bcs(bcs_zeta, b.sub(i))
 
                     b = apply_T_2(b, space_v, n_t - 1)
@@ -2782,7 +2674,6 @@ class Control:
                     u_1.sub(0).zero()
                     solver_1.solve(u_1.sub(0),
                                    b_help.copy(deepcopy=True))
-                    del b_help
 
                     for i in range(1, n_t - 1):
                         block_ij = block_10[(i, i - 1)]
@@ -2798,7 +2689,6 @@ class Control:
                         with b.sub(i).dat.vec as b_v, \
                                 b_help_new.dat.vec_ro as b_1_v:
                             b_v.axpy(-1.0, b_1_v)
-                        del b_help_new
                         apply_bcs(bcs_zeta, b.sub(i))
                         b_help = Cofunction(space_v.dual())
                         b_help.assign(b.sub(i))
@@ -2807,14 +2697,11 @@ class Control:
                         u_1.sub(i).zero()
                         solver_1.solve(u_1.sub(i),
                                        b_help.copy(deepcopy=True))
-                        del b_help
-                    del b
 
                     # apply T_2
                     b = apply_T_2(u_1, space_v, n_t - 1)
                     for i in range(n_t - 1):
                         u_1.sub(i).assign(b.sub(i))
-                    del b
 
                     # mat-mult by blk(M_v,...,M_v)
                     b = Cofunction(full_space_v.dual())
@@ -2823,7 +2710,6 @@ class Control:
                         b_help.assign(u_1.sub(i))
                         b.sub(i).assign(assemble(action(self._M_v,
                                                         b_help)))
-                        del b_help
                         with b.sub(i).dat.vec as b_v:
                             b_v.scale(0.5 * Constant(tau))
                         apply_bcs(bcs_zeta, b.sub(i))
@@ -2835,7 +2721,6 @@ class Control:
                     u_1.sub(n_t - 2).zero()
                     solver_2.solve(u_1.sub(n_t - 2),
                                    b_help.copy(deepcopy=True))
-                    del b_help
 
                     for i in range(n_t - 3, -1, -1):
                         b_help = Function(space_v)
@@ -2845,7 +2730,6 @@ class Control:
                         with b.sub(i).dat.vec as b_v, \
                                 b_help_new.dat.vec_ro as b_1_v:
                             b_v.axpy(-1.0, b_1_v)
-                        del b_help_new
                         apply_bcs(bcs_zeta, b.sub(i))
                         b_help = Cofunction(space_v.dual())
                         b_help.assign(b.sub(i))
@@ -2853,7 +2737,6 @@ class Control:
                         u_1.sub(i).zero()
                         solver_2.solve(u_1.sub(i),
                                        b_help.copy(deepcopy=True))
-                        del b_help
             else:
                 # preconditioner for backward Euler
                 @garbage_cleanup(self._comm)
@@ -2864,7 +2747,6 @@ class Control:
                         b.assign(b_0.sub(i))
                         u_0.sub(i).zero()
                         solver_0.solve(u_0.sub(i), b.copy(deepcopy=True))
-                        del b
                         with u_0.sub(i).dat.vec as x_v:
                             x_v.scale(1.0 / Constant(tau))
 
@@ -2881,7 +2763,6 @@ class Control:
                             b_1.sub(0).dat.vec_ro as b_1_v:
                         b_v.axpy(-1.0, b_1_v)
                     apply_bcs(bcs_zeta, b.sub(0))
-                    del b_help
 
                     for i in range(1, n_t):
                         block_ij = block_10[(i, i - 1)]
@@ -2894,8 +2775,6 @@ class Control:
                         with b.sub(i).dat.vec as b_v, \
                                 b_help_new.dat.vec_ro as b_1_v:
                             b_v.axpy(1.0, b_1_v)
-                        del b_help
-                        del b_help_new
                         with b.sub(i).dat.vec as b_v, \
                                 b_1.sub(i).dat.vec_ro as b_1_v:
                             b_v.axpy(-1.0, b_1_v)
@@ -2909,7 +2788,6 @@ class Control:
                     u_1.sub(0).zero()
                     solver_1.solve(u_1.sub(0),
                                    b_help.copy(deepcopy=True))
-                    del b_help
 
                     for i in range(1, n_t):
                         block_ij = block_10[(i, i - 1)]
@@ -2919,7 +2797,6 @@ class Control:
                         with b.sub(i).dat.vec as b_v, \
                                 b_help_new.dat.vec_ro as b_1_v:
                             b_v.axpy(-1.0, b_1_v)
-                        del b_help_new
                         apply_bcs(bcs_zeta, b.sub(i))
 
                         b_help = Cofunction(space_v.dual())
@@ -2928,7 +2805,6 @@ class Control:
                         u_1.sub(i).zero()
                         solver_1.solve(u_1.sub(i),
                                        b_help.copy(deepcopy=True))
-                        del b_help
 
                     # mat-mult by blk(M_v,...,M_v)
                     b = Cofunction(full_space_v.dual())
@@ -2937,7 +2813,6 @@ class Control:
                         b_help.assign(u_1.sub(i))
                         b.sub(i).assign(assemble(action(self._M_v,
                                                         b_help)))
-                        del b_help
                         with b.sub(i).dat.vec as b_v:
                             b_v.scale(Constant(tau))
                         apply_bcs(bcs_zeta, b.sub(i))
@@ -2946,7 +2821,6 @@ class Control:
                     b_help.assign(u_1.sub(n_t - 1))
                     b.sub(n_t - 1).assign(assemble(action(self._M_v,
                                                           b_help)))
-                    del b_help
                     with b.sub(n_t - 1).dat.vec as b_v:
                         b_v.scale(epsilon * Constant(tau))
                     apply_bcs(bcs_zeta, b.sub(n_t - 1))
@@ -2958,7 +2832,6 @@ class Control:
                     u_1.sub(n_t - 1).zero()
                     solver_2.solve(u_1.sub(n_t - 1),
                                    b_help.copy(deepcopy=True))
-                    del b_help
 
                     for i in range(n_t - 2, -1, -1):
                         b_help = Function(space_v)
@@ -2968,7 +2841,6 @@ class Control:
                         with b.sub(i).dat.vec as b_v, \
                                 b_help_new.dat.vec_ro as b_1_v:
                             b_v.axpy(-1.0, b_1_v)
-                        del b_help_new
                         apply_bcs(bcs_zeta, b.sub(i))
 
                         b_help = Cofunction(space_v.dual())
@@ -2977,7 +2849,6 @@ class Control:
                         u_1.sub(i).zero()
                         solver_2.solve(u_1.sub(i),
                                        b_help.copy(deepcopy=True))
-                        del b_help
 
             return pc_linear
 
@@ -3043,8 +2914,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_0.sub(0).dat.vec as b_0_v:
                     b_0_v.axpy(-1.0, b_v)
-                del b
-                del b_help
 
                 b_help = Function(space_v)
                 b_help.assign(zeta_old.sub(0))
@@ -3052,8 +2921,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_0.sub(0).dat.vec as b_0_v:
                     b_0_v.axpy(-1.0, b_v)
-                del b
-                del b_help
 
                 b_help = Function(space_v)
                 b_help.assign(zeta_old.sub(1))
@@ -3061,13 +2928,10 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_0.sub(0).dat.vec as b_0_v:
                     b_0_v.axpy(1.0, b_v)
-                del b
-                del b_help
                 apply_bcs(bcs_zeta, rhs_0.sub(0))
 
                 b = assemble(action(Constant(tau) * D_v_0 + M_v, v_0))
                 rhs_1.sub(0).assign(b)
-                del b
 
                 b_help = Function(space_v)
                 b_help.assign(v_old.sub(0))
@@ -3075,8 +2939,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_1.sub(0).dat.vec as b_1_v:
                     b_1_v.axpy(-1.0, b_v)
-                del b
-                del b_help
                 apply_bcs(bcs_v, rhs_1.sub(0))
 
                 D_v_i = self.construct_D_v(v_trial, v_test,
@@ -3091,8 +2953,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_1.sub(n_t - 1).dat.vec as b_1_v:
                     b_1_v.axpy(1.0, b_v)
-                del b
-                del b_help
 
                 b_help = Function(space_v)
                 b_help.assign(v_old.sub(n_t - 1))
@@ -3100,8 +2960,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_1.sub(n_t - 1).dat.vec as b_1_v:
                     b_1_v.axpy(-1.0, b_v)
-                del b
-                del b_help
 
                 b_help = Function(space_v)
                 b_help.assign(zeta_old.sub(n_t - 1))
@@ -3110,8 +2968,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_1.sub(n_t - 1).dat.vec as b_1_v:
                     b_1_v.axpy(1.0, b_v)
-                del b
-                del b_help
                 apply_bcs(bcs_v, rhs_1.sub(n_t - 1))
 
                 b_help = Function(space_v)
@@ -3137,8 +2993,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_0.sub(i).dat.vec as b_0_v:
                         b_0_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
 
                     b_help = Function(space_v)
                     b_help.assign(zeta_old.sub(i))
@@ -3147,8 +3001,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_0.sub(i).dat.vec as b_0_v:
                         b_0_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
 
                     b_help = Function(space_v)
                     b_help.assign(zeta_old.sub(i + 1))
@@ -3156,8 +3008,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_0.sub(i).dat.vec as b_0_v:
                         b_0_v.axpy(1.0, b_v)
-                    del b
-                    del b_help
                     apply_bcs(bcs_zeta, rhs_0.sub(i))
 
                     b_help = Function(space_v)
@@ -3166,8 +3016,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_1.sub(i).dat.vec as b_1_v:
                         b_1_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
 
                     b_help = Function(space_v)
                     b_help.assign(v_old.sub(i - 1))
@@ -3175,8 +3023,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_1.sub(i).dat.vec as b_1_v:
                         b_1_v.axpy(1.0, b_v)
-                    del b
-                    del b_help
 
                     b_help = Function(space_v)
                     b_help.assign(zeta_old.sub(i))
@@ -3185,8 +3031,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_1.sub(i).dat.vec as b_1_v:
                         b_1_v.axpy(1.0, b_v)
-                    del b
-                    del b_help
                     apply_bcs(bcs_v, rhs_1.sub(i))
             else:
                 # evaluating non-linear residual for the trapezoidal rule
@@ -3207,7 +3051,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_0.sub(0).dat.vec as b_0_v:
                     b_0_v.axpy(-1.0, b_v)
-                del b
 
                 b_help = Function(space_v)
                 b_help.assign(v_old.sub(1))
@@ -3215,8 +3058,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_0.sub(0).dat.vec as b_0_v:
                     b_0_v.axpy(-1.0, b_v)
-                del b
-                del b_help
 
                 b_help = Function(space_v)
                 b_help.assign(zeta_old.sub(0))
@@ -3225,8 +3066,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_0.sub(0).dat.vec as b_0_v:
                     b_0_v.axpy(-1.0, b_v)
-                del b
-                del b_help
 
                 b_help = Function(space_v)
                 b_help.assign(zeta_old.sub(1))
@@ -3235,8 +3074,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_0.sub(0).dat.vec as b_0_v:
                     b_0_v.axpy(-1.0, b_v)
-                del b
-                del b_help
                 apply_bcs(bcs_zeta, rhs_0.sub(0))
 
                 rhs_1.sub(0).assign(0.5 * tau * (f.sub(0) + f.sub(1)))
@@ -3247,8 +3084,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_1.sub(0).dat.vec as b_1_v:
                     b_1_v.axpy(-1.0, b_v)
-                del b
-                del b_help
 
                 b_help = Function(space_v)
                 b_help.assign(v_old.sub(1))
@@ -3257,8 +3092,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_1.sub(0).dat.vec as b_1_v:
                     b_1_v.axpy(-1.0, b_v)
-                del b
-                del b_help
 
                 b_help = Function(space_v)
                 b_help.assign(zeta_old.sub(0))
@@ -3267,8 +3100,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_1.sub(0).dat.vec as b_1_v:
                     b_1_v.axpy(1.0, b_v)
-                del b
-                del b_help
 
                 b_help = Function(space_v)
                 b_help.assign(zeta_old.sub(1))
@@ -3277,8 +3108,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_1.sub(0).dat.vec as b_1_v:
                     b_1_v.axpy(1.0, b_v)
-                del b
-                del b_help
                 apply_bcs(bcs_v, rhs_1.sub(0))
 
                 t = t_0
@@ -3306,8 +3135,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_0.sub(i).dat.vec as b_0_v:
                         b_0_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
 
                     b_help = Function(space_v)
                     b_help.assign(v_old.sub(i + 1))
@@ -3316,8 +3143,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_0.sub(i).dat.vec as b_0_v:
                         b_0_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
 
                     b_help = Function(space_v)
                     b_help.assign(zeta_old.sub(i))
@@ -3326,8 +3151,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_0.sub(i).dat.vec as b_0_v:
                         b_0_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
 
                     b_help = Function(space_v)
                     b_help.assign(zeta_old.sub(i + 1))
@@ -3337,8 +3160,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_0.sub(i).dat.vec as b_0_v:
                         b_0_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
                     apply_bcs(bcs_zeta, rhs_0.sub(i))
 
                     b_help = Function(space_v)
@@ -3348,8 +3169,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_1.sub(i).dat.vec as b_1_v:
                         b_1_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
 
                     b_help = Function(space_v)
                     b_help.assign(v_old.sub(i + 1))
@@ -3358,8 +3177,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_1.sub(i).dat.vec as b_1_v:
                         b_1_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
 
                     b_help = Function(space_v)
                     b_help.assign(zeta_old.sub(i))
@@ -3369,8 +3186,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_1.sub(i).dat.vec as b_1_v:
                         b_1_v.axpy(1.0, b_v)
-                    del b
-                    del b_help
 
                     b_help = Function(space_v)
                     b_help.assign(zeta_old.sub(i + 1))
@@ -3380,8 +3195,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_1.sub(i).dat.vec as b_1_v:
                         b_1_v.axpy(1.0, b_v)
-                    del b
-                    del b_help
                     apply_bcs(bcs_v, rhs_1.sub(i))
 
             return rhs_0, rhs_1
@@ -3607,8 +3420,6 @@ class Control:
                         with b_0.sub(0).dat.vec as b_v, \
                                 b_help.dat.vec_ro as b_1_v:
                             b_v.axpy(-1.0, b_1_v)
-                        del v_inhom
-                        del b_help
 
                     apply_bcs(bcs_zeta, b_0.sub(0))
                 else:
@@ -3628,8 +3439,6 @@ class Control:
                         with b_1.sub(0).dat.vec as b_v, \
                                 b_help.dat.vec_ro as b_1_v:
                             b_v.axpy(-1.0, b_1_v)
-                        del v_inhom
-                        del b_help
 
                     apply_bcs(bcs_v, b_1.sub(0))
                 else:
@@ -3648,8 +3457,6 @@ class Control:
                             with b_0.sub(i).dat.vec as b_v, \
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
-                            del v_inhom
-                            del b_help
 
                         apply_bcs(bcs_zeta, b_0.sub(i))
                     else:
@@ -3673,18 +3480,12 @@ class Control:
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
 
-                            del v_inhom
-                            del b_help
-
                             v_inhom = Function(space_v)
                             apply_bcs(bcs_v_help[(i - 1)], v_inhom)
                             b_help = assemble(action(M_v, v_inhom))
                             with b_1.sub(i).dat.vec as b_v, \
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(1.0, b_1_v)
-
-                            del v_inhom
-                            del b_help
 
                         apply_bcs(bcs_v, b_1.sub(i))
                     else:
@@ -3709,18 +3510,12 @@ class Control:
                                 b_help.dat.vec_ro as b_1_v:
                             b_v.axpy(-1.0, b_1_v)
 
-                        del v_inhom
-                        del b_help
-
                         v_inhom = Function(space_v)
                         apply_bcs(bcs_v_help[(n_t - 2)], v_inhom)
                         b_help = assemble(action(M_v, v_inhom))
                         with b_1.sub(n_t - 1).dat.vec as b_v, \
                                 b_help.dat.vec_ro as b_1_v:
                             b_v.axpy(1.0, b_1_v)
-
-                        del v_inhom
-                        del b_help
 
                     apply_bcs(bcs_v, b_1.sub(n_t - 1))
                 else:
@@ -3741,9 +3536,6 @@ class Control:
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
 
-                            del v_inhom
-                            del b_help
-
                             if i > 0:
                                 v_inhom = Function(space_v)
 
@@ -3755,9 +3547,6 @@ class Control:
                                 with b_0.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_1_v:
                                     b_v.axpy(-1.0, b_1_v)
-
-                                del v_inhom
-                                del b_help
 
                         apply_bcs(bcs_zeta, b_0.sub(i))
                     else:
@@ -3783,9 +3572,6 @@ class Control:
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
 
-                            del v_inhom
-                            del b_help
-
                             if i > 0:
                                 t = t_0 + i * tau
                                 v_n_help.assign(v_old.sub(i))
@@ -3802,8 +3588,6 @@ class Control:
                                         b_help.dat.vec_ro as b_1_v:
                                     b_v.axpy(-1.0, b_1_v)
 
-                                del v_inhom
-                                del b_help
                         apply_bcs(bcs_v, b_1.sub(i))
                     else:
                         b_1.sub(i).assign(f.sub(i))
@@ -3815,8 +3599,6 @@ class Control:
                         b_v.axpy(-1.0, b_1_v)
                     apply_bcs(bcs_zeta, b_0.sub(0))
 
-                    del b
-
                 if check_f:
                     D_v_i = self.construct_D_v(v_trial, v_test,
                                                v_0, Constant(t_0))
@@ -3827,8 +3609,6 @@ class Control:
                             b.dat.vec_ro as b_1_v:
                         b_v.axpy(-1.0, b_1_v)
                     apply_bcs(bcs_v, b_1.sub(0))
-
-                    del b
 
                 b_0 = apply_T_1(b_0, space_v, n_t - 1)
                 b_1 = apply_T_2(b_1, space_v, n_t - 1)
@@ -3911,7 +3691,6 @@ class Control:
 
                 if check_f and check_v_d:
                     v_new.sub(0).assign(v_0)
-                    del v_0
 
                 for i in range(n_t - 1):
                     v_new.sub(i + 1).assign(v.sub(i))
@@ -3923,14 +3702,7 @@ class Control:
                 self.set_v(v)
                 self.set_zeta(zeta)
 
-            if check_v_d:
-                del v_d
-                del b_0
-            if check_f:
-                del f
-                del b_1
-            del system
-            del pc_fn
+            del system, pc_fn
 
             # printing L^2 discrepancy between the desired state and the
             # numerical solution
@@ -3962,9 +3734,6 @@ class Control:
                         plt.show()
                     except Exception as e:
                         warning(f"Cannot plot figure. Error msg: '{e}'")
-
-            del v
-            del zeta
 
         @garbage_cleanup_method("_comm")
         def non_linear_solve(self, *,
@@ -4117,9 +3886,6 @@ class Control:
                 self.set_v(v_old)
                 self.set_zeta(zeta_old)
 
-                del rhs_0
-                del rhs_1
-
                 # evaluating non-linear residual
                 rhs_0, rhs_1 = self.non_linear_res_eval(
                     full_space_v, v_old, zeta_old, v_0,
@@ -4146,17 +3912,6 @@ class Control:
 
                 if k + 1 > max_non_linear_iter:
                     break
-
-            del v_old
-            del zeta_old
-            del delta_v
-            del delta_zeta
-            del v_0
-            del rhs_0
-            del rhs_1
-            del rhs
-            del f
-            del v_d
 
             # printing L^2 discrepancy between the desired state and the
             # numerical solution
@@ -4619,9 +4374,6 @@ class Control:
                     block_10_int_p[(n_t - 1, n_t - 2)] = - M_p
                     block_10_int_p[(n_t - 1, n_t - 1)] = Constant(tau) * D_p_i + M_p
 
-            del block_00_p
-            del block_11_p
-
             # construction of the right-hand side
             if not self._CN:
                 # backward Euler
@@ -4635,8 +4387,6 @@ class Control:
                         with b_0_0.sub(0).dat.vec as b_v, \
                                 b_help.dat.vec_ro as b_1_v:
                             b_v.axpy(-1.0, b_1_v)
-                        del v_inhom
-                        del b_help
                     apply_bcs(bcs_v, b_0_0.sub(0))
                 else:
                     b_0_0.sub(0).assign(v_d.sub(0))
@@ -4656,8 +4406,6 @@ class Control:
                         with b_0_1.sub(0).dat.vec as b_v, \
                                 b_help.dat.vec_ro as b_1_v:
                             b_v.axpy(-1.0, b_1_v)
-                        del v_inhom
-                        del b_help
 
                     apply_bcs(bcs_zeta, b_0_1.sub(0))
                 else:
@@ -4675,8 +4423,6 @@ class Control:
                             with b_0_0.sub(i).dat.vec as b_v, \
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
-                            del v_inhom
-                            del b_help
                         apply_bcs(bcs_zeta, b_0_0.sub(i))
                     else:
                         b_0_0.sub(i).assign(v_d.sub(i))
@@ -4697,16 +4443,12 @@ class Control:
                             with b_0_1.sub(i).dat.vec as b_v, \
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
-                            del v_inhom
-                            del b_help
                             v_inhom = Function(space_v)
                             apply_bcs(bcs_v_help[(i - 1)], v_inhom)
                             b_help = assemble(action(M_v, v_inhom))
                             with b_0_1.sub(i).dat.vec as b_v, \
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(1.0, b_1_v)
-                            del v_inhom
-                            del b_help
                         apply_bcs(bcs_v, b_0_1.sub(i))
                     else:
                         b_0_1.sub(i).assign(f.sub(i))
@@ -4730,16 +4472,12 @@ class Control:
                         with b_0_1.sub(n_t - 1).dat.vec as b_v, \
                                 b_help.dat.vec_ro as b_1_v:
                             b_v.axpy(-1.0, b_1_v)
-                        del v_inhom
-                        del b_help
                         v_inhom = Function(space_v)
                         apply_bcs(bcs_v_help[(n_t - 2)], v_inhom)
                         b_help = assemble(action(M_v, v_inhom))
                         with b_0_1.sub(n_t - 1).dat.vec as b_v, \
                                 b_help.dat.vec_ro as b_1_v:
                             b_v.axpy(1.0, b_1_v)
-                        del v_inhom
-                        del b_help
                     apply_bcs(bcs_v, b_0_1.sub(n_t - 1))
                 else:
                     b_0_1.sub(n_t - 1).assign(f.sub(n_t - 1))
@@ -4754,20 +4492,13 @@ class Control:
                             with b_1_0.sub(i).dat.vec as b_v, \
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
-                            del v_inhom
-                            del b_help
-                    check_div_v = True
                 else:
                     for i in range(n_t):
                         b_1_0.sub(i).assign(div_v.sub(i))
-                    check_div_v = False
 
                 if div_zeta is not None:
                     for i in range(n_t):
                         b_1_1.sub(i).assign(div_zeta.sub(i))
-                    check_div_zeta = False
-                else:
-                    check_div_zeta = True
 
                 for i in range(n_t):
                     b_0.sub(i).assign(b_0_0.sub(i))
@@ -4790,8 +4521,6 @@ class Control:
                             with b_0_0.sub(i).dat.vec as b_v, \
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
-                            del v_inhom
-                            del b_help
                             if i > 0:
                                 v_inhom = Function(space_v)
                                 apply_bcs(bcs_v_help[(i)], v_inhom)
@@ -4801,8 +4530,6 @@ class Control:
                                 with b_0_0.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_1_v:
                                     b_v.axpy(-1.0, b_1_v)
-                                del v_inhom
-                                del b_help
                         apply_bcs(bcs_zeta, b_0_0.sub(i))
                     else:
                         b_0_0.sub(i).assign(v_d.sub(i))
@@ -4826,8 +4553,6 @@ class Control:
                             with b_0_1.sub(i).dat.vec as b_v, \
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
-                            del v_inhom
-                            del b_help
                             if i > 0:
                                 t = t_0 + i * tau
 
@@ -4845,8 +4570,6 @@ class Control:
                                 with b_0_1.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_1_v:
                                     b_v.axpy(-1.0, b_1_v)
-                                del v_inhom
-                                del b_help
                         apply_bcs(bcs_v, b_0_1.sub(i))
                     else:
                         b_0_1.sub(i).assign(f.sub(i))
@@ -4857,7 +4580,6 @@ class Control:
                             b.dat.vec_ro as b_1_v:
                         b_v.axpy(-1.0, b_1_v)
                     apply_bcs(bcs_zeta, b_0_0.sub(0))
-                    del b
 
                 if check_f:
                     D_v_i = self.construct_D_v(v_trial, v_test,
@@ -4869,7 +4591,6 @@ class Control:
                             b.dat.vec_ro as b_1_v:
                         b_v.axpy(-1.0, b_1_v)
                     apply_bcs(bcs_v, b_0_1.sub(0))
-                    del b
 
                 if div_v is None:
                     if inhomogeneous_bcs_v:
@@ -4881,20 +4602,13 @@ class Control:
                             with b_1_0.sub(i).dat.vec as b_v, \
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
-                            del v_inhom
-                            del b_help
-                    check_div_v = True
                 else:
                     for i in range(n_t - 1):
                         b_1_0.sub(i).assign(div_v.sub(i))
-                    check_div_v = False
 
                 if div_zeta is not None:
                     for i in range(n_t - 1):
                         b_1_1.sub(i).assign(div_zeta.sub(i))
-                    check_div_zeta = False
-                else:
-                    check_div_zeta = True
 
                 b_0_0 = apply_T_1(b_0_0, space_v, n_t - 1)
                 b_0_1 = apply_T_2(b_0_1, space_v, n_t - 1)
@@ -4910,11 +4624,6 @@ class Control:
 
                     b_1.sub(i).assign(b_1_0.sub(i))
                     b_1.sub(index).assign(b_1_1.sub(i))
-
-            del b_0_0
-            del b_0_1
-            del b_1_0
-            del b_1_1
 
             # construction of the system
             if not self._CN:
@@ -5039,11 +4748,6 @@ class Control:
                             index = n_t - 1 + i
                             u_0.sub(index).assign(zeta_help.sub(i))
 
-                        del v_help
-                        del zeta_help
-                        del b_0_help
-                        del b_1_help
-
                         # u_1 = - b_1 + block_10 * u_0
                         b_0_help = Cofunction(full_space_p.dual())
                         b_1_help = Cofunction(full_space_p.dual())
@@ -5058,7 +4762,6 @@ class Control:
                             b_1_help.sub(i).assign(assemble(action(B, v_help)))
                             with b_1_help.sub(i).dat.vec as b_v:
                                 b_v.scale(Constant(tau))
-                        del v_help
 
                         b_0_help = apply_T_2(b_0_help, space_p, n_t - 1)
                         b_1_help = apply_T_1(b_1_help, space_p, n_t - 1)
@@ -5096,10 +4799,6 @@ class Control:
                             solver_K_p.solve(u_1.sub(index),
                                              p_help.copy(deepcopy=True))
 
-                        del p_help
-                        del b_0_help
-                        del b_1_help
-
                         b_0_help = Cofunction(full_space_p.dual())
                         b_1_help = Cofunction(full_space_p.dual())
 
@@ -5116,7 +4815,6 @@ class Control:
                                 with b_0_help.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_v_1:
                                     b_v.axpy(1.0, b_v_1)
-                                del b_help
 
                         for (i, j), block_ij_p in block_01_int_p.items():
                             if block_ij_p is not None:
@@ -5125,7 +4823,6 @@ class Control:
                                 with b_0_help.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_v_1:
                                     b_v.axpy(1.0, b_v_1)
-                                del b_help
 
                         for (i, j), block_ij_p in block_10_int_p.items():
                             if block_ij_p is not None:
@@ -5134,7 +4831,6 @@ class Control:
                                 with b_1_help.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_v_1:
                                     b_v.axpy(1.0, b_v_1)
-                                del b_help
 
                         for (i, j), block_ij_p in block_11_int_p.items():
                             if block_ij_p is not None:
@@ -5143,10 +4839,6 @@ class Control:
                                 with b_1_help.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_v_1:
                                     b_v.axpy(1.0, b_v_1)
-                                del b_help
-
-                        del p_help
-                        del mu_help
 
                         p_help = Cofunction(space_p.dual())
                         for i in range(n_t - 1):
@@ -5160,10 +4852,6 @@ class Control:
                             u_1.sub(index).zero()
                             solver_M_p.solve(u_1.sub(index),
                                              p_help.copy(deepcopy=True))
-
-                        del p_help
-                        del b_0_help
-                        del b_1_help
                 else:
                     # inner solver for backward Euler
                     self._inner_system = MultiBlockSystem(
@@ -5211,11 +4899,6 @@ class Control:
                             index = n_t + i
                             u_0.sub(index).assign(zeta_help.sub(i))
 
-                        del v_help
-                        del zeta_help
-                        del b_0_help
-                        del b_1_help
-
                         # u_1 = - b_1 + block_10 * u_0
                         b_0_help = Cofunction(full_space_p.dual())
                         b_1_help = Cofunction(full_space_p.dual())
@@ -5230,7 +4913,6 @@ class Control:
                             b_1_help.sub(i).assign(assemble(action(B, v_help)))
                             with b_1_help.sub(i).dat.vec as b_v:
                                 b_v.scale(Constant(tau))
-                        del v_help
 
                         for i in range(n_t):
                             with b_0_help.sub(i).dat.vec as b_v, \
@@ -5263,10 +4945,6 @@ class Control:
                             solver_K_p.solve(u_1.sub(index),
                                              p_help.copy(deepcopy=True))
 
-                        del p_help
-                        del b_0_help
-                        del b_1_help
-
                         b_0_help = Cofunction(full_space_p.dual())
                         b_1_help = Cofunction(full_space_p.dual())
 
@@ -5283,7 +4961,6 @@ class Control:
                                 with b_0_help.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_v_1:
                                     b_v.axpy(1.0, b_v_1)
-                                del b_help
 
                         for (i, j), block_ij_p in block_01_int_p.items():
                             if block_ij_p is not None:
@@ -5292,7 +4969,6 @@ class Control:
                                 with b_0_help.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_v_1:
                                     b_v.axpy(1.0, b_v_1)
-                                del b_help
 
                         for (i, j), block_ij_p in block_10_int_p.items():
                             if block_ij_p is not None:
@@ -5301,7 +4977,6 @@ class Control:
                                 with b_1_help.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_v_1:
                                     b_v.axpy(1.0, b_v_1)
-                                del b_help
 
                         for (i, j), block_ij_p in block_11_int_p.items():
                             if block_ij_p is not None:
@@ -5310,10 +4985,6 @@ class Control:
                                 with b_1_help.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_v_1:
                                     b_v.axpy(1.0, b_v_1)
-                                del b_help
-
-                        del p_help
-                        del mu_help
 
                         p_help = Cofunction(space_p.dual())
                         for i in range(n_t):
@@ -5327,10 +4998,6 @@ class Control:
                             u_1.sub(index).zero()
                             solver_M_p.solve(u_1.sub(index),
                                              p_help.copy(deepcopy=True))
-
-                        del p_help
-                        del b_0_help
-                        del b_1_help
             else:
                 pc_fn = P(self, block_00_int, block_01_int,
                           block_10_int, block_11_int, B,
@@ -5387,24 +5054,9 @@ class Control:
             self.set_p(p)
             self.set_mu(mu)
 
-            del v_0
-            del u_0_sol
-            del u_1_sol
-            if check_v_d:
-                del v_d
-            if check_f:
-                del f
-            if check_div_v:
-                del div_v
-            if check_div_zeta:
-                del div_zeta
-            del b_0
-            del b_1
-            del system
-            del pc_fn
+            del system, pc_fn
             if P is None:
-                del self._inner_pc_fn
-                del self._inner_system
+                del self._inner_pc_fn, self._inner_system
 
             # printing L^2 discrepancy between the desired state and the
             # numerical solution
@@ -5487,11 +5139,6 @@ class Control:
                         plt.show()
                     except Exception as e:
                         warning(f"Cannot plot figure. Error msg: '{e}'")
-
-            del v
-            del zeta
-            del p
-            del mu
 
         @garbage_cleanup_method("_comm")
         def incompressible_non_linear_solve(self, nullspace_p, *,
@@ -5647,9 +5294,6 @@ class Control:
                 rhs_00.assign(rhs_0)
                 rhs_01.assign(rhs_1)
 
-                del rhs_0
-                del rhs_1
-
                 if not self._CN:
                     for i in range(n_t):
                         b_p_help = Function(space_p)
@@ -5658,8 +5302,6 @@ class Control:
                         with b.dat.vec_ro as b_v, \
                                 rhs_00.sub(i).dat.vec as b_0_v:
                             b_0_v.axpy(-1.0, b_v)
-                        del b
-                        del b_p_help
 
                         apply_bcs(bcs_v, rhs_00.sub(i))
 
@@ -5669,8 +5311,6 @@ class Control:
                         with b.dat.vec_ro as b_v, \
                                 rhs_01.sub(i).dat.vec as b_0_v:
                             b_0_v.axpy(-1.0, b_v)
-                        del b
-                        del b_p_help
 
                         apply_bcs(bcs_zeta, rhs_01.sub(i))
 
@@ -5678,15 +5318,11 @@ class Control:
                         b_help.assign(v_old.sub(i))
                         b = assemble(action(B, b_help))
                         rhs_10.sub(i).assign(-b)
-                        del b
-                        del b_help
 
                         b_help = Function(space_v)
                         b_help.assign(zeta_old.sub(i))
                         b = assemble(action(B, b_help))
                         rhs_11.sub(i).assign(-b)
-                        del b
-                        del b_help
                 else:
                     for i in range(n_t - 1):
                         b_p_help = Function(space_p)
@@ -5695,8 +5331,6 @@ class Control:
                         with b.dat.vec_ro as b_v, \
                                 rhs_00.sub(i).dat.vec as b_0_v:
                             b_0_v.axpy(-1.0, b_v)
-                        del b
-                        del b_p_help
 
                         apply_bcs(bcs_v, rhs_00.sub(i))
 
@@ -5706,8 +5340,6 @@ class Control:
                         with b.dat.vec_ro as b_v, \
                                 rhs_01.sub(i).dat.vec as b_0_v:
                             b_0_v.axpy(-1.0, b_v)
-                        del b
-                        del b_p_help
 
                         apply_bcs(bcs_zeta, rhs_01.sub(i))
 
@@ -5715,15 +5347,11 @@ class Control:
                         b_help.assign(v_old.sub(i + 1))
                         b = assemble(action(B, b_help))
                         rhs_10.sub(i).assign(-b)
-                        del b
-                        del b_help
 
                         b_help = Function(space_v)
                         b_help.assign(zeta_old.sub(i))
                         b = assemble(action(B, b_help))
                         rhs_11.sub(i).assign(-b)
-                        del b
-                        del b_help
 
                 return rhs_00, rhs_01, rhs_10, rhs_11
 
@@ -5802,11 +5430,6 @@ class Control:
 
                 self.set_p(p_old)
                 self.set_mu(mu_old)
-
-                del rhs_00
-                del rhs_01
-                del rhs_10
-                del rhs_11
 
                 # evaluating the non-linear residual
                 rhs_00, rhs_01, rhs_10, rhs_11 = non_linear_res_eval()
