@@ -150,9 +150,6 @@ class Control:
             v = Function(space_v, name="v")
             zeta = Function(space_v, name="zeta")
 
-            v.zero()
-            zeta.zero()
-
             # applying bcs to the state
             for bc in self._bcs_v:
                 bc.apply(v)
@@ -169,9 +166,6 @@ class Control:
 
                 p = Function(space_p, name="p")
                 mu = Function(space_p, name="mu")
-
-                p.zero()
-                mu.zero()
 
                 self._p = p
                 self._mu = mu
@@ -766,9 +760,6 @@ class Control:
             v = Function(space_v, name="v")
             zeta = Function(space_v, name="zeta")
 
-            v.zero()
-            zeta.zero()
-
             # solving the system
             system.solve(
                 v, zeta, v_d, f,
@@ -1271,9 +1262,6 @@ class Control:
                     v_help = Function(space_v)
                     zeta_help = Function(space_v)
 
-                    v_help.zero()
-                    zeta_help.zero()
-
                     # solver for the (1,1)-block
                     _ = self._inner_system.solve(
                         v_help, zeta_help, b_0_help, b_1_help,
@@ -1341,9 +1329,6 @@ class Control:
 
             u_0_sol = Function(space_0)
             u_1_sol = Function(space_1)
-
-            u_0_sol.zero()
-            u_1_sol.zero()
 
             # solving linear system
             system.solve(
@@ -1845,9 +1830,6 @@ class Control:
             v = Function(full_space_v, name="v")
             zeta = Function(full_space_v, name="zeta")
 
-            v.zero()
-            zeta.zero()
-
             for i in range(n_t):
                 bcs_v_i = full_bcs_v[(i)]
                 apply_bcs(bcs_v_i, v.sub(i))
@@ -1871,9 +1853,6 @@ class Control:
 
                 p = Function(full_space_p, name="p")
                 mu = Function(full_space_p, name="mu")
-
-                p.zero()
-                mu.zero()
 
                 self._p = p
                 self._mu = mu
@@ -1995,7 +1974,6 @@ class Control:
             # assign new value of state pressure
             if p is None:
                 p = Function(full_space_p, name="p")
-                p.zero()
             else:
                 if p.function_space() != full_space_p:
                     raise ValueError("Unexpected space")
@@ -2003,7 +1981,6 @@ class Control:
             # assign new value of adjoint pressure
             if mu is None:
                 mu = Function(full_space_p, name="mu")
-                mu.zero()
             else:
                 if mu.function_space() != full_space_p:
                     raise ValueError("Unexpected space")
@@ -2128,7 +2105,6 @@ class Control:
                 apply_bcs(bcs_v_i, v.sub(i))
 
             zeta = Function(full_space_v, name="zeta")
-            zeta.zero()
 
             self._v = v
             self._zeta = zeta
@@ -3580,9 +3556,6 @@ class Control:
                 v = Function(full_space_v_help, name="v")
                 zeta = Function(full_space_v_help, name="zeta")
 
-            v.zero()
-            zeta.zero()
-
             # solving the system
             system.solve(
                 v, zeta, b_0, b_1,
@@ -3593,9 +3566,6 @@ class Control:
             if self._CN:
                 v_new = Function(full_space_v, name="v_new")
                 zeta_new = Function(full_space_v, name="zeta_new")
-
-                v_new.zero()
-                zeta_new.zero()
 
                 if check_f and check_v_d:
                     v_new.sub(0).assign(v_0)
@@ -4629,9 +4599,6 @@ class Control:
                         v_help = Function(full_space_v_help)
                         zeta_help = Function(full_space_v_help)
 
-                        v_help.zero()
-                        zeta_help.zero()
-
                         # solving for the (1,1)-block
                         _ = self._inner_system.solve(
                             v_help, zeta_help, b_0_help, b_1_help,
@@ -4696,9 +4663,6 @@ class Control:
 
                         b_0_help = Cofunction(full_space_p.dual())
                         b_1_help = Cofunction(full_space_p.dual())
-
-                        b_0_help.zero()
-                        b_1_help.zero()
 
                         p_help = Function(space_p)
                         mu_help = Function(space_p)
@@ -4777,9 +4741,6 @@ class Control:
                         v_help = Function(full_space_v)
                         zeta_help = Function(full_space_v)
 
-                        v_help.zero()
-                        zeta_help.zero()
-
                         # solving for the (1,1)-block
                         _ = self._inner_system.solve(
                             v_help, zeta_help, b_0_help, b_1_help,
@@ -4840,9 +4801,6 @@ class Control:
                         b_0_help = Cofunction(full_space_p.dual())
                         b_1_help = Cofunction(full_space_p.dual())
 
-                        b_0_help.zero()
-                        b_1_help.zero()
-
                         p_help = Function(space_p)
                         mu_help = Function(space_p)
 
@@ -4899,9 +4857,6 @@ class Control:
             u_0_sol = Function(space_0)
             u_1_sol = Function(space_1)
 
-            u_0_sol.zero()
-            u_1_sol.zero()
-
             # solving the system
             system.solve(
                 u_0_sol, u_1_sol, b_0, b_1,
@@ -4910,9 +4865,6 @@ class Control:
 
             v = Function(full_space_v, name="v")
             zeta = Function(full_space_v, name="zeta")
-
-            v.zero()
-            zeta.zero()
 
             p = Function(full_space_p, name="p")
             mu = Function(full_space_p, name="mu")
