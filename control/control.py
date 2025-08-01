@@ -1,7 +1,8 @@
 from firedrake import (
     CheckpointFile, Cofunction, Constant, Function, FunctionSpace,
-    LinearSolver, MixedFunctionSpace, TestFunction, TrialFunction, action,
-    adjoint, assemble, div, dx, grad, homogenize, inner, sqrt, tripcolor
+    LinearSolver, MixedFunctionSpace, TestFunction, TrialFunction,
+    ZeroBaseForm, action, adjoint, assemble, div, dx, grad, homogenize, inner,
+    sqrt, tripcolor
 )
 from firedrake.functionspaceimpl import WithGeometry as FunctionSpaceBase
 from firedrake.output import VTKFile as File
@@ -18,6 +19,7 @@ import petsc4py.PETSc as PETSc
 import ufl
 
 from collections.abc import Sequence
+from functools import cached_property
 
 
 __all__ = \
@@ -42,7 +44,7 @@ def garbage_cleanup(comm):
     return wrapper
 
 
-def garbage_cleanup_method(attr_name):
+def garbage_cleanup_method(attr_name="comm"):
     def wrapper(fn):
         def wrapped_fn(self, *args, **kwargs):
             return_value = fn(self, *args, **kwargs)
@@ -64,23 +66,21 @@ class Control:
     employed for the solution of the corresponding control problem.
     """
     class Stationary:
-        """Module employed for the solution of stationary control
-        problems."""
-        def __init__(self, space_v,
-                     forward_form, desired_state=None, force_function=None, *,
-                     beta=1.0e-3, space_p=None, Gauss_Newton=False,
-                     bcs_v=None):
-            """Constructor of the object Stationary.
+        def __init__(self, space_v, forward_form, desired_state=None,
+                     force_function=None, *, beta=1.0e-3, space_p=None,
+                     Gauss_Newton=False, bcs_v=None):
+            """Stationary control problem.
 
             Input:
-                - space_v             space whom the solution belongs to
+                - space_v             space to which the solution belongs
 
                 - forward_form        form that represents the differential
                                       operator in space
 
-                - desired_state       desired state
+                - desired_state       desired state, defaults to zero
 
-                - force_function      force function acting on the system
+                - force_function      force function acting on the system,
+                                      defaults to zero
 
                 - beta                regularization parameter
 
@@ -107,68 +107,39 @@ class Control:
                     and not isinstance(space_p, FunctionSpaceBase):
                 raise TypeError("Space must be a primal space")
 
-            v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
-
-            # in case no desired_state is passed, the solver assumes
-            # zero desired state
             if desired_state is None:
                 def desired_state(test_v):
-                    space_v = test_v.function_space()
-
-                    v_d = Function(space_v, name="v_d")
-
-                    return inner(v_d, test_v) * dx
-
-            # in case no force_function is passed, the solver assumes
-            # zero force
+                    return ZeroBaseForm((test_v,))
             if force_function is None:
                 def force_function(test_v):
-                    space_v = test_v.function_space()
-
-                    f = Function(space_v, name="f")
-
-                    return inner(f, test_v) * dx
+                    return ZeroBaseForm((test_v,))
 
             self._space_v = space_v
             self._space_p = space_p
-            self._comm = space_v.mesh().comm
             self._forward_form = forward_form
             self._desired_state = desired_state
             self._force_function = force_function
             self._beta = beta
+            self._Gauss_Newton = Gauss_Newton
             self._bcs_v = bcs_v
 
-            # building the forms of the (1,1)- and (2,2)-blocks
-            self._M_v = inner(v_trial, v_test) * dx
-            self._M_zeta = inner(v_trial, v_test) * dx
-            self._M_p = None
-            self._M_mu = None
+            self._v = Function(space_v, name="v")
+            apply_bcs(self._bcs_v, self._v)
+            self._zeta = Function(space_v, name="zeta")
+            v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
+            self._M_v = self._M_zeta = inner(v_trial, v_test) * dx
 
-            self._Gauss_Newton = Gauss_Newton
-
-            # building the solutions
-            v = Function(space_v, name="v")
-            zeta = Function(space_v, name="zeta")
-
-            # applying bcs to the state
-            for bc in self._bcs_v:
-                bc.apply(v)
-
-            self._v = v
-            self._zeta = zeta
-
-            # if space_p is passed, the state and adjoint pressures are built
             if space_p is not None:
+                self._p = Function(space_p, name="p")
+                self._mu = Function(space_p, name="mu")
                 p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
+                self._M_p = self._M_mu = inner(p_trial, p_test) * dx
+            else:
+                self._M_p = self._M_mu = None
 
-                self._M_p = inner(p_trial, p_test) * dx
-                self._M_mu = inner(p_trial, p_test) * dx
-
-                p = Function(space_p, name="p")
-                mu = Function(space_p, name="mu")
-
-                self._p = p
-                self._mu = mu
+        @cached_property
+        def comm(self):
+            return self._space_v.mesh().comm
 
         def set_space_v(self, space_v, *, v=None, zeta=None,
                         bcs_v_new=False, bcs_v=None):
@@ -553,7 +524,7 @@ class Control:
             solver_2.ksp.addConvergenceTest(converged, prepend=True)
 
             # definition of preconditioners
-            @garbage_cleanup(self._comm)
+            @garbage_cleanup(self.comm)
             def pc_linear(u_0, u_1, b_0, b_1):
                 # solving for the (1,1)-block
                 u_0.zero()
@@ -581,7 +552,7 @@ class Control:
 
             return pc_linear
 
-        @garbage_cleanup_method("_comm")
+        @garbage_cleanup_method()
         def non_linear_res_eval(self, space_v, v_d, f, v_old, zeta_old,
                                 D_v, D_zeta, M_zeta, bcs_v, bcs_zeta):
             """Construction of the non-linear residual.
@@ -646,7 +617,7 @@ class Control:
 
             return rhs_0, rhs_1
 
-        @garbage_cleanup_method("_comm")
+        @garbage_cleanup_method()
         def linear_solve(self, *,
                          P=None, solver_parameters=None,
                          auxiliary_sp={}, v_d=None, f=None,
@@ -809,7 +780,7 @@ class Control:
             if print_error:
                 self.print_error()
 
-        @garbage_cleanup_method("_comm")
+        @garbage_cleanup_method()
         def non_linear_solve(self, *,
                              P=None, solver_parameters=None,
                              auxiliary_sp={},
@@ -999,7 +970,7 @@ class Control:
                 fig_true_v.colorbar(colors)
                 plt.show()
 
-        @garbage_cleanup_method("_comm")
+        @garbage_cleanup_method()
         def incompressible_linear_solve(self, nullspace_p, *, space_p=None,
                                         P=None, solver_parameters=None,
                                         auxiliary_sp={},
@@ -1239,7 +1210,7 @@ class Control:
                     auxiliary_sp, bcs_v, bcs_zeta, D_v, D_zeta)
 
                 # construction of preconditioner for the whole system
-                @garbage_cleanup(self._comm)
+                @garbage_cleanup(self.comm)
                 def pc_fn(u_0, u_1, b_0, b_1):
                     b_0_help = Cofunction(space_v.dual())
                     b_1_help = Cofunction(space_v.dual())
@@ -1413,7 +1384,7 @@ class Control:
             if print_error:
                 self.print_error()
 
-        @garbage_cleanup_method("_comm")
+        @garbage_cleanup_method()
         def incompressible_non_linear_solve(self, nullspace_p, *, space_p=None,
                                             P=None, solver_parameters=None,
                                             auxiliary_sp={},
@@ -1523,7 +1494,7 @@ class Control:
 
             # function for the evaluation of the non-linear residual,
             # in case of incompressible control problems
-            @garbage_cleanup(self._comm)
+            @garbage_cleanup(self.comm)
             def non_linear_res_eval():
                 rhs_00 = Cofunction(space_v.dual(), name="rhs_00")
                 rhs_01 = Cofunction(space_v.dual(), name="rhs_01")
@@ -1762,25 +1733,16 @@ class Control:
             # zero desired state
             if desired_state is None:
                 def desired_state(test_v, t):
-                    space_v = test_v.function_space()
-
-                    v_d = Function(space_v, name="v_d")
-
-                    return inner(v_d, test_v) * dx
+                    return ZeroBaseForm((test_v,))
 
             # in case no force_function is passed, the solver assumes
             # zero force
             if force_function is None:
                 def force_function(test_v, t):
-                    space_v = test_v.function_space()
-
-                    f = Function(space_v, name="f")
-
-                    return inner(f, test_v) * dx
+                    return ZeroBaseForm((test_v,))
 
             self._space_v = space_v
             self._space_p = space_p
-            self._comm = space_v.mesh().comm
             self._forward_form = forward_form
             self._desired_state = desired_state
             self._force_function = force_function
@@ -1856,6 +1818,10 @@ class Control:
 
                 self._p = p
                 self._mu = mu
+
+        @cached_property
+        def comm(self):
+            return self._space_v.mesh().comm
 
         def set_space_v(self, space_v, *, v=None, zeta=None,
                         bcs_v_new=False, bcs_v=None):
@@ -2502,7 +2468,7 @@ class Control:
             # definition of preconditioner
             if self._CN:
                 # preconditioner for the trapezoidal rule
-                @garbage_cleanup(self._comm)
+                @garbage_cleanup(self.comm)
                 def pc_linear(u_0, u_1, b_0, b_1):
                     # solving for the (1,1)-block
                     b_0_help = apply_T_1_inv(b_0, space_v, n_t - 1)
@@ -2623,7 +2589,7 @@ class Control:
                                        b_help.copy(deepcopy=True))
             else:
                 # preconditioner for backward Euler
-                @garbage_cleanup(self._comm)
+                @garbage_cleanup(self.comm)
                 def pc_linear(u_0, u_1, b_0, b_1):
                     # solving for the (1,1)-block
                     for i in range(n_t):
@@ -2736,7 +2702,7 @@ class Control:
 
             return pc_linear
 
-        @garbage_cleanup_method("_comm")
+        @garbage_cleanup_method()
         def non_linear_res_eval(self, full_space_v, v_old, zeta_old, v_0,
                                 v_d, f, M_v, bcs_v, bcs_zeta):
             """Construction of the non-linear residual.
@@ -3083,7 +3049,7 @@ class Control:
 
             return rhs_0, rhs_1
 
-        @garbage_cleanup_method("_comm")
+        @garbage_cleanup_method()
         def linear_solve(self, *,
                          P=None, solver_parameters=None,
                          auxiliary_sp={}, v_d=None, f=None,
@@ -3608,7 +3574,7 @@ class Control:
                     fig_true_v.colorbar(colors)
                     plt.show()
 
-        @garbage_cleanup_method("_comm")
+        @garbage_cleanup_method()
         def non_linear_solve(self, *,
                              P=None, solver_parameters=None,
                              auxiliary_sp={},
@@ -3822,7 +3788,7 @@ class Control:
                     fig_true_v.colorbar(colors)
                     plt.show()
 
-        @garbage_cleanup_method("_comm")
+        @garbage_cleanup_method()
         def incompressible_linear_solve(self, nullspace_p, *, space_p=None,
                                         P=None, solver_parameters=None,
                                         auxiliary_sp={},
@@ -4586,7 +4552,7 @@ class Control:
                         bcs_v, bcs_zeta, block_01_int, block_10_int)
 
                     # preconditioner for the trapezoidal rule
-                    @garbage_cleanup(self._comm)
+                    @garbage_cleanup(self.comm)
                     def pc_fn(u_0, u_1, b_0, b_1):
                         b_0_help = Cofunction(full_space_v_help.dual())
                         b_1_help = Cofunction(full_space_v_help.dual())
@@ -4728,7 +4694,7 @@ class Control:
                         epsilon=epsilon)
 
                     # preconditioner for bacward Euler
-                    @garbage_cleanup(self._comm)
+                    @garbage_cleanup(self.comm)
                     def pc_fn(u_0, u_1, b_0, b_1):
                         b_0_help = Cofunction(full_space_v.dual())
                         b_1_help = Cofunction(full_space_v.dual())
@@ -4971,7 +4937,7 @@ class Control:
                     fig_true_v.colorbar(colors)
                     plt.show()
 
-        @garbage_cleanup_method("_comm")
+        @garbage_cleanup_method()
         def incompressible_non_linear_solve(self, nullspace_p, *,
                                             space_p=None, P=None,
                                             solver_parameters=None,
@@ -5100,7 +5066,7 @@ class Control:
             B_T = - inner(p_trial, div(v_test)) * dx
 
             # function used for the construction of the non-linear residual
-            @garbage_cleanup(self._comm)
+            @garbage_cleanup(self.comm)
             def non_linear_res_eval():
                 rhs_10 = Cofunction(full_space_p.dual(), name="rhs_10")
                 rhs_11 = Cofunction(full_space_p.dual(), name="rhs_11")
