@@ -1,6 +1,5 @@
 from firedrake import (
-    Cofunction, ConvergenceError, DirichletBC, Function,
-    MixedFunctionSpace, assemble)
+    Cofunction, DirichletBC, Function, MixedFunctionSpace, assemble)
 from firedrake.functionspaceimpl import WithGeometry as FunctionSpaceBase
 
 from .cn import apply_T_1, apply_T_2
@@ -490,13 +489,11 @@ class MultiBlockSystem:
         class Preconditioner:
             def __init__(self, n_blocks_00, n_blocks_11,
                          space_0, space_1, spaces,
-                         pc_fn, nullspaces, *,
-                         error_on_nonconvergence=True):
+                         pc_fn, nullspaces):
                 self._pc_fn = pc_fn
                 self._n_blocks_00 = n_blocks_00
                 self._n_blocks_11 = n_blocks_11
                 self._nullspaces = tuple(nullspaces)
-                self._error_on_nonconvergence = error_on_nonconvergence
 
                 self._x_fn = Cofunction(spaces.dual())
                 self._y_fn = Function(spaces)
@@ -562,11 +559,7 @@ class MultiBlockSystem:
                 u_0 = Function(space_help_0, name="u_0")
                 u_1 = Function(space_help_1, name="u_1")
 
-                try:
-                    pc_fn(u_0, u_1, b_0_c, b_1_c)
-                except ConvergenceError:
-                    if self._error_on_nonconvergence:
-                        raise
+                pc_fn(u_0, u_1, b_0_c, b_1_c)
 
                 if self._n_blocks_00 == 1:
                     self._y_fn.sub(0).assign(u_0)
@@ -705,8 +698,12 @@ class MultiBlockSystem:
             nullspace_help = self._nullspaces[self._n_blocks_00 + i]
             nullspace_help.correct_soln(u.sub(self._n_blocks_00 + i))
 
-        if not precond:
-            if ksp_solver.getConvergedReason() <= 0:
+        reason = ksp_solver.getConvergedReason()
+        if precond:
+            if reason <= 0 and reason != PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT:
+                raise RuntimeError("Solver failed to converge")
+        else:
+            if reason <= 0:
                 raise RuntimeError("Solver failed to converge")
 
         if self._n_blocks_00 == 1:

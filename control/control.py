@@ -1,8 +1,7 @@
 from firedrake import (
-    CheckpointFile, Cofunction, Constant, ConvergenceError, Function,
-    FunctionSpace, LinearSolver, MixedFunctionSpace, TestFunction,
-    TrialFunction, action, adjoint, assemble, div, dx, grad, homogenize, inner,
-    sqrt, tripcolor
+    CheckpointFile, Cofunction, Constant, Function, FunctionSpace,
+    LinearSolver, MixedFunctionSpace, TestFunction, TrialFunction, action,
+    adjoint, assemble, div, dx, grad, homogenize, inner, sqrt, tripcolor
 )
 from firedrake.functionspaceimpl import WithGeometry as FunctionSpaceBase
 from firedrake.output import VTKFile as File
@@ -1276,13 +1275,10 @@ class Control:
                     zeta_help.zero()
 
                     # solver for the (1,1)-block
-                    try:
-                        inner_ksp_solver = self._inner_system.solve(
-                            v_help, zeta_help, b_0_help, b_1_help,
-                            solver_parameters=inner_solver_parameters,
-                            pc_fn=self._inner_pc_fn)
-                    except ConvergenceError:
-                        assert inner_ksp_solver.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT
+                    _ = self._inner_system.solve(
+                        v_help, zeta_help, b_0_help, b_1_help,
+                        solver_parameters=inner_solver_parameters,
+                        pc_fn=self._inner_pc_fn)
 
                     u_0.sub(0).assign(v_help)
                     u_0.sub(1).assign(zeta_help)
@@ -4637,13 +4633,10 @@ class Control:
                         zeta_help.zero()
 
                         # solving for the (1,1)-block
-                        try:
-                            inner_ksp_solver = self._inner_system.solve(
-                                v_help, zeta_help, b_0_help, b_1_help,
-                                solver_parameters=inner_solver_parameters,
-                                pc_fn=self._inner_pc_fn)
-                        except ConvergenceError:
-                            assert inner_ksp_solver.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT
+                        _ = self._inner_system.solve(
+                            v_help, zeta_help, b_0_help, b_1_help,
+                            solver_parameters=inner_solver_parameters,
+                            pc_fn=self._inner_pc_fn)
 
                         for i in range(n_t - 1):
                             u_0.sub(i).assign(v_help.sub(i))
@@ -4788,13 +4781,10 @@ class Control:
                         zeta_help.zero()
 
                         # solving for the (1,1)-block
-                        try:
-                            inner_ksp_solver = self._inner_system.solve(
-                                v_help, zeta_help, b_0_help, b_1_help,
-                                solver_parameters=inner_solver_parameters,
-                                pc_fn=self._inner_pc_fn)
-                        except ConvergenceError:
-                            assert inner_ksp_solver.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT
+                        _ = self._inner_system.solve(
+                            v_help, zeta_help, b_0_help, b_1_help,
+                            solver_parameters=inner_solver_parameters,
+                            pc_fn=self._inner_pc_fn)
 
                         for i in range(n_t):
                             u_0.sub(i).assign(v_help.sub(i))
