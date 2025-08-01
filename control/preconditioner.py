@@ -3,6 +3,8 @@ from firedrake import (
     MixedFunctionSpace, assemble)
 from firedrake.functionspaceimpl import WithGeometry as FunctionSpaceBase
 
+from .cn import apply_T_1, apply_T_2
+
 import petsc4py.PETSc as PETSc
 import ufl
 
@@ -22,37 +24,6 @@ __all__ = \
 
         "MultiBlockSystem"
     ]
-
-
-# definition of application of T_1 and T_2
-def apply_T_1(x_old, space_v, n_blocks):
-    flattened_space = tuple(space_v for i in range(n_blocks))
-    full_space_v = MixedFunctionSpace(flattened_space)
-
-    x_new = Function(full_space_v)
-    x_new.assign(x_old)
-
-    for i in range(n_blocks - 1):
-        with x_new.sub(i).dat.vec as b_v, \
-                x_old.sub(i + 1).dat.vec_ro as b_1_v:
-            b_v.axpy(1.0, b_1_v)
-
-    return x_new
-
-
-def apply_T_2(x_old, space_v, n_blocks):
-    flattened_space = tuple(space_v for i in range(n_blocks))
-    full_space_v = MixedFunctionSpace(flattened_space)
-
-    x_new = Function(full_space_v)
-    x_new.assign(x_old)
-
-    for i in range(1, n_blocks):
-        with x_new.sub(i).dat.vec as b_v, \
-                x_old.sub(i - 1).dat.vec_ro as b_1_v:
-            b_v.axpy(1.0, b_1_v)
-
-    return x_new
 
 
 def apply_bcs(bcs, u):
