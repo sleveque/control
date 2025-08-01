@@ -1,15 +1,15 @@
 from firedrake import (
-    TestFunction, TrialFunction, inner, dx, Function,
-    FunctionSpace, MixedFunctionSpace, homogenize, adjoint,
-    grad, div, assemble, Cofunction, action, LinearSolver, Constant,
-    sqrt, tripcolor, CheckpointFile
+    CheckpointFile, Cofunction, Constant, ConvergenceError, Function,
+    FunctionSpace, LinearSolver, MixedFunctionSpace, TestFunction,
+    TrialFunction, action, adjoint, assemble, div, dx, grad, homogenize, inner,
+    sqrt, tripcolor
 )
 from firedrake.functionspaceimpl import WithGeometry as FunctionSpaceBase
 from firedrake.output import VTKFile as File
 
 import ufl
 
-from .preconditioner import *
+from .preconditioner import DirichletBCNullspace, MultiBlockSystem, apply_bcs
 
 try:
     import matplotlib
