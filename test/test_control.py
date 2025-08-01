@@ -1,11 +1,17 @@
-from firedrake import *
+from firedrake import (
+    Cofunction, Constant, DirichletBC, Function, FunctionSpace, LinearSolver,
+    MixedFunctionSpace, RectangleMesh, SpatialCoordinate, TestFunction,
+    TrialFunction, UnitSquareMesh, VectorFunctionSpace, as_vector, assemble,
+    cos, div, dot, ds, dx, exp, grad, inner, pi, sin, solve, sqrt
+)
 from firedrake.adjoint import (
     Control as Control_ad, ReducedFunctional, compute_gradient,
     continue_annotation, get_working_tape, minimize, pause_annotation,
-    set_working_tape)
+    set_working_tape
+)
 
-from control.control import *
-from control.preconditioner import *
+from control.control import Control
+from control.preconditioner import ConstantNullspace
 
 from functools import partial
 

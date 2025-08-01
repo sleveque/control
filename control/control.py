@@ -1,19 +1,25 @@
 from firedrake import (
-    TestFunction, TrialFunction, inner, dx, Function,
-    FunctionSpace, MixedFunctionSpace, homogenize, adjoint,
-    grad, div, assemble, Cofunction, action, LinearSolver, Constant,
-    sqrt, tripcolor, CheckpointFile
+    CheckpointFile, Cofunction, Constant, Function, FunctionSpace,
+    LinearSolver, MixedFunctionSpace, TestFunction, TrialFunction,
+    ZeroBaseForm, action, adjoint, assemble, div, dx, grad, homogenize, inner,
+    sqrt, tripcolor
 )
 from firedrake.functionspaceimpl import WithGeometry as FunctionSpaceBase
 from firedrake.output import VTKFile as File
 
+from .cn import apply_T_1, apply_T_2, apply_T_1_inv, apply_T_2_inv
+from .preconditioner import DirichletBCNullspace, MultiBlockSystem, apply_bcs
+
+try:
+    import matplotlib
+    import matplotlib.pyplot as plt
+except ModuleNotFoundError:
+    matplotlib = None
+import petsc4py.PETSc as PETSc
 import ufl
 
-from .preconditioner import *
-
-import petsc4py.PETSc as PETSc
-
 from collections.abc import Sequence
+from functools import cached_property
 
 
 __all__ = \
@@ -38,7 +44,7 @@ def garbage_cleanup(comm):
     return wrapper
 
 
-def garbage_cleanup_method(attr_name):
+def garbage_cleanup_method(attr_name="comm"):
     def wrapper(fn):
         def wrapped_fn(self, *args, **kwargs):
             return_value = fn(self, *args, **kwargs)
@@ -47,80 +53,6 @@ def garbage_cleanup_method(attr_name):
         return wrapped_fn
 
     return wrapper
-
-
-# definition of application of T_1 and T_2 for CN discretization
-def apply_T_1(x_old, space_v, n_blocks):
-    flattened_space = tuple(space_v for i in range(n_blocks))
-    full_space_v = MixedFunctionSpace(flattened_space)
-
-    if isinstance(x_old, Function):
-        x_new = Function(full_space_v)
-    else:
-        x_new = Cofunction(full_space_v.dual())
-    x_new.assign(x_old)
-
-    for i in range(n_blocks - 1):
-        with x_new.sub(i).dat.vec as b_v, \
-                x_old.sub(i + 1).dat.vec_ro as b_1_v:
-            b_v.axpy(1.0, b_1_v)
-
-    return x_new
-
-
-def apply_T_2(x_old, space_v, n_blocks):
-    flattened_space = tuple(space_v for i in range(n_blocks))
-    full_space_v = MixedFunctionSpace(flattened_space)
-
-    if isinstance(x_old, Function):
-        x_new = Function(full_space_v)
-    else:
-        x_new = Cofunction(full_space_v.dual())
-    x_new.assign(x_old)
-
-    for i in range(1, n_blocks):
-        with x_new.sub(i).dat.vec as b_v, \
-                x_old.sub(i - 1).dat.vec_ro as b_1_v:
-            b_v.axpy(1.0, b_1_v)
-
-    return x_new
-
-
-# definition of application of T_1^-1 and T_2^-1 for CN discretization
-def apply_T_1_inv(x_old, space_v, n_blocks):
-    flattened_space = tuple(space_v for i in range(n_blocks))
-    full_space_v = MixedFunctionSpace(flattened_space)
-
-    if isinstance(x_old, Function):
-        x_new = Function(full_space_v)
-    else:
-        x_new = Cofunction(full_space_v.dual())
-    x_new.assign(x_old)
-
-    for i in range(n_blocks - 2, -1, -1):
-        with x_new.sub(i).dat.vec as b_v, \
-                x_new.sub(i + 1).dat.vec_ro as b_1_v:
-            b_v.axpy(-1.0, b_1_v)
-
-    return x_new
-
-
-def apply_T_2_inv(x_old, space_v, n_blocks):
-    flattened_space = tuple(space_v for i in range(n_blocks))
-    full_space_v = MixedFunctionSpace(flattened_space)
-
-    if isinstance(x_old, Function):
-        x_new = Function(full_space_v)
-    else:
-        x_new = Cofunction(full_space_v.dual())
-    x_new.assign(x_old)
-
-    for i in range(1, n_blocks):
-        with x_new.sub(i).dat.vec as b_v, \
-                x_new.sub(i - 1).dat.vec_ro as b_1_v:
-            b_v.axpy(-1.0, b_1_v)
-
-    return x_new
 
 
 class Control:
@@ -134,23 +66,21 @@ class Control:
     employed for the solution of the corresponding control problem.
     """
     class Stationary:
-        """Module employed for the solution of stationary control
-        problems."""
-        def __init__(self, space_v,
-                     forward_form, desired_state=None, force_function=None, *,
-                     beta=1.0e-3, space_p=None, Gauss_Newton=False,
-                     bcs_v=None):
-            """Constructor of the object Stationary.
+        def __init__(self, space_v, forward_form, desired_state=None,
+                     force_function=None, *, beta=1.0e-3, space_p=None,
+                     Gauss_Newton=False, bcs_v=None):
+            """Stationary control problem.
 
             Input:
-                - space_v             space whom the solution belongs to
+                - space_v             space to which the solution belongs
 
                 - forward_form        form that represents the differential
                                       operator in space
 
-                - desired_state       desired state
+                - desired_state       desired state, defaults to zero
 
-                - force_function      force function acting on the system
+                - force_function      force function acting on the system,
+                                      defaults to zero
 
                 - beta                regularization parameter
 
@@ -177,74 +107,39 @@ class Control:
                     and not isinstance(space_p, FunctionSpaceBase):
                 raise TypeError("Space must be a primal space")
 
-            v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
-
-            # in case no desired_state is passed, the solver assumes
-            # zero desired state
             if desired_state is None:
                 def desired_state(test_v):
-                    space_v = test_v.function_space()
-
-                    v_d = Function(space_v, name="v_d")
-
-                    return inner(v_d, test_v) * dx
-
-            # in case no force_function is passed, the solver assumes
-            # zero force
+                    return ZeroBaseForm((test_v,))
             if force_function is None:
                 def force_function(test_v):
-                    space_v = test_v.function_space()
-
-                    f = Function(space_v, name="f")
-
-                    return inner(f, test_v) * dx
+                    return ZeroBaseForm((test_v,))
 
             self._space_v = space_v
             self._space_p = space_p
-            self._comm = space_v.mesh().comm
             self._forward_form = forward_form
             self._desired_state = desired_state
             self._force_function = force_function
             self._beta = beta
+            self._Gauss_Newton = Gauss_Newton
             self._bcs_v = bcs_v
 
-            # building the forms of the (1,1)- and (2,2)-blocks
-            self._M_v = inner(v_trial, v_test) * dx
-            self._M_zeta = inner(v_trial, v_test) * dx
-            self._M_p = None
-            self._M_mu = None
+            self._v = Function(space_v, name="v")
+            apply_bcs(self._bcs_v, self._v)
+            self._zeta = Function(space_v, name="zeta")
+            v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
+            self._M_v = self._M_zeta = inner(v_trial, v_test) * dx
 
-            self._Gauss_Newton = Gauss_Newton
-
-            # building the solutions
-            v = Function(space_v, name="v")
-            zeta = Function(space_v, name="zeta")
-
-            v.zero()
-            zeta.zero()
-
-            # applying bcs to the state
-            for bc in self._bcs_v:
-                bc.apply(v)
-
-            self._v = v
-            self._zeta = zeta
-
-            # if space_p is passed, the state and adjoint pressures are built
             if space_p is not None:
+                self._p = Function(space_p, name="p")
+                self._mu = Function(space_p, name="mu")
                 p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
+                self._M_p = self._M_mu = inner(p_trial, p_test) * dx
+            else:
+                self._M_p = self._M_mu = None
 
-                self._M_p = inner(p_trial, p_test) * dx
-                self._M_mu = inner(p_trial, p_test) * dx
-
-                p = Function(space_p, name="p")
-                mu = Function(space_p, name="mu")
-
-                p.zero()
-                mu.zero()
-
-                self._p = p
-                self._mu = mu
+        @cached_property
+        def comm(self):
+            return self._space_v.mesh().comm
 
         def set_space_v(self, space_v, *, v=None, zeta=None,
                         bcs_v_new=False, bcs_v=None):
@@ -464,9 +359,6 @@ class Control:
             error = sqrt(abs(assemble(inner(v_err, v_err) * dx)))
             print(f'Estimated error in the L2-norm: {error:.16e}')
 
-            del v_err
-            del error
-
         def construct_D_v(self, v_trial, v_test, v_old, *,
                           non_linear_res=False):
             """Construction of the discretized forward form.
@@ -632,7 +524,7 @@ class Control:
             solver_2.ksp.addConvergenceTest(converged, prepend=True)
 
             # definition of preconditioners
-            @garbage_cleanup(self._comm)
+            @garbage_cleanup(self.comm)
             def pc_linear(u_0, u_1, b_0, b_1):
                 # solving for the (1,1)-block
                 u_0.zero()
@@ -649,7 +541,6 @@ class Control:
                 apply_bcs(bcs_zeta, b)
                 u_1.zero()
                 solver_1.solve(u_1, b.copy(deepcopy=True))
-                del b
 
                 # multiply for the (1,1)-block
                 b = assemble(action(self._M_v, u_1))
@@ -658,11 +549,10 @@ class Control:
                 apply_bcs(bcs_zeta, b)
                 u_1.zero()
                 solver_2.solve(u_1, b.copy(deepcopy=True))
-                del b
 
             return pc_linear
 
-        @garbage_cleanup_method("_comm")
+        @garbage_cleanup_method()
         def non_linear_res_eval(self, space_v, v_d, f, v_old, zeta_old,
                                 D_v, D_zeta, M_zeta, bcs_v, bcs_zeta):
             """Construction of the non-linear residual.
@@ -706,24 +596,20 @@ class Control:
             with b.dat.vec_ro as b_v, \
                     rhs_0.dat.vec as b_1_v:
                 b_1_v.axpy(-1.0, b_v)
-            del b
             b = assemble(action(D_zeta, zeta_old))
             with b.dat.vec_ro as b_v, \
                     rhs_0.dat.vec as b_1_v:
                 b_1_v.axpy(-1.0, b_v)
-            del b
 
             # evaluating non-linear residual (state equation)
             b = assemble(action(D_v, v_old))
             with b.dat.vec_ro as b_v, \
                     rhs_1.dat.vec as b_1_v:
                 b_1_v.axpy(-1.0, b_v)
-            del b
             b = assemble(action(M_zeta, zeta_old))
             with b.dat.vec_ro as b_v, \
                     rhs_1.dat.vec as b_1_v:
                 b_1_v.axpy(-1.0, b_v)
-            del b
 
             # applying bcs
             apply_bcs(bcs_v, rhs_0)
@@ -731,7 +617,7 @@ class Control:
 
             return rhs_0, rhs_1
 
-        @garbage_cleanup_method("_comm")
+        @garbage_cleanup_method()
         def linear_solve(self, *,
                          P=None, solver_parameters=None,
                          auxiliary_sp={}, v_d=None, f=None,
@@ -805,16 +691,10 @@ class Control:
             if f is None:
                 f = self.construct_f(inhomogeneous_bcs_v, v_test,
                                      D_v, v_inhom, bcs_v)
-                check_f = True
-            else:
-                check_f = False
 
             if v_d is None:
                 v_d = self.construct_v_d(v_test, inhomogeneous_bcs_v,
                                          v_inhom, bcs_v)
-                check_v_d = True
-            else:
-                check_v_d = False
 
             # construction of the preconditioner
             if P is None:
@@ -851,9 +731,6 @@ class Control:
             v = Function(space_v, name="v")
             zeta = Function(space_v, name="zeta")
 
-            v.zero()
-            zeta.zero()
-
             # solving the system
             system.solve(
                 v, zeta, v_d, f,
@@ -870,14 +747,8 @@ class Control:
             self.set_v(v)
             self.set_zeta(zeta)
 
-            if check_v_d:
-                del v_d
-            if check_f:
-                del f
-            del system
-            del pc_fn
+            del system, pc_fn
 
-            # creating output
             if create_output:
                 v_output = File("v.pvd")
                 v_output.write(v)
@@ -891,31 +762,25 @@ class Control:
                 with CheckpointFile("zeta.h5", "w") as h:
                     h.save_function(zeta)
 
-            # plotting the solutions
             if plots:
-                try:
-                    import matplotlib.pyplot as plt
-                    fig_v, axes = plt.subplots()
-                    colors = tripcolor(v, axes=axes)
-                    fig_v.colorbar(colors)
-                    fig_zeta, axes = plt.subplots()
-                    colors = tripcolor(zeta, axes=axes)
-                    fig_zeta.colorbar(colors)
-                    fig_true_v, axes = plt.subplots()
-                    colors = tripcolor(self._true_v, axes=axes)
-                    fig_true_v.colorbar(colors)
-                    plt.show()
-                except Exception as e:
-                    warning(f"Cannot plot figure. Error msg: '{e}'")
+                if matplotlib is None:
+                    raise RuntimeError("matplotlib not available")
 
-            del v
-            del zeta
+                fig_v, axes = plt.subplots()
+                colors = tripcolor(v, axes=axes)
+                fig_v.colorbar(colors)
+                fig_zeta, axes = plt.subplots()
+                colors = tripcolor(zeta, axes=axes)
+                fig_zeta.colorbar(colors)
+                fig_true_v, axes = plt.subplots()
+                colors = tripcolor(self._true_v, axes=axes)
+                fig_true_v.colorbar(colors)
+                plt.show()
 
-            # printing the error
             if print_error:
                 self.print_error()
 
-        @garbage_cleanup_method("_comm")
+        @garbage_cleanup_method()
         def non_linear_solve(self, *,
                              P=None, solver_parameters=None,
                              auxiliary_sp={},
@@ -1038,11 +903,6 @@ class Control:
                 apply_bcs(bcs_zeta, zeta_old)
                 self.set_zeta(zeta_old)
 
-                del D_v
-                del D_zeta
-                del rhs_0
-                del rhs_1
-
                 # construction of the discretized forward and adjoint forms
                 D_v = self.construct_D_v(
                     v_trial, v_test, v_old, non_linear_res=True)
@@ -1069,21 +929,6 @@ class Control:
                 if k + 1 > max_non_linear_iter:
                     break
 
-            del v_old
-            del zeta_old
-            del delta_v
-            del delta_zeta
-            del D_v
-            del D_zeta
-            del M_zeta
-            del rhs_0
-            del rhs_1
-            del rhs
-            del f
-            del v_d
-
-            # printing L^2 discrepancy between the desired state and the
-            # numerical solution
             if print_error_non_linear:
                 if norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol:
                     if norm_0 > 0.:
@@ -1097,7 +942,6 @@ class Control:
                     print(f'Absolute non-linear residual: {norm_k:.16e}')
                 self.print_error()
 
-            # creating output
             if create_output:
                 v_output = File("v.pvd")
                 v_output.write(self._v)
@@ -1111,24 +955,22 @@ class Control:
                 with CheckpointFile("zeta.h5", "w") as h:
                     h.save_function(self._zeta)
 
-            # plotting the solutions
             if plots:
-                try:
-                    import matplotlib.pyplot as plt
-                    fig_v, axes = plt.subplots()
-                    colors = tripcolor(self._v, axes=axes)
-                    fig_v.colorbar(colors)
-                    fig_zeta, axes = plt.subplots()
-                    colors = tripcolor(self._zeta, axes=axes)
-                    fig_zeta.colorbar(colors)
-                    fig_true_v, axes = plt.subplots()
-                    colors = tripcolor(self._true_v, axes=axes)
-                    fig_true_v.colorbar(colors)
-                    plt.show()
-                except Exception as e:
-                    warning(f"Cannot plot figure. Error msg: '{e}'")
+                if matplotlib is None:
+                    raise RuntimeError("matplotlib not available")
 
-        @garbage_cleanup_method("_comm")
+                fig_v, axes = plt.subplots()
+                colors = tripcolor(self._v, axes=axes)
+                fig_v.colorbar(colors)
+                fig_zeta, axes = plt.subplots()
+                colors = tripcolor(self._zeta, axes=axes)
+                fig_zeta.colorbar(colors)
+                fig_true_v, axes = plt.subplots()
+                colors = tripcolor(self._true_v, axes=axes)
+                fig_true_v.colorbar(colors)
+                plt.show()
+
+        @garbage_cleanup_method()
         def incompressible_linear_solve(self, nullspace_p, *, space_p=None,
                                         P=None, solver_parameters=None,
                                         auxiliary_sp={},
@@ -1242,32 +1084,20 @@ class Control:
             if f is None:
                 f = self.construct_f(inhomogeneous_bcs_v, v_test,
                                      D_v, v_inhom, bcs_v)
-                check_f = True
-            else:
-                check_f = False
 
             # construction of desired state
             if v_d is None:
                 v_d = self.construct_v_d(v_test, inhomogeneous_bcs_v,
                                          v_inhom, bcs_v)
-                check_v_d = True
-            else:
-                check_v_d = False
 
             # construction of right-hand side
             if div_v is None:
                 div_v = Function(space_p)
                 if inhomogeneous_bcs_v:
                     div_v = assemble(- action(B, v_inhom))
-                check_div_v = True
-            else:
-                check_div_v = False
 
             if div_zeta is None:
                 div_zeta = Cofunction(space_p.dual())
-                check_div_zeta = True
-            else:
-                check_div_zeta = False
 
             b_0 = Cofunction(space_0.dual(), name="b_0")
             b_1 = Cofunction(space_1.dual(), name="b_1")
@@ -1380,7 +1210,7 @@ class Control:
                     auxiliary_sp, bcs_v, bcs_zeta, D_v, D_zeta)
 
                 # construction of preconditioner for the whole system
-                @garbage_cleanup(self._comm)
+                @garbage_cleanup(self.comm)
                 def pc_fn(u_0, u_1, b_0, b_1):
                     b_0_help = Cofunction(space_v.dual())
                     b_1_help = Cofunction(space_v.dual())
@@ -1403,17 +1233,11 @@ class Control:
                     v_help = Function(space_v)
                     zeta_help = Function(space_v)
 
-                    v_help.zero()
-                    zeta_help.zero()
-
                     # solver for the (1,1)-block
-                    try:
-                        inner_ksp_solver = self._inner_system.solve(
-                            v_help, zeta_help, b_0_help, b_1_help,
-                            solver_parameters=inner_solver_parameters,
-                            pc_fn=self._inner_pc_fn)
-                    except ConvergenceError:
-                        assert inner_ksp_solver.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT
+                    _ = self._inner_system.solve(
+                        v_help, zeta_help, b_0_help, b_1_help,
+                        solver_parameters=inner_solver_parameters,
+                        pc_fn=self._inner_pc_fn)
 
                     u_0.sub(0).assign(v_help)
                     u_0.sub(1).assign(zeta_help)
@@ -1430,9 +1254,6 @@ class Control:
                             b_1.sub(1).dat.vec_ro as b_1_v:
                         b_v.axpy(-1.0, b_1_v)
 
-                    del v_help
-                    del zeta_help
-
                     # solving for the Schur complement approximation (apply
                     # block-pressure convection--diffusion preconditioner)
                     u_1.sub(0).zero()
@@ -1442,9 +1263,6 @@ class Control:
                     u_1.sub(1).zero()
                     solver_K_p.solve(u_1.sub(1),
                                      b_1_help.copy(deepcopy=True))
-
-                    del b_0_help
-                    del b_1_help
 
                     b_0_help = Cofunction(space_p.dual())
                     b_1_help = Cofunction(space_p.dual())
@@ -1458,8 +1276,6 @@ class Control:
                     b_1_help.assign(assemble(
                         action(block_10_p, b_c_0_help)
                         + action(block_11_p, b_c_1_help)))
-                    del b_c_0_help
-                    del b_c_1_help
 
                     u_1.sub(0).zero()
                     solver_M_p.solve(u_1.sub(0),
@@ -1468,9 +1284,6 @@ class Control:
                     u_1.sub(1).zero()
                     solver_M_p.solve(u_1.sub(1),
                                      b_1_help.copy(deepcopy=True))
-
-                    del b_0_help
-                    del b_1_help
             else:
                 pc_fn = P(self, D_zeta, D_v, B,
                           nullspace_v, nullspace_zeta,
@@ -1487,9 +1300,6 @@ class Control:
 
             u_0_sol = Function(space_0)
             u_1_sol = Function(space_1)
-
-            u_0_sol.zero()
-            u_1_sol.zero()
 
             # solving linear system
             system.solve(
@@ -1521,27 +1331,10 @@ class Control:
             self.set_p(p)
             self.set_mu(mu)
 
-            del u_0_sol
-            del u_1_sol
-            if check_v_d:
-                del v_d
-            if check_f:
-                del f
-            if not (check_f and check_v_d):
-                del b_0
-            if check_div_v:
-                del div_v
-            if check_div_zeta:
-                del div_zeta
-            if not (check_div_v and check_div_zeta):
-                del b_1
-            del system
-            del pc_fn
+            del system, pc_fn
             if P is None:
-                del self._inner_system
-                del self._inner_pc_fn
+                del self._inner_system, self._inner_pc_fn
 
-            # creating output
             if create_output:
                 v_output = File("v.pvd")
                 v_output.write(v)
@@ -1567,40 +1360,31 @@ class Control:
                 with CheckpointFile("mu.h5", "w") as h:
                     h.save_function(mu)
 
-            # plotting the solutions
             if plots:
-                try:
-                    import matplotlib.pyplot as plt
-                    fig_v, axes = plt.subplots()
-                    colors = tripcolor(v, axes=axes)
-                    fig_v.colorbar(colors)
-                    fig_p, axes = plt.subplots()
-                    colors = tripcolor(p, axes=axes)
-                    fig_p.colorbar(colors)
-                    fig_zeta, axes = plt.subplots()
-                    colors = tripcolor(zeta, axes=axes)
-                    fig_zeta.colorbar(colors)
-                    fig_mu, axes = plt.subplots()
-                    colors = tripcolor(mu, axes=axes)
-                    fig_mu.colorbar(colors)
-                    fig_true_v, axes = plt.subplots()
-                    colors = tripcolor(self._true_v, axes=axes)
-                    fig_true_v.colorbar(colors)
-                    plt.show()
-                except Exception as e:
-                    warning(f"Cannot plot figure. Error msg: '{e}'")
+                if matplotlib is None:
+                    raise RuntimeError("matplotlib not available")
 
-            del v
-            del zeta
-            del p
-            del mu
+                fig_v, axes = plt.subplots()
+                colors = tripcolor(v, axes=axes)
+                fig_v.colorbar(colors)
+                fig_p, axes = plt.subplots()
+                colors = tripcolor(p, axes=axes)
+                fig_p.colorbar(colors)
+                fig_zeta, axes = plt.subplots()
+                colors = tripcolor(zeta, axes=axes)
+                fig_zeta.colorbar(colors)
+                fig_mu, axes = plt.subplots()
+                colors = tripcolor(mu, axes=axes)
+                fig_mu.colorbar(colors)
+                fig_true_v, axes = plt.subplots()
+                colors = tripcolor(self._true_v, axes=axes)
+                fig_true_v.colorbar(colors)
+                plt.show()
 
-            # printing L^2 discrepancy between the desired state and the
-            # numerical solution
             if print_error:
                 self.print_error()
 
-        @garbage_cleanup_method("_comm")
+        @garbage_cleanup_method()
         def incompressible_non_linear_solve(self, nullspace_p, *, space_p=None,
                                             P=None, solver_parameters=None,
                                             auxiliary_sp={},
@@ -1710,7 +1494,7 @@ class Control:
 
             # function for the evaluation of the non-linear residual,
             # in case of incompressible control problems
-            @garbage_cleanup(self._comm)
+            @garbage_cleanup(self.comm)
             def non_linear_res_eval():
                 rhs_00 = Cofunction(space_v.dual(), name="rhs_00")
                 rhs_01 = Cofunction(space_v.dual(), name="rhs_01")
@@ -1725,32 +1509,25 @@ class Control:
                 rhs_00.assign(rhs_0)
                 rhs_01.assign(rhs_1)
 
-                del rhs_0
-                del rhs_1
-
                 b = assemble(action(B_T, mu_old))
                 with b.dat.vec_ro as b_v, \
                         rhs_00.dat.vec as b_1_v:
                     b_1_v.axpy(-1.0, b_v)
-                del b
 
                 b = assemble(action(B_T, p_old))
                 with b.dat.vec_ro as b_v, \
                         rhs_01.dat.vec as b_1_v:
                     b_1_v.axpy(-1.0, b_v)
-                del b
 
                 b = assemble(action(B, v_old))
                 with b.dat.vec_ro as b_v, \
                         rhs_10.dat.vec as b_1_v:
                     b_1_v.axpy(-1.0, b_v)
-                del b
 
                 b = assemble(action(B, zeta_old))
                 with b.dat.vec_ro as b_v, \
                         rhs_11.dat.vec as b_1_v:
                     b_1_v.axpy(-1.0, b_v)
-                del b
 
                 apply_bcs(bcs_v, rhs_00)
                 apply_bcs(bcs_zeta, rhs_01)
@@ -1814,13 +1591,6 @@ class Control:
                     b_1_v.axpy(1.0, b_v)
                 self.set_mu(mu_old)
 
-                del D_v
-                del D_zeta
-                del rhs_00
-                del rhs_01
-                del rhs_10
-                del rhs_11
-
                 # construction of the discretized forward and adjoint forms
                 D_v = self.construct_D_v(
                     v_trial, v_test, v_old, non_linear_res=True)
@@ -1847,8 +1617,6 @@ class Control:
                 if k + 1 > max_non_linear_iter:
                     break
 
-            # printing L^2 discrepancy between the desired state and the
-            # numerical solution
             if print_error_non_linear:
                 if norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol:
                     if norm_0 > 0.:
@@ -1862,7 +1630,6 @@ class Control:
                     print(f'Absolute non-linear residual: {norm_k:.16e}')
                 self.print_error()
 
-            # creating output
             if create_output:
                 v_output = File("v.pvd")
                 v_output.write(self._v)
@@ -1888,28 +1655,26 @@ class Control:
                 with CheckpointFile("mu.h5", "w") as h:
                     h.save_function(self._mu)
 
-            # plotting the solutions
             if plots:
-                try:
-                    import matplotlib.pyplot as plt
-                    fig_v, axes = plt.subplots()
-                    colors = tripcolor(self._v, axes=axes)
-                    fig_v.colorbar(colors)
-                    fig_p, axes = plt.subplots()
-                    colors = tripcolor(self._p, axes=axes)
-                    fig_p.colorbar(colors)
-                    fig_zeta, axes = plt.subplots()
-                    colors = tripcolor(self._zeta, axes=axes)
-                    fig_zeta.colorbar(colors)
-                    fig_mu, axes = plt.subplots()
-                    colors = tripcolor(self._mu, axes=axes)
-                    fig_mu.colorbar(colors)
-                    fig_true_v, axes = plt.subplots()
-                    colors = tripcolor(self._true_v, axes=axes)
-                    fig_true_v.colorbar(colors)
-                    plt.show()
-                except Exception as e:
-                    warning(f"Cannot plot figure. Error msg: '{e}'")
+                if matplotlib is None:
+                    raise RuntimeError("matplotlib not available")
+
+                fig_v, axes = plt.subplots()
+                colors = tripcolor(self._v, axes=axes)
+                fig_v.colorbar(colors)
+                fig_p, axes = plt.subplots()
+                colors = tripcolor(self._p, axes=axes)
+                fig_p.colorbar(colors)
+                fig_zeta, axes = plt.subplots()
+                colors = tripcolor(self._zeta, axes=axes)
+                fig_zeta.colorbar(colors)
+                fig_mu, axes = plt.subplots()
+                colors = tripcolor(self._mu, axes=axes)
+                fig_mu.colorbar(colors)
+                fig_true_v, axes = plt.subplots()
+                colors = tripcolor(self._true_v, axes=axes)
+                fig_true_v.colorbar(colors)
+                plt.show()
 
     class Instationary:
         """Module employed for the solution of instationary control
@@ -1968,25 +1733,16 @@ class Control:
             # zero desired state
             if desired_state is None:
                 def desired_state(test_v, t):
-                    space_v = test_v.function_space()
-
-                    v_d = Function(space_v, name="v_d")
-
-                    return inner(v_d, test_v) * dx
+                    return ZeroBaseForm((test_v,))
 
             # in case no force_function is passed, the solver assumes
             # zero force
             if force_function is None:
                 def force_function(test_v, t):
-                    space_v = test_v.function_space()
-
-                    f = Function(space_v, name="f")
-
-                    return inner(f, test_v) * dx
+                    return ZeroBaseForm((test_v,))
 
             self._space_v = space_v
             self._space_p = space_p
-            self._comm = space_v.mesh().comm
             self._forward_form = forward_form
             self._desired_state = desired_state
             self._force_function = force_function
@@ -2036,9 +1792,6 @@ class Control:
             v = Function(full_space_v, name="v")
             zeta = Function(full_space_v, name="zeta")
 
-            v.zero()
-            zeta.zero()
-
             for i in range(n_t):
                 bcs_v_i = full_bcs_v[(i)]
                 apply_bcs(bcs_v_i, v.sub(i))
@@ -2063,11 +1816,12 @@ class Control:
                 p = Function(full_space_p, name="p")
                 mu = Function(full_space_p, name="mu")
 
-                p.zero()
-                mu.zero()
-
                 self._p = p
                 self._mu = mu
+
+        @cached_property
+        def comm(self):
+            return self._space_v.mesh().comm
 
         def set_space_v(self, space_v, *, v=None, zeta=None,
                         bcs_v_new=False, bcs_v=None):
@@ -2186,7 +1940,6 @@ class Control:
             # assign new value of state pressure
             if p is None:
                 p = Function(full_space_p, name="p")
-                p.zero()
             else:
                 if p.function_space() != full_space_p:
                     raise ValueError("Unexpected space")
@@ -2194,7 +1947,6 @@ class Control:
             # assign new value of adjoint pressure
             if mu is None:
                 mu = Function(full_space_p, name="mu")
-                mu.zero()
             else:
                 if mu.function_space() != full_space_p:
                     raise ValueError("Unexpected space")
@@ -2319,7 +2071,6 @@ class Control:
                 apply_bcs(bcs_v_i, v.sub(i))
 
             zeta = Function(full_space_v, name="zeta")
-            zeta.zero()
 
             self._v = v
             self._zeta = zeta
@@ -2462,9 +2213,6 @@ class Control:
             error = sqrt(tau) * sqrt(abs(assemble(inner(v_err, v_err) * dx)))
 
             print(f'Estimated error in the L2-norm: {error:.16e}')
-
-            del v_err
-            del error
 
         def construct_D_v(self, v_trial, v_test, v_n_help, t, *,
                           non_linear_res=False):
@@ -2715,13 +2463,12 @@ class Control:
                 solver_i_adj.ksp.addConvergenceTest(converged, prepend=True)
                 solver_adj[(n_t - 1)] = solver_i_adj
 
-            del solver_i_state
-            del solver_i_adj
+            del solver_i_state, solver_i_adj
 
             # definition of preconditioner
             if self._CN:
                 # preconditioner for the trapezoidal rule
-                @garbage_cleanup(self._comm)
+                @garbage_cleanup(self.comm)
                 def pc_linear(u_0, u_1, b_0, b_1):
                     # solving for the (1,1)-block
                     b_0_help = apply_T_1_inv(b_0, space_v, n_t - 1)
@@ -2732,14 +2479,12 @@ class Control:
                         u_0.sub(i).zero()
                         solver_0.solve(u_0.sub(i),
                                        b.copy(deepcopy=True))
-                        del b
                         with u_0.sub(i).dat.vec as x_v:
                             x_v.scale(2.0 / Constant(tau))
 
                     b_0_help = apply_T_2_inv(u_0, space_v, n_t - 1)
                     for i in range(n_t - 1):
                         u_0.sub(i).assign(b_0_help.sub(i))
-                    del b_0_help
 
                     # u_1 = - b_1 + D_v * u_0
                     b = Cofunction(full_space_v.dual())
@@ -2748,7 +2493,6 @@ class Control:
                     b_help.assign(u_0.sub(0))
                     b.sub(0).assign(assemble(action(block_ii, b_help)))
                     apply_bcs(bcs_zeta, b.sub(0))
-                    del b_help
 
                     for i in range(1, n_t - 1):
                         block_ij = block_10[(i, i - 1)]
@@ -2761,8 +2505,6 @@ class Control:
                         with b.sub(i).dat.vec as b_v, \
                                 b_help_new.dat.vec_ro as b_1_v:
                             b_v.axpy(1.0, b_1_v)
-                        del b_help
-                        del b_help_new
                         apply_bcs(bcs_zeta, b.sub(i))
 
                     b = apply_T_2(b, space_v, n_t - 1)
@@ -2782,7 +2524,6 @@ class Control:
                     u_1.sub(0).zero()
                     solver_1.solve(u_1.sub(0),
                                    b_help.copy(deepcopy=True))
-                    del b_help
 
                     for i in range(1, n_t - 1):
                         block_ij = block_10[(i, i - 1)]
@@ -2798,7 +2539,6 @@ class Control:
                         with b.sub(i).dat.vec as b_v, \
                                 b_help_new.dat.vec_ro as b_1_v:
                             b_v.axpy(-1.0, b_1_v)
-                        del b_help_new
                         apply_bcs(bcs_zeta, b.sub(i))
                         b_help = Cofunction(space_v.dual())
                         b_help.assign(b.sub(i))
@@ -2807,14 +2547,11 @@ class Control:
                         u_1.sub(i).zero()
                         solver_1.solve(u_1.sub(i),
                                        b_help.copy(deepcopy=True))
-                        del b_help
-                    del b
 
                     # apply T_2
                     b = apply_T_2(u_1, space_v, n_t - 1)
                     for i in range(n_t - 1):
                         u_1.sub(i).assign(b.sub(i))
-                    del b
 
                     # mat-mult by blk(M_v,...,M_v)
                     b = Cofunction(full_space_v.dual())
@@ -2823,7 +2560,6 @@ class Control:
                         b_help.assign(u_1.sub(i))
                         b.sub(i).assign(assemble(action(self._M_v,
                                                         b_help)))
-                        del b_help
                         with b.sub(i).dat.vec as b_v:
                             b_v.scale(0.5 * Constant(tau))
                         apply_bcs(bcs_zeta, b.sub(i))
@@ -2835,7 +2571,6 @@ class Control:
                     u_1.sub(n_t - 2).zero()
                     solver_2.solve(u_1.sub(n_t - 2),
                                    b_help.copy(deepcopy=True))
-                    del b_help
 
                     for i in range(n_t - 3, -1, -1):
                         b_help = Function(space_v)
@@ -2845,7 +2580,6 @@ class Control:
                         with b.sub(i).dat.vec as b_v, \
                                 b_help_new.dat.vec_ro as b_1_v:
                             b_v.axpy(-1.0, b_1_v)
-                        del b_help_new
                         apply_bcs(bcs_zeta, b.sub(i))
                         b_help = Cofunction(space_v.dual())
                         b_help.assign(b.sub(i))
@@ -2853,10 +2587,9 @@ class Control:
                         u_1.sub(i).zero()
                         solver_2.solve(u_1.sub(i),
                                        b_help.copy(deepcopy=True))
-                        del b_help
             else:
                 # preconditioner for backward Euler
-                @garbage_cleanup(self._comm)
+                @garbage_cleanup(self.comm)
                 def pc_linear(u_0, u_1, b_0, b_1):
                     # solving for the (1,1)-block
                     for i in range(n_t):
@@ -2864,7 +2597,6 @@ class Control:
                         b.assign(b_0.sub(i))
                         u_0.sub(i).zero()
                         solver_0.solve(u_0.sub(i), b.copy(deepcopy=True))
-                        del b
                         with u_0.sub(i).dat.vec as x_v:
                             x_v.scale(1.0 / Constant(tau))
 
@@ -2881,7 +2613,6 @@ class Control:
                             b_1.sub(0).dat.vec_ro as b_1_v:
                         b_v.axpy(-1.0, b_1_v)
                     apply_bcs(bcs_zeta, b.sub(0))
-                    del b_help
 
                     for i in range(1, n_t):
                         block_ij = block_10[(i, i - 1)]
@@ -2894,8 +2625,6 @@ class Control:
                         with b.sub(i).dat.vec as b_v, \
                                 b_help_new.dat.vec_ro as b_1_v:
                             b_v.axpy(1.0, b_1_v)
-                        del b_help
-                        del b_help_new
                         with b.sub(i).dat.vec as b_v, \
                                 b_1.sub(i).dat.vec_ro as b_1_v:
                             b_v.axpy(-1.0, b_1_v)
@@ -2909,7 +2638,6 @@ class Control:
                     u_1.sub(0).zero()
                     solver_1.solve(u_1.sub(0),
                                    b_help.copy(deepcopy=True))
-                    del b_help
 
                     for i in range(1, n_t):
                         block_ij = block_10[(i, i - 1)]
@@ -2919,7 +2647,6 @@ class Control:
                         with b.sub(i).dat.vec as b_v, \
                                 b_help_new.dat.vec_ro as b_1_v:
                             b_v.axpy(-1.0, b_1_v)
-                        del b_help_new
                         apply_bcs(bcs_zeta, b.sub(i))
 
                         b_help = Cofunction(space_v.dual())
@@ -2928,7 +2655,6 @@ class Control:
                         u_1.sub(i).zero()
                         solver_1.solve(u_1.sub(i),
                                        b_help.copy(deepcopy=True))
-                        del b_help
 
                     # mat-mult by blk(M_v,...,M_v)
                     b = Cofunction(full_space_v.dual())
@@ -2937,7 +2663,6 @@ class Control:
                         b_help.assign(u_1.sub(i))
                         b.sub(i).assign(assemble(action(self._M_v,
                                                         b_help)))
-                        del b_help
                         with b.sub(i).dat.vec as b_v:
                             b_v.scale(Constant(tau))
                         apply_bcs(bcs_zeta, b.sub(i))
@@ -2946,7 +2671,6 @@ class Control:
                     b_help.assign(u_1.sub(n_t - 1))
                     b.sub(n_t - 1).assign(assemble(action(self._M_v,
                                                           b_help)))
-                    del b_help
                     with b.sub(n_t - 1).dat.vec as b_v:
                         b_v.scale(epsilon * Constant(tau))
                     apply_bcs(bcs_zeta, b.sub(n_t - 1))
@@ -2958,7 +2682,6 @@ class Control:
                     u_1.sub(n_t - 1).zero()
                     solver_2.solve(u_1.sub(n_t - 1),
                                    b_help.copy(deepcopy=True))
-                    del b_help
 
                     for i in range(n_t - 2, -1, -1):
                         b_help = Function(space_v)
@@ -2968,7 +2691,6 @@ class Control:
                         with b.sub(i).dat.vec as b_v, \
                                 b_help_new.dat.vec_ro as b_1_v:
                             b_v.axpy(-1.0, b_1_v)
-                        del b_help_new
                         apply_bcs(bcs_zeta, b.sub(i))
 
                         b_help = Cofunction(space_v.dual())
@@ -2977,11 +2699,10 @@ class Control:
                         u_1.sub(i).zero()
                         solver_2.solve(u_1.sub(i),
                                        b_help.copy(deepcopy=True))
-                        del b_help
 
             return pc_linear
 
-        @garbage_cleanup_method("_comm")
+        @garbage_cleanup_method()
         def non_linear_res_eval(self, full_space_v, v_old, zeta_old, v_0,
                                 v_d, f, M_v, bcs_v, bcs_zeta):
             """Construction of the non-linear residual.
@@ -3043,8 +2764,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_0.sub(0).dat.vec as b_0_v:
                     b_0_v.axpy(-1.0, b_v)
-                del b
-                del b_help
 
                 b_help = Function(space_v)
                 b_help.assign(zeta_old.sub(0))
@@ -3052,8 +2771,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_0.sub(0).dat.vec as b_0_v:
                     b_0_v.axpy(-1.0, b_v)
-                del b
-                del b_help
 
                 b_help = Function(space_v)
                 b_help.assign(zeta_old.sub(1))
@@ -3061,13 +2778,10 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_0.sub(0).dat.vec as b_0_v:
                     b_0_v.axpy(1.0, b_v)
-                del b
-                del b_help
                 apply_bcs(bcs_zeta, rhs_0.sub(0))
 
                 b = assemble(action(Constant(tau) * D_v_0 + M_v, v_0))
                 rhs_1.sub(0).assign(b)
-                del b
 
                 b_help = Function(space_v)
                 b_help.assign(v_old.sub(0))
@@ -3075,8 +2789,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_1.sub(0).dat.vec as b_1_v:
                     b_1_v.axpy(-1.0, b_v)
-                del b
-                del b_help
                 apply_bcs(bcs_v, rhs_1.sub(0))
 
                 D_v_i = self.construct_D_v(v_trial, v_test,
@@ -3091,8 +2803,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_1.sub(n_t - 1).dat.vec as b_1_v:
                     b_1_v.axpy(1.0, b_v)
-                del b
-                del b_help
 
                 b_help = Function(space_v)
                 b_help.assign(v_old.sub(n_t - 1))
@@ -3100,8 +2810,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_1.sub(n_t - 1).dat.vec as b_1_v:
                     b_1_v.axpy(-1.0, b_v)
-                del b
-                del b_help
 
                 b_help = Function(space_v)
                 b_help.assign(zeta_old.sub(n_t - 1))
@@ -3110,8 +2818,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_1.sub(n_t - 1).dat.vec as b_1_v:
                     b_1_v.axpy(1.0, b_v)
-                del b
-                del b_help
                 apply_bcs(bcs_v, rhs_1.sub(n_t - 1))
 
                 b_help = Function(space_v)
@@ -3137,8 +2843,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_0.sub(i).dat.vec as b_0_v:
                         b_0_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
 
                     b_help = Function(space_v)
                     b_help.assign(zeta_old.sub(i))
@@ -3147,8 +2851,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_0.sub(i).dat.vec as b_0_v:
                         b_0_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
 
                     b_help = Function(space_v)
                     b_help.assign(zeta_old.sub(i + 1))
@@ -3156,8 +2858,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_0.sub(i).dat.vec as b_0_v:
                         b_0_v.axpy(1.0, b_v)
-                    del b
-                    del b_help
                     apply_bcs(bcs_zeta, rhs_0.sub(i))
 
                     b_help = Function(space_v)
@@ -3166,8 +2866,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_1.sub(i).dat.vec as b_1_v:
                         b_1_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
 
                     b_help = Function(space_v)
                     b_help.assign(v_old.sub(i - 1))
@@ -3175,8 +2873,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_1.sub(i).dat.vec as b_1_v:
                         b_1_v.axpy(1.0, b_v)
-                    del b
-                    del b_help
 
                     b_help = Function(space_v)
                     b_help.assign(zeta_old.sub(i))
@@ -3185,8 +2881,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_1.sub(i).dat.vec as b_1_v:
                         b_1_v.axpy(1.0, b_v)
-                    del b
-                    del b_help
                     apply_bcs(bcs_v, rhs_1.sub(i))
             else:
                 # evaluating non-linear residual for the trapezoidal rule
@@ -3207,7 +2901,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_0.sub(0).dat.vec as b_0_v:
                     b_0_v.axpy(-1.0, b_v)
-                del b
 
                 b_help = Function(space_v)
                 b_help.assign(v_old.sub(1))
@@ -3215,8 +2908,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_0.sub(0).dat.vec as b_0_v:
                     b_0_v.axpy(-1.0, b_v)
-                del b
-                del b_help
 
                 b_help = Function(space_v)
                 b_help.assign(zeta_old.sub(0))
@@ -3225,8 +2916,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_0.sub(0).dat.vec as b_0_v:
                     b_0_v.axpy(-1.0, b_v)
-                del b
-                del b_help
 
                 b_help = Function(space_v)
                 b_help.assign(zeta_old.sub(1))
@@ -3235,8 +2924,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_0.sub(0).dat.vec as b_0_v:
                     b_0_v.axpy(-1.0, b_v)
-                del b
-                del b_help
                 apply_bcs(bcs_zeta, rhs_0.sub(0))
 
                 rhs_1.sub(0).assign(0.5 * tau * (f.sub(0) + f.sub(1)))
@@ -3247,8 +2934,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_1.sub(0).dat.vec as b_1_v:
                     b_1_v.axpy(-1.0, b_v)
-                del b
-                del b_help
 
                 b_help = Function(space_v)
                 b_help.assign(v_old.sub(1))
@@ -3257,8 +2942,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_1.sub(0).dat.vec as b_1_v:
                     b_1_v.axpy(-1.0, b_v)
-                del b
-                del b_help
 
                 b_help = Function(space_v)
                 b_help.assign(zeta_old.sub(0))
@@ -3267,8 +2950,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_1.sub(0).dat.vec as b_1_v:
                     b_1_v.axpy(1.0, b_v)
-                del b
-                del b_help
 
                 b_help = Function(space_v)
                 b_help.assign(zeta_old.sub(1))
@@ -3277,8 +2958,6 @@ class Control:
                 with b.dat.vec_ro as b_v, \
                         rhs_1.sub(0).dat.vec as b_1_v:
                     b_1_v.axpy(1.0, b_v)
-                del b
-                del b_help
                 apply_bcs(bcs_v, rhs_1.sub(0))
 
                 t = t_0
@@ -3306,8 +2985,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_0.sub(i).dat.vec as b_0_v:
                         b_0_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
 
                     b_help = Function(space_v)
                     b_help.assign(v_old.sub(i + 1))
@@ -3316,8 +2993,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_0.sub(i).dat.vec as b_0_v:
                         b_0_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
 
                     b_help = Function(space_v)
                     b_help.assign(zeta_old.sub(i))
@@ -3326,8 +3001,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_0.sub(i).dat.vec as b_0_v:
                         b_0_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
 
                     b_help = Function(space_v)
                     b_help.assign(zeta_old.sub(i + 1))
@@ -3337,8 +3010,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_0.sub(i).dat.vec as b_0_v:
                         b_0_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
                     apply_bcs(bcs_zeta, rhs_0.sub(i))
 
                     b_help = Function(space_v)
@@ -3348,8 +3019,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_1.sub(i).dat.vec as b_1_v:
                         b_1_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
 
                     b_help = Function(space_v)
                     b_help.assign(v_old.sub(i + 1))
@@ -3358,8 +3027,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_1.sub(i).dat.vec as b_1_v:
                         b_1_v.axpy(-1.0, b_v)
-                    del b
-                    del b_help
 
                     b_help = Function(space_v)
                     b_help.assign(zeta_old.sub(i))
@@ -3369,8 +3036,6 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_1.sub(i).dat.vec as b_1_v:
                         b_1_v.axpy(1.0, b_v)
-                    del b
-                    del b_help
 
                     b_help = Function(space_v)
                     b_help.assign(zeta_old.sub(i + 1))
@@ -3380,13 +3045,11 @@ class Control:
                     with b.dat.vec_ro as b_v, \
                             rhs_1.sub(i).dat.vec as b_1_v:
                         b_1_v.axpy(1.0, b_v)
-                    del b
-                    del b_help
                     apply_bcs(bcs_v, rhs_1.sub(i))
 
             return rhs_0, rhs_1
 
-        @garbage_cleanup_method("_comm")
+        @garbage_cleanup_method()
         def linear_solve(self, *,
                          P=None, solver_parameters=None,
                          auxiliary_sp={}, v_d=None, f=None,
@@ -3607,8 +3270,6 @@ class Control:
                         with b_0.sub(0).dat.vec as b_v, \
                                 b_help.dat.vec_ro as b_1_v:
                             b_v.axpy(-1.0, b_1_v)
-                        del v_inhom
-                        del b_help
 
                     apply_bcs(bcs_zeta, b_0.sub(0))
                 else:
@@ -3628,8 +3289,6 @@ class Control:
                         with b_1.sub(0).dat.vec as b_v, \
                                 b_help.dat.vec_ro as b_1_v:
                             b_v.axpy(-1.0, b_1_v)
-                        del v_inhom
-                        del b_help
 
                     apply_bcs(bcs_v, b_1.sub(0))
                 else:
@@ -3648,8 +3307,6 @@ class Control:
                             with b_0.sub(i).dat.vec as b_v, \
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
-                            del v_inhom
-                            del b_help
 
                         apply_bcs(bcs_zeta, b_0.sub(i))
                     else:
@@ -3673,18 +3330,12 @@ class Control:
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
 
-                            del v_inhom
-                            del b_help
-
                             v_inhom = Function(space_v)
                             apply_bcs(bcs_v_help[(i - 1)], v_inhom)
                             b_help = assemble(action(M_v, v_inhom))
                             with b_1.sub(i).dat.vec as b_v, \
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(1.0, b_1_v)
-
-                            del v_inhom
-                            del b_help
 
                         apply_bcs(bcs_v, b_1.sub(i))
                     else:
@@ -3709,18 +3360,12 @@ class Control:
                                 b_help.dat.vec_ro as b_1_v:
                             b_v.axpy(-1.0, b_1_v)
 
-                        del v_inhom
-                        del b_help
-
                         v_inhom = Function(space_v)
                         apply_bcs(bcs_v_help[(n_t - 2)], v_inhom)
                         b_help = assemble(action(M_v, v_inhom))
                         with b_1.sub(n_t - 1).dat.vec as b_v, \
                                 b_help.dat.vec_ro as b_1_v:
                             b_v.axpy(1.0, b_1_v)
-
-                        del v_inhom
-                        del b_help
 
                     apply_bcs(bcs_v, b_1.sub(n_t - 1))
                 else:
@@ -3741,9 +3386,6 @@ class Control:
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
 
-                            del v_inhom
-                            del b_help
-
                             if i > 0:
                                 v_inhom = Function(space_v)
 
@@ -3755,9 +3397,6 @@ class Control:
                                 with b_0.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_1_v:
                                     b_v.axpy(-1.0, b_1_v)
-
-                                del v_inhom
-                                del b_help
 
                         apply_bcs(bcs_zeta, b_0.sub(i))
                     else:
@@ -3783,9 +3422,6 @@ class Control:
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
 
-                            del v_inhom
-                            del b_help
-
                             if i > 0:
                                 t = t_0 + i * tau
                                 v_n_help.assign(v_old.sub(i))
@@ -3802,8 +3438,6 @@ class Control:
                                         b_help.dat.vec_ro as b_1_v:
                                     b_v.axpy(-1.0, b_1_v)
 
-                                del v_inhom
-                                del b_help
                         apply_bcs(bcs_v, b_1.sub(i))
                     else:
                         b_1.sub(i).assign(f.sub(i))
@@ -3815,8 +3449,6 @@ class Control:
                         b_v.axpy(-1.0, b_1_v)
                     apply_bcs(bcs_zeta, b_0.sub(0))
 
-                    del b
-
                 if check_f:
                     D_v_i = self.construct_D_v(v_trial, v_test,
                                                v_0, Constant(t_0))
@@ -3827,8 +3459,6 @@ class Control:
                             b.dat.vec_ro as b_1_v:
                         b_v.axpy(-1.0, b_1_v)
                     apply_bcs(bcs_v, b_1.sub(0))
-
-                    del b
 
                 b_0 = apply_T_1(b_0, space_v, n_t - 1)
                 b_1 = apply_T_2(b_1, space_v, n_t - 1)
@@ -3892,9 +3522,6 @@ class Control:
                 v = Function(full_space_v_help, name="v")
                 zeta = Function(full_space_v_help, name="zeta")
 
-            v.zero()
-            zeta.zero()
-
             # solving the system
             system.solve(
                 v, zeta, b_0, b_1,
@@ -3906,12 +3533,8 @@ class Control:
                 v_new = Function(full_space_v, name="v_new")
                 zeta_new = Function(full_space_v, name="zeta_new")
 
-                v_new.zero()
-                zeta_new.zero()
-
                 if check_f and check_v_d:
                     v_new.sub(0).assign(v_0)
-                    del v_0
 
                 for i in range(n_t - 1):
                     v_new.sub(i + 1).assign(v.sub(i))
@@ -3923,21 +3546,11 @@ class Control:
                 self.set_v(v)
                 self.set_zeta(zeta)
 
-            if check_v_d:
-                del v_d
-                del b_0
-            if check_f:
-                del f
-                del b_1
-            del system
-            del pc_fn
+            del system, pc_fn
 
-            # printing L^2 discrepancy between the desired state and the
-            # numerical solution
             if print_error:
                 self.print_error(tau)
 
-            # creating output
             if create_output:
                 with CheckpointFile("v.h5", "w") as h:
                     h.save_function(v)
@@ -3945,28 +3558,23 @@ class Control:
                 with CheckpointFile("zeta.h5", "w") as h:
                     h.save_function(zeta)
 
-            # plotting the solutions
             if plots:
+                if matplotlib is None:
+                    raise RuntimeError("matplotlib not available")
+
                 for i in range(n_t):
-                    try:
-                        import matplotlib.pyplot as plt
-                        fig_v, axes = plt.subplots()
-                        colors = tripcolor(v.sub(i), axes=axes)
-                        fig_v.colorbar(colors)
-                        fig_zeta, axes = plt.subplots()
-                        colors = tripcolor(zeta.sub(i), axes=axes)
-                        fig_zeta.colorbar(colors)
-                        fig_true_v, axes = plt.subplots()
-                        colors = tripcolor(self._true_v.sub(i), axes=axes)
-                        fig_true_v.colorbar(colors)
-                        plt.show()
-                    except Exception as e:
-                        warning(f"Cannot plot figure. Error msg: '{e}'")
+                    fig_v, axes = plt.subplots()
+                    colors = tripcolor(v.sub(i), axes=axes)
+                    fig_v.colorbar(colors)
+                    fig_zeta, axes = plt.subplots()
+                    colors = tripcolor(zeta.sub(i), axes=axes)
+                    fig_zeta.colorbar(colors)
+                    fig_true_v, axes = plt.subplots()
+                    colors = tripcolor(self._true_v.sub(i), axes=axes)
+                    fig_true_v.colorbar(colors)
+                    plt.show()
 
-            del v
-            del zeta
-
-        @garbage_cleanup_method("_comm")
+        @garbage_cleanup_method()
         def non_linear_solve(self, *,
                              P=None, solver_parameters=None,
                              auxiliary_sp={},
@@ -4117,9 +3725,6 @@ class Control:
                 self.set_v(v_old)
                 self.set_zeta(zeta_old)
 
-                del rhs_0
-                del rhs_1
-
                 # evaluating non-linear residual
                 rhs_0, rhs_1 = self.non_linear_res_eval(
                     full_space_v, v_old, zeta_old, v_0,
@@ -4147,19 +3752,6 @@ class Control:
                 if k + 1 > max_non_linear_iter:
                     break
 
-            del v_old
-            del zeta_old
-            del delta_v
-            del delta_zeta
-            del v_0
-            del rhs_0
-            del rhs_1
-            del rhs
-            del f
-            del v_d
-
-            # printing L^2 discrepancy between the desired state and the
-            # numerical solution
             if print_error_non_linear:
                 if (norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol):
                     if norm_0 > 0.:
@@ -4173,7 +3765,6 @@ class Control:
                     print(f'Absolute non-linear residual: {norm_k:.16e}')
                 self.print_error(tau)
 
-            # creating output
             if create_output:
                 with CheckpointFile("v.h5", "w") as h:
                     h.save_function(self._v)
@@ -4181,25 +3772,23 @@ class Control:
                 with CheckpointFile("zeta.h5", "w") as h:
                     h.save_function(self._zeta)
 
-            # plotting the solutions
             if plots:
-                for i in range(n_t):
-                    try:
-                        import matplotlib.pyplot as plt
-                        fig_v, axes = plt.subplots()
-                        colors = tripcolor(v.sub(i), axes=axes)
-                        fig_v.colorbar(colors)
-                        fig_zeta, axes = plt.subplots()
-                        colors = tripcolor(zeta.sub(i), axes=axes)
-                        fig_zeta.colorbar(colors)
-                        fig_true_v, axes = plt.subplots()
-                        colors = tripcolor(self._true_v.sub(i), axes=axes)
-                        fig_true_v.colorbar(colors)
-                        plt.show()
-                    except Exception as e:
-                        warning(f"Cannot plot figure. Error msg: '{e}'")
+                if matplotlib is None:
+                    raise RuntimeError("matplotlib not available")
 
-        @garbage_cleanup_method("_comm")
+                for i in range(n_t):
+                    fig_v, axes = plt.subplots()
+                    colors = tripcolor(v.sub(i), axes=axes)
+                    fig_v.colorbar(colors)
+                    fig_zeta, axes = plt.subplots()
+                    colors = tripcolor(zeta.sub(i), axes=axes)
+                    fig_zeta.colorbar(colors)
+                    fig_true_v, axes = plt.subplots()
+                    colors = tripcolor(self._true_v.sub(i), axes=axes)
+                    fig_true_v.colorbar(colors)
+                    plt.show()
+
+        @garbage_cleanup_method()
         def incompressible_linear_solve(self, nullspace_p, *, space_p=None,
                                         P=None, solver_parameters=None,
                                         auxiliary_sp={},
@@ -4619,9 +4208,6 @@ class Control:
                     block_10_int_p[(n_t - 1, n_t - 2)] = - M_p
                     block_10_int_p[(n_t - 1, n_t - 1)] = Constant(tau) * D_p_i + M_p
 
-            del block_00_p
-            del block_11_p
-
             # construction of the right-hand side
             if not self._CN:
                 # backward Euler
@@ -4635,8 +4221,6 @@ class Control:
                         with b_0_0.sub(0).dat.vec as b_v, \
                                 b_help.dat.vec_ro as b_1_v:
                             b_v.axpy(-1.0, b_1_v)
-                        del v_inhom
-                        del b_help
                     apply_bcs(bcs_v, b_0_0.sub(0))
                 else:
                     b_0_0.sub(0).assign(v_d.sub(0))
@@ -4656,8 +4240,6 @@ class Control:
                         with b_0_1.sub(0).dat.vec as b_v, \
                                 b_help.dat.vec_ro as b_1_v:
                             b_v.axpy(-1.0, b_1_v)
-                        del v_inhom
-                        del b_help
 
                     apply_bcs(bcs_zeta, b_0_1.sub(0))
                 else:
@@ -4675,8 +4257,6 @@ class Control:
                             with b_0_0.sub(i).dat.vec as b_v, \
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
-                            del v_inhom
-                            del b_help
                         apply_bcs(bcs_zeta, b_0_0.sub(i))
                     else:
                         b_0_0.sub(i).assign(v_d.sub(i))
@@ -4697,16 +4277,12 @@ class Control:
                             with b_0_1.sub(i).dat.vec as b_v, \
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
-                            del v_inhom
-                            del b_help
                             v_inhom = Function(space_v)
                             apply_bcs(bcs_v_help[(i - 1)], v_inhom)
                             b_help = assemble(action(M_v, v_inhom))
                             with b_0_1.sub(i).dat.vec as b_v, \
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(1.0, b_1_v)
-                            del v_inhom
-                            del b_help
                         apply_bcs(bcs_v, b_0_1.sub(i))
                     else:
                         b_0_1.sub(i).assign(f.sub(i))
@@ -4730,16 +4306,12 @@ class Control:
                         with b_0_1.sub(n_t - 1).dat.vec as b_v, \
                                 b_help.dat.vec_ro as b_1_v:
                             b_v.axpy(-1.0, b_1_v)
-                        del v_inhom
-                        del b_help
                         v_inhom = Function(space_v)
                         apply_bcs(bcs_v_help[(n_t - 2)], v_inhom)
                         b_help = assemble(action(M_v, v_inhom))
                         with b_0_1.sub(n_t - 1).dat.vec as b_v, \
                                 b_help.dat.vec_ro as b_1_v:
                             b_v.axpy(1.0, b_1_v)
-                        del v_inhom
-                        del b_help
                     apply_bcs(bcs_v, b_0_1.sub(n_t - 1))
                 else:
                     b_0_1.sub(n_t - 1).assign(f.sub(n_t - 1))
@@ -4754,20 +4326,13 @@ class Control:
                             with b_1_0.sub(i).dat.vec as b_v, \
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
-                            del v_inhom
-                            del b_help
-                    check_div_v = True
                 else:
                     for i in range(n_t):
                         b_1_0.sub(i).assign(div_v.sub(i))
-                    check_div_v = False
 
                 if div_zeta is not None:
                     for i in range(n_t):
                         b_1_1.sub(i).assign(div_zeta.sub(i))
-                    check_div_zeta = False
-                else:
-                    check_div_zeta = True
 
                 for i in range(n_t):
                     b_0.sub(i).assign(b_0_0.sub(i))
@@ -4790,8 +4355,6 @@ class Control:
                             with b_0_0.sub(i).dat.vec as b_v, \
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
-                            del v_inhom
-                            del b_help
                             if i > 0:
                                 v_inhom = Function(space_v)
                                 apply_bcs(bcs_v_help[(i)], v_inhom)
@@ -4801,8 +4364,6 @@ class Control:
                                 with b_0_0.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_1_v:
                                     b_v.axpy(-1.0, b_1_v)
-                                del v_inhom
-                                del b_help
                         apply_bcs(bcs_zeta, b_0_0.sub(i))
                     else:
                         b_0_0.sub(i).assign(v_d.sub(i))
@@ -4826,8 +4387,6 @@ class Control:
                             with b_0_1.sub(i).dat.vec as b_v, \
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
-                            del v_inhom
-                            del b_help
                             if i > 0:
                                 t = t_0 + i * tau
 
@@ -4845,8 +4404,6 @@ class Control:
                                 with b_0_1.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_1_v:
                                     b_v.axpy(-1.0, b_1_v)
-                                del v_inhom
-                                del b_help
                         apply_bcs(bcs_v, b_0_1.sub(i))
                     else:
                         b_0_1.sub(i).assign(f.sub(i))
@@ -4857,7 +4414,6 @@ class Control:
                             b.dat.vec_ro as b_1_v:
                         b_v.axpy(-1.0, b_1_v)
                     apply_bcs(bcs_zeta, b_0_0.sub(0))
-                    del b
 
                 if check_f:
                     D_v_i = self.construct_D_v(v_trial, v_test,
@@ -4869,7 +4425,6 @@ class Control:
                             b.dat.vec_ro as b_1_v:
                         b_v.axpy(-1.0, b_1_v)
                     apply_bcs(bcs_v, b_0_1.sub(0))
-                    del b
 
                 if div_v is None:
                     if inhomogeneous_bcs_v:
@@ -4881,20 +4436,13 @@ class Control:
                             with b_1_0.sub(i).dat.vec as b_v, \
                                     b_help.dat.vec_ro as b_1_v:
                                 b_v.axpy(-1.0, b_1_v)
-                            del v_inhom
-                            del b_help
-                    check_div_v = True
                 else:
                     for i in range(n_t - 1):
                         b_1_0.sub(i).assign(div_v.sub(i))
-                    check_div_v = False
 
                 if div_zeta is not None:
                     for i in range(n_t - 1):
                         b_1_1.sub(i).assign(div_zeta.sub(i))
-                    check_div_zeta = False
-                else:
-                    check_div_zeta = True
 
                 b_0_0 = apply_T_1(b_0_0, space_v, n_t - 1)
                 b_0_1 = apply_T_2(b_0_1, space_v, n_t - 1)
@@ -4910,11 +4458,6 @@ class Control:
 
                     b_1.sub(i).assign(b_1_0.sub(i))
                     b_1.sub(index).assign(b_1_1.sub(i))
-
-            del b_0_0
-            del b_0_1
-            del b_1_0
-            del b_1_1
 
             # construction of the system
             if not self._CN:
@@ -5009,7 +4552,7 @@ class Control:
                         bcs_v, bcs_zeta, block_01_int, block_10_int)
 
                     # preconditioner for the trapezoidal rule
-                    @garbage_cleanup(self._comm)
+                    @garbage_cleanup(self.comm)
                     def pc_fn(u_0, u_1, b_0, b_1):
                         b_0_help = Cofunction(full_space_v_help.dual())
                         b_1_help = Cofunction(full_space_v_help.dual())
@@ -5022,27 +4565,16 @@ class Control:
                         v_help = Function(full_space_v_help)
                         zeta_help = Function(full_space_v_help)
 
-                        v_help.zero()
-                        zeta_help.zero()
-
                         # solving for the (1,1)-block
-                        try:
-                            inner_ksp_solver = self._inner_system.solve(
-                                v_help, zeta_help, b_0_help, b_1_help,
-                                solver_parameters=inner_solver_parameters,
-                                pc_fn=self._inner_pc_fn)
-                        except ConvergenceError:
-                            assert inner_ksp_solver.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT
+                        _ = self._inner_system.solve(
+                            v_help, zeta_help, b_0_help, b_1_help,
+                            solver_parameters=inner_solver_parameters,
+                            pc_fn=self._inner_pc_fn)
 
                         for i in range(n_t - 1):
                             u_0.sub(i).assign(v_help.sub(i))
                             index = n_t - 1 + i
                             u_0.sub(index).assign(zeta_help.sub(i))
-
-                        del v_help
-                        del zeta_help
-                        del b_0_help
-                        del b_1_help
 
                         # u_1 = - b_1 + block_10 * u_0
                         b_0_help = Cofunction(full_space_p.dual())
@@ -5058,7 +4590,6 @@ class Control:
                             b_1_help.sub(i).assign(assemble(action(B, v_help)))
                             with b_1_help.sub(i).dat.vec as b_v:
                                 b_v.scale(Constant(tau))
-                        del v_help
 
                         b_0_help = apply_T_2(b_0_help, space_p, n_t - 1)
                         b_1_help = apply_T_1(b_1_help, space_p, n_t - 1)
@@ -5096,15 +4627,8 @@ class Control:
                             solver_K_p.solve(u_1.sub(index),
                                              p_help.copy(deepcopy=True))
 
-                        del p_help
-                        del b_0_help
-                        del b_1_help
-
                         b_0_help = Cofunction(full_space_p.dual())
                         b_1_help = Cofunction(full_space_p.dual())
-
-                        b_0_help.zero()
-                        b_1_help.zero()
 
                         p_help = Function(space_p)
                         mu_help = Function(space_p)
@@ -5116,7 +4640,6 @@ class Control:
                                 with b_0_help.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_v_1:
                                     b_v.axpy(1.0, b_v_1)
-                                del b_help
 
                         for (i, j), block_ij_p in block_01_int_p.items():
                             if block_ij_p is not None:
@@ -5125,7 +4648,6 @@ class Control:
                                 with b_0_help.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_v_1:
                                     b_v.axpy(1.0, b_v_1)
-                                del b_help
 
                         for (i, j), block_ij_p in block_10_int_p.items():
                             if block_ij_p is not None:
@@ -5134,7 +4656,6 @@ class Control:
                                 with b_1_help.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_v_1:
                                     b_v.axpy(1.0, b_v_1)
-                                del b_help
 
                         for (i, j), block_ij_p in block_11_int_p.items():
                             if block_ij_p is not None:
@@ -5143,10 +4664,6 @@ class Control:
                                 with b_1_help.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_v_1:
                                     b_v.axpy(1.0, b_v_1)
-                                del b_help
-
-                        del p_help
-                        del mu_help
 
                         p_help = Cofunction(space_p.dual())
                         for i in range(n_t - 1):
@@ -5160,10 +4677,6 @@ class Control:
                             u_1.sub(index).zero()
                             solver_M_p.solve(u_1.sub(index),
                                              p_help.copy(deepcopy=True))
-
-                        del p_help
-                        del b_0_help
-                        del b_1_help
                 else:
                     # inner solver for backward Euler
                     self._inner_system = MultiBlockSystem(
@@ -5181,7 +4694,7 @@ class Control:
                         epsilon=epsilon)
 
                     # preconditioner for bacward Euler
-                    @garbage_cleanup(self._comm)
+                    @garbage_cleanup(self.comm)
                     def pc_fn(u_0, u_1, b_0, b_1):
                         b_0_help = Cofunction(full_space_v.dual())
                         b_1_help = Cofunction(full_space_v.dual())
@@ -5194,27 +4707,16 @@ class Control:
                         v_help = Function(full_space_v)
                         zeta_help = Function(full_space_v)
 
-                        v_help.zero()
-                        zeta_help.zero()
-
                         # solving for the (1,1)-block
-                        try:
-                            inner_ksp_solver = self._inner_system.solve(
-                                v_help, zeta_help, b_0_help, b_1_help,
-                                solver_parameters=inner_solver_parameters,
-                                pc_fn=self._inner_pc_fn)
-                        except ConvergenceError:
-                            assert inner_ksp_solver.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT
+                        _ = self._inner_system.solve(
+                            v_help, zeta_help, b_0_help, b_1_help,
+                            solver_parameters=inner_solver_parameters,
+                            pc_fn=self._inner_pc_fn)
 
                         for i in range(n_t):
                             u_0.sub(i).assign(v_help.sub(i))
                             index = n_t + i
                             u_0.sub(index).assign(zeta_help.sub(i))
-
-                        del v_help
-                        del zeta_help
-                        del b_0_help
-                        del b_1_help
 
                         # u_1 = - b_1 + block_10 * u_0
                         b_0_help = Cofunction(full_space_p.dual())
@@ -5230,7 +4732,6 @@ class Control:
                             b_1_help.sub(i).assign(assemble(action(B, v_help)))
                             with b_1_help.sub(i).dat.vec as b_v:
                                 b_v.scale(Constant(tau))
-                        del v_help
 
                         for i in range(n_t):
                             with b_0_help.sub(i).dat.vec as b_v, \
@@ -5263,15 +4764,8 @@ class Control:
                             solver_K_p.solve(u_1.sub(index),
                                              p_help.copy(deepcopy=True))
 
-                        del p_help
-                        del b_0_help
-                        del b_1_help
-
                         b_0_help = Cofunction(full_space_p.dual())
                         b_1_help = Cofunction(full_space_p.dual())
-
-                        b_0_help.zero()
-                        b_1_help.zero()
 
                         p_help = Function(space_p)
                         mu_help = Function(space_p)
@@ -5283,7 +4777,6 @@ class Control:
                                 with b_0_help.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_v_1:
                                     b_v.axpy(1.0, b_v_1)
-                                del b_help
 
                         for (i, j), block_ij_p in block_01_int_p.items():
                             if block_ij_p is not None:
@@ -5292,7 +4785,6 @@ class Control:
                                 with b_0_help.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_v_1:
                                     b_v.axpy(1.0, b_v_1)
-                                del b_help
 
                         for (i, j), block_ij_p in block_10_int_p.items():
                             if block_ij_p is not None:
@@ -5301,7 +4793,6 @@ class Control:
                                 with b_1_help.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_v_1:
                                     b_v.axpy(1.0, b_v_1)
-                                del b_help
 
                         for (i, j), block_ij_p in block_11_int_p.items():
                             if block_ij_p is not None:
@@ -5310,10 +4801,6 @@ class Control:
                                 with b_1_help.sub(i).dat.vec as b_v, \
                                         b_help.dat.vec_ro as b_v_1:
                                     b_v.axpy(1.0, b_v_1)
-                                del b_help
-
-                        del p_help
-                        del mu_help
 
                         p_help = Cofunction(space_p.dual())
                         for i in range(n_t):
@@ -5327,10 +4814,6 @@ class Control:
                             u_1.sub(index).zero()
                             solver_M_p.solve(u_1.sub(index),
                                              p_help.copy(deepcopy=True))
-
-                        del p_help
-                        del b_0_help
-                        del b_1_help
             else:
                 pc_fn = P(self, block_00_int, block_01_int,
                           block_10_int, block_11_int, B,
@@ -5340,9 +4823,6 @@ class Control:
             u_0_sol = Function(space_0)
             u_1_sol = Function(space_1)
 
-            u_0_sol.zero()
-            u_1_sol.zero()
-
             # solving the system
             system.solve(
                 u_0_sol, u_1_sol, b_0, b_1,
@@ -5351,9 +4831,6 @@ class Control:
 
             v = Function(full_space_v, name="v")
             zeta = Function(full_space_v, name="zeta")
-
-            v.zero()
-            zeta.zero()
 
             p = Function(full_space_p, name="p")
             mu = Function(full_space_p, name="mu")
@@ -5387,31 +4864,13 @@ class Control:
             self.set_p(p)
             self.set_mu(mu)
 
-            del v_0
-            del u_0_sol
-            del u_1_sol
-            if check_v_d:
-                del v_d
-            if check_f:
-                del f
-            if check_div_v:
-                del div_v
-            if check_div_zeta:
-                del div_zeta
-            del b_0
-            del b_1
-            del system
-            del pc_fn
+            del system, pc_fn
             if P is None:
-                del self._inner_pc_fn
-                del self._inner_system
+                del self._inner_pc_fn, self._inner_system
 
-            # printing L^2 discrepancy between the desired state and the
-            # numerical solution
             if print_error:
                 self.print_error(tau)
 
-            # creating output
             if create_output:
                 with CheckpointFile("v.h5", "w") as h:
                     h.save_function(v)
@@ -5425,75 +4884,60 @@ class Control:
                 with CheckpointFile("mu.h5", "w") as h:
                     h.save_function(mu)
 
-            # plotting the solutions
             if plots:
+                if matplotlib is None:
+                    raise RuntimeError("matplotlib not available")
+
                 for i in range(n_t - 1):
-                    try:
-                        import matplotlib.pyplot as plt
-                        fig_v, axes = plt.subplots()
-                        colors = tripcolor(v.sub(i), axes=axes)
-                        fig_v.colorbar(colors)
-                        fig_p, axes = plt.subplots()
-                        colors = tripcolor(p.sub(i), axes=axes)
-                        fig_p.colorbar(colors)
-                        fig_zeta, axes = plt.subplots()
-                        colors = tripcolor(zeta.sub(i), axes=axes)
-                        fig_zeta.colorbar(colors)
-                        fig_mu, axes = plt.subplots()
-                        colors = tripcolor(mu.sub(i), axes=axes)
-                        fig_mu.colorbar(colors)
-                        fig_true_v, axes = plt.subplots()
-                        colors = tripcolor(self._true_v.sub(i), axes=axes)
-                        fig_true_v.colorbar(colors)
-                        plt.show()
-                    except Exception as e:
-                        warning(f"Cannot plot figure. Error msg: '{e}'")
+                    fig_v, axes = plt.subplots()
+                    colors = tripcolor(v.sub(i), axes=axes)
+                    fig_v.colorbar(colors)
+                    fig_p, axes = plt.subplots()
+                    colors = tripcolor(p.sub(i), axes=axes)
+                    fig_p.colorbar(colors)
+                    fig_zeta, axes = plt.subplots()
+                    colors = tripcolor(zeta.sub(i), axes=axes)
+                    fig_zeta.colorbar(colors)
+                    fig_mu, axes = plt.subplots()
+                    colors = tripcolor(mu.sub(i), axes=axes)
+                    fig_mu.colorbar(colors)
+                    fig_true_v, axes = plt.subplots()
+                    colors = tripcolor(self._true_v.sub(i), axes=axes)
+                    fig_true_v.colorbar(colors)
+                    plt.show()
 
                 if self._CN:
-                    try:
-                        import matplotlib.pyplot as plt
-                        fig_v, axes = plt.subplots()
-                        colors = tripcolor(v.sub(n_t - 1), axes=axes)
-                        fig_v.colorbar(colors)
-                        fig_zeta, axes = plt.subplots()
-                        colors = tripcolor(zeta.sub(n_t - 1), axes=axes)
-                        fig_zeta.colorbar(colors)
-                        fig_true_v, axes = plt.subplots()
-                        colors = tripcolor(
-                            self._true_v.sub(n_t - 1), axes=axes)
-                        fig_true_v.colorbar(colors)
-                        plt.show()
-                    except Exception as e:
-                        warning(f"Cannot plot figure. Error msg: '{e}'")
+                    fig_v, axes = plt.subplots()
+                    colors = tripcolor(v.sub(n_t - 1), axes=axes)
+                    fig_v.colorbar(colors)
+                    fig_zeta, axes = plt.subplots()
+                    colors = tripcolor(zeta.sub(n_t - 1), axes=axes)
+                    fig_zeta.colorbar(colors)
+                    fig_true_v, axes = plt.subplots()
+                    colors = tripcolor(
+                        self._true_v.sub(n_t - 1), axes=axes)
+                    fig_true_v.colorbar(colors)
+                    plt.show()
                 else:
-                    try:
-                        import matplotlib.pyplot as plt
-                        fig_v, axes = plt.subplots()
-                        colors = tripcolor(v.sub(n_t - 1), axes=axes)
-                        fig_v.colorbar(colors)
-                        fig_p, axes = plt.subplots()
-                        colors = tripcolor(p.sub(n_t - 1), axes=axes)
-                        fig_p.colorbar(colors)
-                        fig_zeta, axes = plt.subplots()
-                        colors = tripcolor(zeta.sub(n_t - 1), axes=axes)
-                        fig_zeta.colorbar(colors)
-                        fig_mu, axes = plt.subplots()
-                        colors = tripcolor(mu.sub(n_t - 1), axes=axes)
-                        fig_mu.colorbar(colors)
-                        fig_true_v, axes = plt.subplots()
-                        colors = tripcolor(
-                            self._true_v.sub(n_t - 1), axes=axes)
-                        fig_true_v.colorbar(colors)
-                        plt.show()
-                    except Exception as e:
-                        warning(f"Cannot plot figure. Error msg: '{e}'")
+                    fig_v, axes = plt.subplots()
+                    colors = tripcolor(v.sub(n_t - 1), axes=axes)
+                    fig_v.colorbar(colors)
+                    fig_p, axes = plt.subplots()
+                    colors = tripcolor(p.sub(n_t - 1), axes=axes)
+                    fig_p.colorbar(colors)
+                    fig_zeta, axes = plt.subplots()
+                    colors = tripcolor(zeta.sub(n_t - 1), axes=axes)
+                    fig_zeta.colorbar(colors)
+                    fig_mu, axes = plt.subplots()
+                    colors = tripcolor(mu.sub(n_t - 1), axes=axes)
+                    fig_mu.colorbar(colors)
+                    fig_true_v, axes = plt.subplots()
+                    colors = tripcolor(
+                        self._true_v.sub(n_t - 1), axes=axes)
+                    fig_true_v.colorbar(colors)
+                    plt.show()
 
-            del v
-            del zeta
-            del p
-            del mu
-
-        @garbage_cleanup_method("_comm")
+        @garbage_cleanup_method()
         def incompressible_non_linear_solve(self, nullspace_p, *,
                                             space_p=None, P=None,
                                             solver_parameters=None,
@@ -5622,7 +5066,7 @@ class Control:
             B_T = - inner(p_trial, div(v_test)) * dx
 
             # function used for the construction of the non-linear residual
-            @garbage_cleanup(self._comm)
+            @garbage_cleanup(self.comm)
             def non_linear_res_eval():
                 rhs_10 = Cofunction(full_space_p.dual(), name="rhs_10")
                 rhs_11 = Cofunction(full_space_p.dual(), name="rhs_11")
@@ -5647,9 +5091,6 @@ class Control:
                 rhs_00.assign(rhs_0)
                 rhs_01.assign(rhs_1)
 
-                del rhs_0
-                del rhs_1
-
                 if not self._CN:
                     for i in range(n_t):
                         b_p_help = Function(space_p)
@@ -5658,8 +5099,6 @@ class Control:
                         with b.dat.vec_ro as b_v, \
                                 rhs_00.sub(i).dat.vec as b_0_v:
                             b_0_v.axpy(-1.0, b_v)
-                        del b
-                        del b_p_help
 
                         apply_bcs(bcs_v, rhs_00.sub(i))
 
@@ -5669,8 +5108,6 @@ class Control:
                         with b.dat.vec_ro as b_v, \
                                 rhs_01.sub(i).dat.vec as b_0_v:
                             b_0_v.axpy(-1.0, b_v)
-                        del b
-                        del b_p_help
 
                         apply_bcs(bcs_zeta, rhs_01.sub(i))
 
@@ -5678,15 +5115,11 @@ class Control:
                         b_help.assign(v_old.sub(i))
                         b = assemble(action(B, b_help))
                         rhs_10.sub(i).assign(-b)
-                        del b
-                        del b_help
 
                         b_help = Function(space_v)
                         b_help.assign(zeta_old.sub(i))
                         b = assemble(action(B, b_help))
                         rhs_11.sub(i).assign(-b)
-                        del b
-                        del b_help
                 else:
                     for i in range(n_t - 1):
                         b_p_help = Function(space_p)
@@ -5695,8 +5128,6 @@ class Control:
                         with b.dat.vec_ro as b_v, \
                                 rhs_00.sub(i).dat.vec as b_0_v:
                             b_0_v.axpy(-1.0, b_v)
-                        del b
-                        del b_p_help
 
                         apply_bcs(bcs_v, rhs_00.sub(i))
 
@@ -5706,8 +5137,6 @@ class Control:
                         with b.dat.vec_ro as b_v, \
                                 rhs_01.sub(i).dat.vec as b_0_v:
                             b_0_v.axpy(-1.0, b_v)
-                        del b
-                        del b_p_help
 
                         apply_bcs(bcs_zeta, rhs_01.sub(i))
 
@@ -5715,15 +5144,11 @@ class Control:
                         b_help.assign(v_old.sub(i + 1))
                         b = assemble(action(B, b_help))
                         rhs_10.sub(i).assign(-b)
-                        del b
-                        del b_help
 
                         b_help = Function(space_v)
                         b_help.assign(zeta_old.sub(i))
                         b = assemble(action(B, b_help))
                         rhs_11.sub(i).assign(-b)
-                        del b
-                        del b_help
 
                 return rhs_00, rhs_01, rhs_10, rhs_11
 
@@ -5803,11 +5228,6 @@ class Control:
                 self.set_p(p_old)
                 self.set_mu(mu_old)
 
-                del rhs_00
-                del rhs_01
-                del rhs_10
-                del rhs_11
-
                 # evaluating the non-linear residual
                 rhs_00, rhs_01, rhs_10, rhs_11 = non_linear_res_eval()
 
@@ -5842,8 +5262,6 @@ class Control:
                 if k + 1 > max_non_linear_iter:
                     break
 
-            # printing L^2 discrepancy between the desired state and the
-            # numerical solution
             if print_error_non_linear:
                 if (norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol):
                     if norm_0 > 0.:
@@ -5857,7 +5275,6 @@ class Control:
                     print(f'Absolute non-linear residual: {norm_k:.16e}')
                 self.print_error(tau)
 
-            # creating output
             if create_output:
                 with CheckpointFile("v.h5", "w") as h:
                     h.save_function(self._v)
@@ -5871,65 +5288,55 @@ class Control:
                 with CheckpointFile("mu.h5", "w") as h:
                     h.save_function(self._mu)
 
-            # plotting the solutions
             if plots:
+                if matplotlib is None:
+                    raise RuntimeError("matplotlib not available")
+
                 for i in range(n_t - 1):
-                    try:
-                        import matplotlib.pyplot as plt
-                        fig_v, axes = plt.subplots()
-                        colors = tripcolor(self._v.sub(i), axes=axes)
-                        fig_v.colorbar(colors)
-                        fig_p, axes = plt.subplots()
-                        colors = tripcolor(self._p.sub(i), axes=axes)
-                        fig_p.colorbar(colors)
-                        fig_zeta, axes = plt.subplots()
-                        colors = tripcolor(self._zeta.sub(i), axes=axes)
-                        fig_zeta.colorbar(colors)
-                        fig_mu, axes = plt.subplots()
-                        colors = tripcolor(self._mu.sub(i), axes=axes)
-                        fig_mu.colorbar(colors)
-                        fig_true_v, axes = plt.subplots()
-                        colors = tripcolor(self._true_v.sub(i), axes=axes)
-                        fig_true_v.colorbar(colors)
-                        plt.show()
-                    except Exception as e:
-                        warning(f"Cannot plot figure. Error msg: '{e}'")
+                    fig_v, axes = plt.subplots()
+                    colors = tripcolor(self._v.sub(i), axes=axes)
+                    fig_v.colorbar(colors)
+                    fig_p, axes = plt.subplots()
+                    colors = tripcolor(self._p.sub(i), axes=axes)
+                    fig_p.colorbar(colors)
+                    fig_zeta, axes = plt.subplots()
+                    colors = tripcolor(self._zeta.sub(i), axes=axes)
+                    fig_zeta.colorbar(colors)
+                    fig_mu, axes = plt.subplots()
+                    colors = tripcolor(self._mu.sub(i), axes=axes)
+                    fig_mu.colorbar(colors)
+                    fig_true_v, axes = plt.subplots()
+                    colors = tripcolor(self._true_v.sub(i), axes=axes)
+                    fig_true_v.colorbar(colors)
+                    plt.show()
 
                 if self._CN:
-                    try:
-                        import matplotlib.pyplot as plt
-                        fig_v, axes = plt.subplots()
-                        colors = tripcolor(self._v.sub(n_t - 1), axes=axes)
-                        fig_v.colorbar(colors)
-                        fig_zeta, axes = plt.subplots()
-                        colors = tripcolor(self._zeta.sub(n_t - 1), axes=axes)
-                        fig_zeta.colorbar(colors)
-                        fig_true_v, axes = plt.subplots()
-                        colors = tripcolor(
-                            self._true_v.sub(n_t - 1), axes=axes)
-                        fig_true_v.colorbar(colors)
-                        plt.show()
-                    except Exception as e:
-                        warning(f"Cannot plot figure. Error msg: '{e}'")
+                    fig_v, axes = plt.subplots()
+                    colors = tripcolor(self._v.sub(n_t - 1), axes=axes)
+                    fig_v.colorbar(colors)
+                    fig_zeta, axes = plt.subplots()
+                    colors = tripcolor(self._zeta.sub(n_t - 1), axes=axes)
+                    fig_zeta.colorbar(colors)
+                    fig_true_v, axes = plt.subplots()
+                    colors = tripcolor(
+                        self._true_v.sub(n_t - 1), axes=axes)
+                    fig_true_v.colorbar(colors)
+                    plt.show()
                 else:
-                    try:
-                        import matplotlib.pyplot as plt
-                        fig_v, axes = plt.subplots()
-                        colors = tripcolor(self._v.sub(n_t - 1), axes=axes)
-                        fig_v.colorbar(colors)
-                        fig_p, axes = plt.subplots()
-                        colors = tripcolor(self._p.sub(n_t - 1), axes=axes)
-                        fig_p.colorbar(colors)
-                        fig_zeta, axes = plt.subplots()
-                        colors = tripcolor(self._zeta.sub(n_t - 1), axes=axes)
-                        fig_zeta.colorbar(colors)
-                        fig_mu, axes = plt.subplots()
-                        colors = tripcolor(self._mu.sub(n_t - 1), axes=axes)
-                        fig_mu.colorbar(colors)
-                        fig_true_v, axes = plt.subplots()
-                        colors = tripcolor(
-                            self._true_v.sub(n_t - 1), axes=axes)
-                        fig_true_v.colorbar(colors)
-                        plt.show()
-                    except Exception as e:
-                        warning(f"Cannot plot figure. Error msg: '{e}'")
+                    fig_v, axes = plt.subplots()
+                    colors = tripcolor(self._v.sub(n_t - 1), axes=axes)
+                    fig_v.colorbar(colors)
+                    fig_p, axes = plt.subplots()
+                    colors = tripcolor(self._p.sub(n_t - 1), axes=axes)
+                    fig_p.colorbar(colors)
+                    fig_zeta, axes = plt.subplots()
+                    colors = tripcolor(self._zeta.sub(n_t - 1), axes=axes)
+                    fig_zeta.colorbar(colors)
+                    fig_mu, axes = plt.subplots()
+                    colors = tripcolor(self._mu.sub(n_t - 1), axes=axes)
+                    fig_mu.colorbar(colors)
+                    fig_true_v, axes = plt.subplots()
+                    colors = tripcolor(
+                        self._true_v.sub(n_t - 1), axes=axes)
+                    fig_true_v.colorbar(colors)
+                    plt.show()

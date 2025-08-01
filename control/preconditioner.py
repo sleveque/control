@@ -1,7 +1,8 @@
 from firedrake import (
-    Cofunction, ConvergenceError, DirichletBC, Function,
-    MixedFunctionSpace, assemble)
+    Cofunction, DirichletBC, Function, MixedFunctionSpace, assemble)
 from firedrake.functionspaceimpl import WithGeometry as FunctionSpaceBase
+
+from .cn import apply_T_1, apply_T_2
 
 import petsc4py.PETSc as PETSc
 import ufl
@@ -22,37 +23,6 @@ __all__ = \
 
         "MultiBlockSystem"
     ]
-
-
-# definition of application of T_1 and T_2
-def apply_T_1(x_old, space_v, n_blocks):
-    flattened_space = tuple(space_v for i in range(n_blocks))
-    full_space_v = MixedFunctionSpace(flattened_space)
-
-    x_new = Function(full_space_v)
-    x_new.assign(x_old)
-
-    for i in range(n_blocks - 1):
-        with x_new.sub(i).dat.vec as b_v, \
-                x_old.sub(i + 1).dat.vec_ro as b_1_v:
-            b_v.axpy(1.0, b_1_v)
-
-    return x_new
-
-
-def apply_T_2(x_old, space_v, n_blocks):
-    flattened_space = tuple(space_v for i in range(n_blocks))
-    full_space_v = MixedFunctionSpace(flattened_space)
-
-    x_new = Function(full_space_v)
-    x_new.assign(x_old)
-
-    for i in range(1, n_blocks):
-        with x_new.sub(i).dat.vec as b_v, \
-                x_old.sub(i - 1).dat.vec_ro as b_1_v:
-            b_v.axpy(1.0, b_1_v)
-
-    return x_new
 
 
 def apply_bcs(bcs, u):
@@ -385,11 +355,6 @@ class MultiBlockSystem:
                     x_c_1_i = nullspace_help.pre_mult_corrected_lhs(x_c_1_help)
                     x_c_new.sub(self._n_blocks_00 + i).assign(x_c_1_i)
 
-                del x_c_0_help
-                del x_c_0_i
-                del x_c_1_help
-                del x_c_1_i
-
                 for i in range(self._n_blocks_00 + self._n_blocks_11):
                     with self._y_fn.sub(i).dat.vec_wo as y_0_v:
                         y_0_v.zeroEntries()
@@ -424,9 +389,6 @@ class MultiBlockSystem:
                                 self._y_fn.sub(self._n_blocks_00 + i).dat.vec as y_0_v:
                             block_ij.petscmat.multAdd(x_0_v, y_0_v, y_0_v)
 
-                del x_help_0
-                del x_help_1
-
                 if self._CN:
                     if self._sub_n_blocks_00_0 is None and self._sub_n_blocks_11_0 is None:
                         if self._n_blocks_00 == 1:
@@ -458,9 +420,6 @@ class MultiBlockSystem:
                         for i in range(self._n_blocks_11):
                             index = self._n_blocks_00 + i
                             self._y_fn.sub(index).assign(y_help_1.sub(i))
-
-                        del y_help_0
-                        del y_help_1
                     else:
                         flattened_space_0_0 = tuple(self._space_0 for i in range(self._sub_n_blocks_00_0))
                         space_0_0_help = MixedFunctionSpace(
@@ -512,11 +471,6 @@ class MultiBlockSystem:
                             index = self._n_blocks_00 + self._sub_n_blocks_11_0 + i
                             self._y_fn.sub(index).assign(y_help_1_1.sub(i))
 
-                        del y_help_0_0
-                        del y_help_0_1
-                        del y_help_1_0
-                        del y_help_1_1
-
                 x_c_0_help = Function(self._space_0)
                 x_c_1_help = Function(self._space_1)
 
@@ -529,22 +483,17 @@ class MultiBlockSystem:
                     nullspace_help = self._nullspaces[self._n_blocks_00 + i]
                     nullspace_help.post_mult_correct_lhs(x_c_1_help, self._y_fn.sub(self._n_blocks_00 + i))
 
-                del x_c_0_help
-                del x_c_1_help
-
                 with self._y_fn.dat.vec_ro as y_v:
                     y_v.copy(result=y)
 
         class Preconditioner:
             def __init__(self, n_blocks_00, n_blocks_11,
                          space_0, space_1, spaces,
-                         pc_fn, nullspaces, *,
-                         error_on_nonconvergence=True):
+                         pc_fn, nullspaces):
                 self._pc_fn = pc_fn
                 self._n_blocks_00 = n_blocks_00
                 self._n_blocks_11 = n_blocks_11
                 self._nullspaces = tuple(nullspaces)
-                self._error_on_nonconvergence = error_on_nonconvergence
 
                 self._x_fn = Cofunction(spaces.dual())
                 self._y_fn = Function(spaces)
@@ -596,7 +545,6 @@ class MultiBlockSystem:
                         b_0_c_help.assign(b_0.sub(i))
                         nullspace_help = self._nullspaces[i]
                         b_0_c.sub(i).assign(nullspace_help.pc_pre_mult_corrected(b_0_c_help))
-                    del b_0_c_help
 
                 if self._n_blocks_11 == 1:
                     nullspace_help = self._nullspaces[self._n_blocks_00]
@@ -607,16 +555,11 @@ class MultiBlockSystem:
                         b_1_c_help.assign(b_1.sub(i))
                         nullspace_help = self._nullspaces[self._n_blocks_00 + i]
                         b_1_c.sub(i).assign(nullspace_help.pc_pre_mult_corrected(b_1_c_help))
-                    del b_1_c_help
 
                 u_0 = Function(space_help_0, name="u_0")
                 u_1 = Function(space_help_1, name="u_1")
 
-                try:
-                    pc_fn(u_0, u_1, b_0_c, b_1_c)
-                except ConvergenceError:
-                    if self._error_on_nonconvergence:
-                        raise
+                pc_fn(u_0, u_1, b_0_c, b_1_c)
 
                 if self._n_blocks_00 == 1:
                     self._y_fn.sub(0).assign(u_0)
@@ -629,7 +572,6 @@ class MultiBlockSystem:
                         self._y_fn.sub(i).assign(u_0.sub(i))
                         nullspace_help = self._nullspaces[i]
                         nullspace_help.pc_post_mult_correct(self._y_fn.sub(i), y_c_0_help)
-                    del y_c_0_help
 
                 if self._n_blocks_11 == 1:
                     self._y_fn.sub(self._n_blocks_00).assign(u_1)
@@ -642,7 +584,6 @@ class MultiBlockSystem:
                         self._y_fn.sub(self._n_blocks_00 + i).assign(u_1.sub(i))
                         nullspace_help = self._nullspaces[self._n_blocks_00 + i]
                         nullspace_help.pc_post_mult_correct(self._y_fn.sub(self._n_blocks_00 + i), y_c_1_help)
-                    del y_c_1_help
 
                 with self._y_fn.dat.vec_ro as y_v:
                     y_v.copy(result=y)
@@ -757,8 +698,12 @@ class MultiBlockSystem:
             nullspace_help = self._nullspaces[self._n_blocks_00 + i]
             nullspace_help.correct_soln(u.sub(self._n_blocks_00 + i))
 
-        if not precond:
-            if ksp_solver.getConvergedReason() <= 0:
+        reason = ksp_solver.getConvergedReason()
+        if precond:
+            if reason <= 0 and reason != PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT:
+                raise RuntimeError("Solver failed to converge")
+        else:
+            if reason <= 0:
                 raise RuntimeError("Solver failed to converge")
 
         if self._n_blocks_00 == 1:
