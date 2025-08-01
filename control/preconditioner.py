@@ -356,11 +356,6 @@ class MultiBlockSystem:
                     x_c_1_i = nullspace_help.pre_mult_corrected_lhs(x_c_1_help)
                     x_c_new.sub(self._n_blocks_00 + i).assign(x_c_1_i)
 
-                del x_c_0_help
-                del x_c_0_i
-                del x_c_1_help
-                del x_c_1_i
-
                 for i in range(self._n_blocks_00 + self._n_blocks_11):
                     with self._y_fn.sub(i).dat.vec_wo as y_0_v:
                         y_0_v.zeroEntries()
@@ -395,9 +390,6 @@ class MultiBlockSystem:
                                 self._y_fn.sub(self._n_blocks_00 + i).dat.vec as y_0_v:
                             block_ij.petscmat.multAdd(x_0_v, y_0_v, y_0_v)
 
-                del x_help_0
-                del x_help_1
-
                 if self._CN:
                     if self._sub_n_blocks_00_0 is None and self._sub_n_blocks_11_0 is None:
                         if self._n_blocks_00 == 1:
@@ -429,9 +421,6 @@ class MultiBlockSystem:
                         for i in range(self._n_blocks_11):
                             index = self._n_blocks_00 + i
                             self._y_fn.sub(index).assign(y_help_1.sub(i))
-
-                        del y_help_0
-                        del y_help_1
                     else:
                         flattened_space_0_0 = tuple(self._space_0 for i in range(self._sub_n_blocks_00_0))
                         space_0_0_help = MixedFunctionSpace(
@@ -483,11 +472,6 @@ class MultiBlockSystem:
                             index = self._n_blocks_00 + self._sub_n_blocks_11_0 + i
                             self._y_fn.sub(index).assign(y_help_1_1.sub(i))
 
-                        del y_help_0_0
-                        del y_help_0_1
-                        del y_help_1_0
-                        del y_help_1_1
-
                 x_c_0_help = Function(self._space_0)
                 x_c_1_help = Function(self._space_1)
 
@@ -499,9 +483,6 @@ class MultiBlockSystem:
                     x_c_1_help.assign(self._x_fn.sub(self._n_blocks_00 + i))
                     nullspace_help = self._nullspaces[self._n_blocks_00 + i]
                     nullspace_help.post_mult_correct_lhs(x_c_1_help, self._y_fn.sub(self._n_blocks_00 + i))
-
-                del x_c_0_help
-                del x_c_1_help
 
                 with self._y_fn.dat.vec_ro as y_v:
                     y_v.copy(result=y)
@@ -567,7 +548,6 @@ class MultiBlockSystem:
                         b_0_c_help.assign(b_0.sub(i))
                         nullspace_help = self._nullspaces[i]
                         b_0_c.sub(i).assign(nullspace_help.pc_pre_mult_corrected(b_0_c_help))
-                    del b_0_c_help
 
                 if self._n_blocks_11 == 1:
                     nullspace_help = self._nullspaces[self._n_blocks_00]
@@ -578,7 +558,6 @@ class MultiBlockSystem:
                         b_1_c_help.assign(b_1.sub(i))
                         nullspace_help = self._nullspaces[self._n_blocks_00 + i]
                         b_1_c.sub(i).assign(nullspace_help.pc_pre_mult_corrected(b_1_c_help))
-                    del b_1_c_help
 
                 u_0 = Function(space_help_0, name="u_0")
                 u_1 = Function(space_help_1, name="u_1")
@@ -600,7 +579,6 @@ class MultiBlockSystem:
                         self._y_fn.sub(i).assign(u_0.sub(i))
                         nullspace_help = self._nullspaces[i]
                         nullspace_help.pc_post_mult_correct(self._y_fn.sub(i), y_c_0_help)
-                    del y_c_0_help
 
                 if self._n_blocks_11 == 1:
                     self._y_fn.sub(self._n_blocks_00).assign(u_1)
@@ -613,7 +591,6 @@ class MultiBlockSystem:
                         self._y_fn.sub(self._n_blocks_00 + i).assign(u_1.sub(i))
                         nullspace_help = self._nullspaces[self._n_blocks_00 + i]
                         nullspace_help.pc_post_mult_correct(self._y_fn.sub(self._n_blocks_00 + i), y_c_1_help)
-                    del y_c_1_help
 
                 with self._y_fn.dat.vec_ro as y_v:
                     y_v.copy(result=y)
