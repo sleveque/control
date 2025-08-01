@@ -11,6 +11,11 @@ import ufl
 
 from .preconditioner import *
 
+try:
+    import matplotlib
+    import matplotlib.pyplot as plt
+except ModuleNotFoundError:
+    matplotlib = None
 import petsc4py.PETSc as PETSc
 
 from collections.abc import Sequence
@@ -857,7 +862,6 @@ class Control:
 
             del system, pc_fn
 
-            # creating output
             if create_output:
                 v_output = File("v.pvd")
                 v_output.write(v)
@@ -871,24 +875,21 @@ class Control:
                 with CheckpointFile("zeta.h5", "w") as h:
                     h.save_function(zeta)
 
-            # plotting the solutions
             if plots:
-                try:
-                    import matplotlib.pyplot as plt
-                    fig_v, axes = plt.subplots()
-                    colors = tripcolor(v, axes=axes)
-                    fig_v.colorbar(colors)
-                    fig_zeta, axes = plt.subplots()
-                    colors = tripcolor(zeta, axes=axes)
-                    fig_zeta.colorbar(colors)
-                    fig_true_v, axes = plt.subplots()
-                    colors = tripcolor(self._true_v, axes=axes)
-                    fig_true_v.colorbar(colors)
-                    plt.show()
-                except Exception as e:
-                    warning(f"Cannot plot figure. Error msg: '{e}'")
+                if matplotlib is None:
+                    raise RuntimeError("matplotlib not available")
 
-            # printing the error
+                fig_v, axes = plt.subplots()
+                colors = tripcolor(v, axes=axes)
+                fig_v.colorbar(colors)
+                fig_zeta, axes = plt.subplots()
+                colors = tripcolor(zeta, axes=axes)
+                fig_zeta.colorbar(colors)
+                fig_true_v, axes = plt.subplots()
+                colors = tripcolor(self._true_v, axes=axes)
+                fig_true_v.colorbar(colors)
+                plt.show()
+
             if print_error:
                 self.print_error()
 
@@ -1041,8 +1042,6 @@ class Control:
                 if k + 1 > max_non_linear_iter:
                     break
 
-            # printing L^2 discrepancy between the desired state and the
-            # numerical solution
             if print_error_non_linear:
                 if norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol:
                     if norm_0 > 0.:
@@ -1056,7 +1055,6 @@ class Control:
                     print(f'Absolute non-linear residual: {norm_k:.16e}')
                 self.print_error()
 
-            # creating output
             if create_output:
                 v_output = File("v.pvd")
                 v_output.write(self._v)
@@ -1070,22 +1068,20 @@ class Control:
                 with CheckpointFile("zeta.h5", "w") as h:
                     h.save_function(self._zeta)
 
-            # plotting the solutions
             if plots:
-                try:
-                    import matplotlib.pyplot as plt
-                    fig_v, axes = plt.subplots()
-                    colors = tripcolor(self._v, axes=axes)
-                    fig_v.colorbar(colors)
-                    fig_zeta, axes = plt.subplots()
-                    colors = tripcolor(self._zeta, axes=axes)
-                    fig_zeta.colorbar(colors)
-                    fig_true_v, axes = plt.subplots()
-                    colors = tripcolor(self._true_v, axes=axes)
-                    fig_true_v.colorbar(colors)
-                    plt.show()
-                except Exception as e:
-                    warning(f"Cannot plot figure. Error msg: '{e}'")
+                if matplotlib is None:
+                    raise RuntimeError("matplotlib not available")
+
+                fig_v, axes = plt.subplots()
+                colors = tripcolor(self._v, axes=axes)
+                fig_v.colorbar(colors)
+                fig_zeta, axes = plt.subplots()
+                colors = tripcolor(self._zeta, axes=axes)
+                fig_zeta.colorbar(colors)
+                fig_true_v, axes = plt.subplots()
+                colors = tripcolor(self._true_v, axes=axes)
+                fig_true_v.colorbar(colors)
+                plt.show()
 
         @garbage_cleanup_method("_comm")
         def incompressible_linear_solve(self, nullspace_p, *, space_p=None,
@@ -1461,7 +1457,6 @@ class Control:
             if P is None:
                 del self._inner_system, self._inner_pc_fn
 
-            # creating output
             if create_output:
                 v_output = File("v.pvd")
                 v_output.write(v)
@@ -1487,31 +1482,27 @@ class Control:
                 with CheckpointFile("mu.h5", "w") as h:
                     h.save_function(mu)
 
-            # plotting the solutions
             if plots:
-                try:
-                    import matplotlib.pyplot as plt
-                    fig_v, axes = plt.subplots()
-                    colors = tripcolor(v, axes=axes)
-                    fig_v.colorbar(colors)
-                    fig_p, axes = plt.subplots()
-                    colors = tripcolor(p, axes=axes)
-                    fig_p.colorbar(colors)
-                    fig_zeta, axes = plt.subplots()
-                    colors = tripcolor(zeta, axes=axes)
-                    fig_zeta.colorbar(colors)
-                    fig_mu, axes = plt.subplots()
-                    colors = tripcolor(mu, axes=axes)
-                    fig_mu.colorbar(colors)
-                    fig_true_v, axes = plt.subplots()
-                    colors = tripcolor(self._true_v, axes=axes)
-                    fig_true_v.colorbar(colors)
-                    plt.show()
-                except Exception as e:
-                    warning(f"Cannot plot figure. Error msg: '{e}'")
+                if matplotlib is None:
+                    raise RuntimeError("matplotlib not available")
 
-            # printing L^2 discrepancy between the desired state and the
-            # numerical solution
+                fig_v, axes = plt.subplots()
+                colors = tripcolor(v, axes=axes)
+                fig_v.colorbar(colors)
+                fig_p, axes = plt.subplots()
+                colors = tripcolor(p, axes=axes)
+                fig_p.colorbar(colors)
+                fig_zeta, axes = plt.subplots()
+                colors = tripcolor(zeta, axes=axes)
+                fig_zeta.colorbar(colors)
+                fig_mu, axes = plt.subplots()
+                colors = tripcolor(mu, axes=axes)
+                fig_mu.colorbar(colors)
+                fig_true_v, axes = plt.subplots()
+                colors = tripcolor(self._true_v, axes=axes)
+                fig_true_v.colorbar(colors)
+                plt.show()
+
             if print_error:
                 self.print_error()
 
@@ -1748,8 +1739,6 @@ class Control:
                 if k + 1 > max_non_linear_iter:
                     break
 
-            # printing L^2 discrepancy between the desired state and the
-            # numerical solution
             if print_error_non_linear:
                 if norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol:
                     if norm_0 > 0.:
@@ -1763,7 +1752,6 @@ class Control:
                     print(f'Absolute non-linear residual: {norm_k:.16e}')
                 self.print_error()
 
-            # creating output
             if create_output:
                 v_output = File("v.pvd")
                 v_output.write(self._v)
@@ -1789,28 +1777,26 @@ class Control:
                 with CheckpointFile("mu.h5", "w") as h:
                     h.save_function(self._mu)
 
-            # plotting the solutions
             if plots:
-                try:
-                    import matplotlib.pyplot as plt
-                    fig_v, axes = plt.subplots()
-                    colors = tripcolor(self._v, axes=axes)
-                    fig_v.colorbar(colors)
-                    fig_p, axes = plt.subplots()
-                    colors = tripcolor(self._p, axes=axes)
-                    fig_p.colorbar(colors)
-                    fig_zeta, axes = plt.subplots()
-                    colors = tripcolor(self._zeta, axes=axes)
-                    fig_zeta.colorbar(colors)
-                    fig_mu, axes = plt.subplots()
-                    colors = tripcolor(self._mu, axes=axes)
-                    fig_mu.colorbar(colors)
-                    fig_true_v, axes = plt.subplots()
-                    colors = tripcolor(self._true_v, axes=axes)
-                    fig_true_v.colorbar(colors)
-                    plt.show()
-                except Exception as e:
-                    warning(f"Cannot plot figure. Error msg: '{e}'")
+                if matplotlib is None:
+                    raise RuntimeError("matplotlib not available")
+
+                fig_v, axes = plt.subplots()
+                colors = tripcolor(self._v, axes=axes)
+                fig_v.colorbar(colors)
+                fig_p, axes = plt.subplots()
+                colors = tripcolor(self._p, axes=axes)
+                fig_p.colorbar(colors)
+                fig_zeta, axes = plt.subplots()
+                colors = tripcolor(self._zeta, axes=axes)
+                fig_zeta.colorbar(colors)
+                fig_mu, axes = plt.subplots()
+                colors = tripcolor(self._mu, axes=axes)
+                fig_mu.colorbar(colors)
+                fig_true_v, axes = plt.subplots()
+                colors = tripcolor(self._true_v, axes=axes)
+                fig_true_v.colorbar(colors)
+                plt.show()
 
     class Instationary:
         """Module employed for the solution of instationary control
@@ -3704,12 +3690,9 @@ class Control:
 
             del system, pc_fn
 
-            # printing L^2 discrepancy between the desired state and the
-            # numerical solution
             if print_error:
                 self.print_error(tau)
 
-            # creating output
             if create_output:
                 with CheckpointFile("v.h5", "w") as h:
                     h.save_function(v)
@@ -3717,23 +3700,21 @@ class Control:
                 with CheckpointFile("zeta.h5", "w") as h:
                     h.save_function(zeta)
 
-            # plotting the solutions
             if plots:
+                if matplotlib is None:
+                    raise RuntimeError("matplotlib not available")
+
                 for i in range(n_t):
-                    try:
-                        import matplotlib.pyplot as plt
-                        fig_v, axes = plt.subplots()
-                        colors = tripcolor(v.sub(i), axes=axes)
-                        fig_v.colorbar(colors)
-                        fig_zeta, axes = plt.subplots()
-                        colors = tripcolor(zeta.sub(i), axes=axes)
-                        fig_zeta.colorbar(colors)
-                        fig_true_v, axes = plt.subplots()
-                        colors = tripcolor(self._true_v.sub(i), axes=axes)
-                        fig_true_v.colorbar(colors)
-                        plt.show()
-                    except Exception as e:
-                        warning(f"Cannot plot figure. Error msg: '{e}'")
+                    fig_v, axes = plt.subplots()
+                    colors = tripcolor(v.sub(i), axes=axes)
+                    fig_v.colorbar(colors)
+                    fig_zeta, axes = plt.subplots()
+                    colors = tripcolor(zeta.sub(i), axes=axes)
+                    fig_zeta.colorbar(colors)
+                    fig_true_v, axes = plt.subplots()
+                    colors = tripcolor(self._true_v.sub(i), axes=axes)
+                    fig_true_v.colorbar(colors)
+                    plt.show()
 
         @garbage_cleanup_method("_comm")
         def non_linear_solve(self, *,
@@ -3913,8 +3894,6 @@ class Control:
                 if k + 1 > max_non_linear_iter:
                     break
 
-            # printing L^2 discrepancy between the desired state and the
-            # numerical solution
             if print_error_non_linear:
                 if (norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol):
                     if norm_0 > 0.:
@@ -3928,7 +3907,6 @@ class Control:
                     print(f'Absolute non-linear residual: {norm_k:.16e}')
                 self.print_error(tau)
 
-            # creating output
             if create_output:
                 with CheckpointFile("v.h5", "w") as h:
                     h.save_function(self._v)
@@ -3936,23 +3914,21 @@ class Control:
                 with CheckpointFile("zeta.h5", "w") as h:
                     h.save_function(self._zeta)
 
-            # plotting the solutions
             if plots:
+                if matplotlib is None:
+                    raise RuntimeError("matplotlib not available")
+
                 for i in range(n_t):
-                    try:
-                        import matplotlib.pyplot as plt
-                        fig_v, axes = plt.subplots()
-                        colors = tripcolor(v.sub(i), axes=axes)
-                        fig_v.colorbar(colors)
-                        fig_zeta, axes = plt.subplots()
-                        colors = tripcolor(zeta.sub(i), axes=axes)
-                        fig_zeta.colorbar(colors)
-                        fig_true_v, axes = plt.subplots()
-                        colors = tripcolor(self._true_v.sub(i), axes=axes)
-                        fig_true_v.colorbar(colors)
-                        plt.show()
-                    except Exception as e:
-                        warning(f"Cannot plot figure. Error msg: '{e}'")
+                    fig_v, axes = plt.subplots()
+                    colors = tripcolor(v.sub(i), axes=axes)
+                    fig_v.colorbar(colors)
+                    fig_zeta, axes = plt.subplots()
+                    colors = tripcolor(zeta.sub(i), axes=axes)
+                    fig_zeta.colorbar(colors)
+                    fig_true_v, axes = plt.subplots()
+                    colors = tripcolor(self._true_v.sub(i), axes=axes)
+                    fig_true_v.colorbar(colors)
+                    plt.show()
 
         @garbage_cleanup_method("_comm")
         def incompressible_linear_solve(self, nullspace_p, *, space_p=None,
@@ -5058,12 +5034,9 @@ class Control:
             if P is None:
                 del self._inner_pc_fn, self._inner_system
 
-            # printing L^2 discrepancy between the desired state and the
-            # numerical solution
             if print_error:
                 self.print_error(tau)
 
-            # creating output
             if create_output:
                 with CheckpointFile("v.h5", "w") as h:
                     h.save_function(v)
@@ -5077,68 +5050,58 @@ class Control:
                 with CheckpointFile("mu.h5", "w") as h:
                     h.save_function(mu)
 
-            # plotting the solutions
             if plots:
+                if matplotlib is None:
+                    raise RuntimeError("matplotlib not available")
+
                 for i in range(n_t - 1):
-                    try:
-                        import matplotlib.pyplot as plt
-                        fig_v, axes = plt.subplots()
-                        colors = tripcolor(v.sub(i), axes=axes)
-                        fig_v.colorbar(colors)
-                        fig_p, axes = plt.subplots()
-                        colors = tripcolor(p.sub(i), axes=axes)
-                        fig_p.colorbar(colors)
-                        fig_zeta, axes = plt.subplots()
-                        colors = tripcolor(zeta.sub(i), axes=axes)
-                        fig_zeta.colorbar(colors)
-                        fig_mu, axes = plt.subplots()
-                        colors = tripcolor(mu.sub(i), axes=axes)
-                        fig_mu.colorbar(colors)
-                        fig_true_v, axes = plt.subplots()
-                        colors = tripcolor(self._true_v.sub(i), axes=axes)
-                        fig_true_v.colorbar(colors)
-                        plt.show()
-                    except Exception as e:
-                        warning(f"Cannot plot figure. Error msg: '{e}'")
+                    fig_v, axes = plt.subplots()
+                    colors = tripcolor(v.sub(i), axes=axes)
+                    fig_v.colorbar(colors)
+                    fig_p, axes = plt.subplots()
+                    colors = tripcolor(p.sub(i), axes=axes)
+                    fig_p.colorbar(colors)
+                    fig_zeta, axes = plt.subplots()
+                    colors = tripcolor(zeta.sub(i), axes=axes)
+                    fig_zeta.colorbar(colors)
+                    fig_mu, axes = plt.subplots()
+                    colors = tripcolor(mu.sub(i), axes=axes)
+                    fig_mu.colorbar(colors)
+                    fig_true_v, axes = plt.subplots()
+                    colors = tripcolor(self._true_v.sub(i), axes=axes)
+                    fig_true_v.colorbar(colors)
+                    plt.show()
 
                 if self._CN:
-                    try:
-                        import matplotlib.pyplot as plt
-                        fig_v, axes = plt.subplots()
-                        colors = tripcolor(v.sub(n_t - 1), axes=axes)
-                        fig_v.colorbar(colors)
-                        fig_zeta, axes = plt.subplots()
-                        colors = tripcolor(zeta.sub(n_t - 1), axes=axes)
-                        fig_zeta.colorbar(colors)
-                        fig_true_v, axes = plt.subplots()
-                        colors = tripcolor(
-                            self._true_v.sub(n_t - 1), axes=axes)
-                        fig_true_v.colorbar(colors)
-                        plt.show()
-                    except Exception as e:
-                        warning(f"Cannot plot figure. Error msg: '{e}'")
+                    fig_v, axes = plt.subplots()
+                    colors = tripcolor(v.sub(n_t - 1), axes=axes)
+                    fig_v.colorbar(colors)
+                    fig_zeta, axes = plt.subplots()
+                    colors = tripcolor(zeta.sub(n_t - 1), axes=axes)
+                    fig_zeta.colorbar(colors)
+                    fig_true_v, axes = plt.subplots()
+                    colors = tripcolor(
+                        self._true_v.sub(n_t - 1), axes=axes)
+                    fig_true_v.colorbar(colors)
+                    plt.show()
                 else:
-                    try:
-                        import matplotlib.pyplot as plt
-                        fig_v, axes = plt.subplots()
-                        colors = tripcolor(v.sub(n_t - 1), axes=axes)
-                        fig_v.colorbar(colors)
-                        fig_p, axes = plt.subplots()
-                        colors = tripcolor(p.sub(n_t - 1), axes=axes)
-                        fig_p.colorbar(colors)
-                        fig_zeta, axes = plt.subplots()
-                        colors = tripcolor(zeta.sub(n_t - 1), axes=axes)
-                        fig_zeta.colorbar(colors)
-                        fig_mu, axes = plt.subplots()
-                        colors = tripcolor(mu.sub(n_t - 1), axes=axes)
-                        fig_mu.colorbar(colors)
-                        fig_true_v, axes = plt.subplots()
-                        colors = tripcolor(
-                            self._true_v.sub(n_t - 1), axes=axes)
-                        fig_true_v.colorbar(colors)
-                        plt.show()
-                    except Exception as e:
-                        warning(f"Cannot plot figure. Error msg: '{e}'")
+                    fig_v, axes = plt.subplots()
+                    colors = tripcolor(v.sub(n_t - 1), axes=axes)
+                    fig_v.colorbar(colors)
+                    fig_p, axes = plt.subplots()
+                    colors = tripcolor(p.sub(n_t - 1), axes=axes)
+                    fig_p.colorbar(colors)
+                    fig_zeta, axes = plt.subplots()
+                    colors = tripcolor(zeta.sub(n_t - 1), axes=axes)
+                    fig_zeta.colorbar(colors)
+                    fig_mu, axes = plt.subplots()
+                    colors = tripcolor(mu.sub(n_t - 1), axes=axes)
+                    fig_mu.colorbar(colors)
+                    fig_true_v, axes = plt.subplots()
+                    colors = tripcolor(
+                        self._true_v.sub(n_t - 1), axes=axes)
+                    fig_true_v.colorbar(colors)
+                    plt.show()
 
         @garbage_cleanup_method("_comm")
         def incompressible_non_linear_solve(self, nullspace_p, *,
@@ -5465,8 +5428,6 @@ class Control:
                 if k + 1 > max_non_linear_iter:
                     break
 
-            # printing L^2 discrepancy between the desired state and the
-            # numerical solution
             if print_error_non_linear:
                 if (norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol):
                     if norm_0 > 0.:
@@ -5480,7 +5441,6 @@ class Control:
                     print(f'Absolute non-linear residual: {norm_k:.16e}')
                 self.print_error(tau)
 
-            # creating output
             if create_output:
                 with CheckpointFile("v.h5", "w") as h:
                     h.save_function(self._v)
@@ -5494,65 +5454,55 @@ class Control:
                 with CheckpointFile("mu.h5", "w") as h:
                     h.save_function(self._mu)
 
-            # plotting the solutions
             if plots:
+                if matplotlib is None:
+                    raise RuntimeError("matplotlib not available")
+
                 for i in range(n_t - 1):
-                    try:
-                        import matplotlib.pyplot as plt
-                        fig_v, axes = plt.subplots()
-                        colors = tripcolor(self._v.sub(i), axes=axes)
-                        fig_v.colorbar(colors)
-                        fig_p, axes = plt.subplots()
-                        colors = tripcolor(self._p.sub(i), axes=axes)
-                        fig_p.colorbar(colors)
-                        fig_zeta, axes = plt.subplots()
-                        colors = tripcolor(self._zeta.sub(i), axes=axes)
-                        fig_zeta.colorbar(colors)
-                        fig_mu, axes = plt.subplots()
-                        colors = tripcolor(self._mu.sub(i), axes=axes)
-                        fig_mu.colorbar(colors)
-                        fig_true_v, axes = plt.subplots()
-                        colors = tripcolor(self._true_v.sub(i), axes=axes)
-                        fig_true_v.colorbar(colors)
-                        plt.show()
-                    except Exception as e:
-                        warning(f"Cannot plot figure. Error msg: '{e}'")
+                    fig_v, axes = plt.subplots()
+                    colors = tripcolor(self._v.sub(i), axes=axes)
+                    fig_v.colorbar(colors)
+                    fig_p, axes = plt.subplots()
+                    colors = tripcolor(self._p.sub(i), axes=axes)
+                    fig_p.colorbar(colors)
+                    fig_zeta, axes = plt.subplots()
+                    colors = tripcolor(self._zeta.sub(i), axes=axes)
+                    fig_zeta.colorbar(colors)
+                    fig_mu, axes = plt.subplots()
+                    colors = tripcolor(self._mu.sub(i), axes=axes)
+                    fig_mu.colorbar(colors)
+                    fig_true_v, axes = plt.subplots()
+                    colors = tripcolor(self._true_v.sub(i), axes=axes)
+                    fig_true_v.colorbar(colors)
+                    plt.show()
 
                 if self._CN:
-                    try:
-                        import matplotlib.pyplot as plt
-                        fig_v, axes = plt.subplots()
-                        colors = tripcolor(self._v.sub(n_t - 1), axes=axes)
-                        fig_v.colorbar(colors)
-                        fig_zeta, axes = plt.subplots()
-                        colors = tripcolor(self._zeta.sub(n_t - 1), axes=axes)
-                        fig_zeta.colorbar(colors)
-                        fig_true_v, axes = plt.subplots()
-                        colors = tripcolor(
-                            self._true_v.sub(n_t - 1), axes=axes)
-                        fig_true_v.colorbar(colors)
-                        plt.show()
-                    except Exception as e:
-                        warning(f"Cannot plot figure. Error msg: '{e}'")
+                    fig_v, axes = plt.subplots()
+                    colors = tripcolor(self._v.sub(n_t - 1), axes=axes)
+                    fig_v.colorbar(colors)
+                    fig_zeta, axes = plt.subplots()
+                    colors = tripcolor(self._zeta.sub(n_t - 1), axes=axes)
+                    fig_zeta.colorbar(colors)
+                    fig_true_v, axes = plt.subplots()
+                    colors = tripcolor(
+                        self._true_v.sub(n_t - 1), axes=axes)
+                    fig_true_v.colorbar(colors)
+                    plt.show()
                 else:
-                    try:
-                        import matplotlib.pyplot as plt
-                        fig_v, axes = plt.subplots()
-                        colors = tripcolor(self._v.sub(n_t - 1), axes=axes)
-                        fig_v.colorbar(colors)
-                        fig_p, axes = plt.subplots()
-                        colors = tripcolor(self._p.sub(n_t - 1), axes=axes)
-                        fig_p.colorbar(colors)
-                        fig_zeta, axes = plt.subplots()
-                        colors = tripcolor(self._zeta.sub(n_t - 1), axes=axes)
-                        fig_zeta.colorbar(colors)
-                        fig_mu, axes = plt.subplots()
-                        colors = tripcolor(self._mu.sub(n_t - 1), axes=axes)
-                        fig_mu.colorbar(colors)
-                        fig_true_v, axes = plt.subplots()
-                        colors = tripcolor(
-                            self._true_v.sub(n_t - 1), axes=axes)
-                        fig_true_v.colorbar(colors)
-                        plt.show()
-                    except Exception as e:
-                        warning(f"Cannot plot figure. Error msg: '{e}'")
+                    fig_v, axes = plt.subplots()
+                    colors = tripcolor(self._v.sub(n_t - 1), axes=axes)
+                    fig_v.colorbar(colors)
+                    fig_p, axes = plt.subplots()
+                    colors = tripcolor(self._p.sub(n_t - 1), axes=axes)
+                    fig_p.colorbar(colors)
+                    fig_zeta, axes = plt.subplots()
+                    colors = tripcolor(self._zeta.sub(n_t - 1), axes=axes)
+                    fig_zeta.colorbar(colors)
+                    fig_mu, axes = plt.subplots()
+                    colors = tripcolor(self._mu.sub(n_t - 1), axes=axes)
+                    fig_mu.colorbar(colors)
+                    fig_true_v, axes = plt.subplots()
+                    colors = tripcolor(
+                        self._true_v.sub(n_t - 1), axes=axes)
+                    fig_true_v.colorbar(colors)
+                    plt.show()
