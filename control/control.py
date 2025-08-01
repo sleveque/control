@@ -1999,7 +1999,7 @@ class Control:
             self._v.sub(0).assign(initial_condition(v_test))
 
             bcs_v_0 = self._bcs_v[(0)]
-            apply_bcs(bcs_v_0, v.sub(0))
+            apply_bcs(bcs_v_0, self._v.sub(0))
 
         def set_time_interval(self, time_interval):
             """Modifying the time interval.
@@ -2133,8 +2133,8 @@ class Control:
                     apply_bcs(bcs_v_i, self._v.sub(i))
 
                 bcs_zeta = homogenize(self._bcs_v[(1)])
-                for i in range(n_t):
-                    apply_bcs(bcs_zeta, zeta.sub(i))
+                for i in range(self._n_t):
+                    apply_bcs(bcs_zeta, self._zeta.sub(i))
             else:
                 self._set_space_v(space_v, bcs_v_new=True, bcs_v=bcs_v)
 
@@ -3778,10 +3778,10 @@ class Control:
 
                 for i in range(n_t):
                     fig_v, axes = plt.subplots()
-                    colors = tripcolor(v.sub(i), axes=axes)
+                    colors = tripcolor(self._v.sub(i), axes=axes)
                     fig_v.colorbar(colors)
                     fig_zeta, axes = plt.subplots()
-                    colors = tripcolor(zeta.sub(i), axes=axes)
+                    colors = tripcolor(self._zeta.sub(i), axes=axes)
                     fig_zeta.colorbar(colors)
                     fig_true_v, axes = plt.subplots()
                     colors = tripcolor(self._true_v.sub(i), axes=axes)
