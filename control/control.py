@@ -55,6 +55,17 @@ def garbage_cleanup_method(attr_name="comm"):
     return wrapper
 
 
+def plot(*u):
+    if matplotlib is None:
+        raise RuntimeError("matplotlib not available")
+
+    for u_i in u:
+        fig, axes = plt.subplots()
+        colors = tripcolor(u_i, axes=axes)
+        fig.colorbar(colors)
+    plt.show()
+
+
 class Control:
     """control is a library for solving certain PDE-constrained
     optimization problems. The software employs the Firedrake
@@ -763,19 +774,7 @@ class Control:
                     h.save_function(zeta)
 
             if plots:
-                if matplotlib is None:
-                    raise RuntimeError("matplotlib not available")
-
-                fig_v, axes = plt.subplots()
-                colors = tripcolor(v, axes=axes)
-                fig_v.colorbar(colors)
-                fig_zeta, axes = plt.subplots()
-                colors = tripcolor(zeta, axes=axes)
-                fig_zeta.colorbar(colors)
-                fig_true_v, axes = plt.subplots()
-                colors = tripcolor(self._true_v, axes=axes)
-                fig_true_v.colorbar(colors)
-                plt.show()
+                plot(v, zeta, self._true_v)
 
             if print_error:
                 self.print_error()
@@ -956,19 +955,7 @@ class Control:
                     h.save_function(self._zeta)
 
             if plots:
-                if matplotlib is None:
-                    raise RuntimeError("matplotlib not available")
-
-                fig_v, axes = plt.subplots()
-                colors = tripcolor(self._v, axes=axes)
-                fig_v.colorbar(colors)
-                fig_zeta, axes = plt.subplots()
-                colors = tripcolor(self._zeta, axes=axes)
-                fig_zeta.colorbar(colors)
-                fig_true_v, axes = plt.subplots()
-                colors = tripcolor(self._true_v, axes=axes)
-                fig_true_v.colorbar(colors)
-                plt.show()
+                plot(self._v, self._zeta, self._true_v)
 
         @garbage_cleanup_method()
         def incompressible_linear_solve(self, nullspace_p, *, space_p=None,
@@ -1361,25 +1348,7 @@ class Control:
                     h.save_function(mu)
 
             if plots:
-                if matplotlib is None:
-                    raise RuntimeError("matplotlib not available")
-
-                fig_v, axes = plt.subplots()
-                colors = tripcolor(v, axes=axes)
-                fig_v.colorbar(colors)
-                fig_p, axes = plt.subplots()
-                colors = tripcolor(p, axes=axes)
-                fig_p.colorbar(colors)
-                fig_zeta, axes = plt.subplots()
-                colors = tripcolor(zeta, axes=axes)
-                fig_zeta.colorbar(colors)
-                fig_mu, axes = plt.subplots()
-                colors = tripcolor(mu, axes=axes)
-                fig_mu.colorbar(colors)
-                fig_true_v, axes = plt.subplots()
-                colors = tripcolor(self._true_v, axes=axes)
-                fig_true_v.colorbar(colors)
-                plt.show()
+                plot(v, p, zeta, mu, self._true_v)
 
             if print_error:
                 self.print_error()
@@ -1656,25 +1625,7 @@ class Control:
                     h.save_function(self._mu)
 
             if plots:
-                if matplotlib is None:
-                    raise RuntimeError("matplotlib not available")
-
-                fig_v, axes = plt.subplots()
-                colors = tripcolor(self._v, axes=axes)
-                fig_v.colorbar(colors)
-                fig_p, axes = plt.subplots()
-                colors = tripcolor(self._p, axes=axes)
-                fig_p.colorbar(colors)
-                fig_zeta, axes = plt.subplots()
-                colors = tripcolor(self._zeta, axes=axes)
-                fig_zeta.colorbar(colors)
-                fig_mu, axes = plt.subplots()
-                colors = tripcolor(self._mu, axes=axes)
-                fig_mu.colorbar(colors)
-                fig_true_v, axes = plt.subplots()
-                colors = tripcolor(self._true_v, axes=axes)
-                fig_true_v.colorbar(colors)
-                plt.show()
+                plot(self._v, self._p, self._zeta, self._mu, self._true_v)
 
     class Instationary:
         """Module employed for the solution of instationary control
@@ -3559,20 +3510,8 @@ class Control:
                     h.save_function(zeta)
 
             if plots:
-                if matplotlib is None:
-                    raise RuntimeError("matplotlib not available")
-
                 for i in range(n_t):
-                    fig_v, axes = plt.subplots()
-                    colors = tripcolor(v.sub(i), axes=axes)
-                    fig_v.colorbar(colors)
-                    fig_zeta, axes = plt.subplots()
-                    colors = tripcolor(zeta.sub(i), axes=axes)
-                    fig_zeta.colorbar(colors)
-                    fig_true_v, axes = plt.subplots()
-                    colors = tripcolor(self._true_v.sub(i), axes=axes)
-                    fig_true_v.colorbar(colors)
-                    plt.show()
+                    plot(v.sub(i), zeta.sub(i), self._true_v.sub(i))
 
         @garbage_cleanup_method()
         def non_linear_solve(self, *,
@@ -3773,20 +3712,8 @@ class Control:
                     h.save_function(self._zeta)
 
             if plots:
-                if matplotlib is None:
-                    raise RuntimeError("matplotlib not available")
-
                 for i in range(n_t):
-                    fig_v, axes = plt.subplots()
-                    colors = tripcolor(self._v.sub(i), axes=axes)
-                    fig_v.colorbar(colors)
-                    fig_zeta, axes = plt.subplots()
-                    colors = tripcolor(self._zeta.sub(i), axes=axes)
-                    fig_zeta.colorbar(colors)
-                    fig_true_v, axes = plt.subplots()
-                    colors = tripcolor(self._true_v.sub(i), axes=axes)
-                    fig_true_v.colorbar(colors)
-                    plt.show()
+                    plot(self._v.sub(i), self._zeta.sub(i), self._true_v.sub(i))
 
         @garbage_cleanup_method()
         def incompressible_linear_solve(self, nullspace_p, *, space_p=None,
@@ -4885,57 +4812,12 @@ class Control:
                     h.save_function(mu)
 
             if plots:
-                if matplotlib is None:
-                    raise RuntimeError("matplotlib not available")
-
                 for i in range(n_t - 1):
-                    fig_v, axes = plt.subplots()
-                    colors = tripcolor(v.sub(i), axes=axes)
-                    fig_v.colorbar(colors)
-                    fig_p, axes = plt.subplots()
-                    colors = tripcolor(p.sub(i), axes=axes)
-                    fig_p.colorbar(colors)
-                    fig_zeta, axes = plt.subplots()
-                    colors = tripcolor(zeta.sub(i), axes=axes)
-                    fig_zeta.colorbar(colors)
-                    fig_mu, axes = plt.subplots()
-                    colors = tripcolor(mu.sub(i), axes=axes)
-                    fig_mu.colorbar(colors)
-                    fig_true_v, axes = plt.subplots()
-                    colors = tripcolor(self._true_v.sub(i), axes=axes)
-                    fig_true_v.colorbar(colors)
-                    plt.show()
-
+                    plot(v.sub(i), p.sub(i), zeta.sub(i), mu.sub(i), self._true_v.sub(i))
                 if self._CN:
-                    fig_v, axes = plt.subplots()
-                    colors = tripcolor(v.sub(n_t - 1), axes=axes)
-                    fig_v.colorbar(colors)
-                    fig_zeta, axes = plt.subplots()
-                    colors = tripcolor(zeta.sub(n_t - 1), axes=axes)
-                    fig_zeta.colorbar(colors)
-                    fig_true_v, axes = plt.subplots()
-                    colors = tripcolor(
-                        self._true_v.sub(n_t - 1), axes=axes)
-                    fig_true_v.colorbar(colors)
-                    plt.show()
+                    plot(v.sub(n_t - 1), zeta.sub(n_t - 1), self._true_v.sub(n_t - 1))
                 else:
-                    fig_v, axes = plt.subplots()
-                    colors = tripcolor(v.sub(n_t - 1), axes=axes)
-                    fig_v.colorbar(colors)
-                    fig_p, axes = plt.subplots()
-                    colors = tripcolor(p.sub(n_t - 1), axes=axes)
-                    fig_p.colorbar(colors)
-                    fig_zeta, axes = plt.subplots()
-                    colors = tripcolor(zeta.sub(n_t - 1), axes=axes)
-                    fig_zeta.colorbar(colors)
-                    fig_mu, axes = plt.subplots()
-                    colors = tripcolor(mu.sub(n_t - 1), axes=axes)
-                    fig_mu.colorbar(colors)
-                    fig_true_v, axes = plt.subplots()
-                    colors = tripcolor(
-                        self._true_v.sub(n_t - 1), axes=axes)
-                    fig_true_v.colorbar(colors)
-                    plt.show()
+                    plot(v.sub(n_t - 1), p.sub(n_t - 1), zeta.sub(n_t - 1), mu.sub(n_t - 1), self._true_v.sub(n_t - 1))
 
         @garbage_cleanup_method()
         def incompressible_non_linear_solve(self, nullspace_p, *,
@@ -5289,54 +5171,9 @@ class Control:
                     h.save_function(self._mu)
 
             if plots:
-                if matplotlib is None:
-                    raise RuntimeError("matplotlib not available")
-
                 for i in range(n_t - 1):
-                    fig_v, axes = plt.subplots()
-                    colors = tripcolor(self._v.sub(i), axes=axes)
-                    fig_v.colorbar(colors)
-                    fig_p, axes = plt.subplots()
-                    colors = tripcolor(self._p.sub(i), axes=axes)
-                    fig_p.colorbar(colors)
-                    fig_zeta, axes = plt.subplots()
-                    colors = tripcolor(self._zeta.sub(i), axes=axes)
-                    fig_zeta.colorbar(colors)
-                    fig_mu, axes = plt.subplots()
-                    colors = tripcolor(self._mu.sub(i), axes=axes)
-                    fig_mu.colorbar(colors)
-                    fig_true_v, axes = plt.subplots()
-                    colors = tripcolor(self._true_v.sub(i), axes=axes)
-                    fig_true_v.colorbar(colors)
-                    plt.show()
-
+                    plot(self._v.sub(i), self._p.sub(i), self._zeta.sub(i), self._mu.sub(i), self._true_v.sub(i))
                 if self._CN:
-                    fig_v, axes = plt.subplots()
-                    colors = tripcolor(self._v.sub(n_t - 1), axes=axes)
-                    fig_v.colorbar(colors)
-                    fig_zeta, axes = plt.subplots()
-                    colors = tripcolor(self._zeta.sub(n_t - 1), axes=axes)
-                    fig_zeta.colorbar(colors)
-                    fig_true_v, axes = plt.subplots()
-                    colors = tripcolor(
-                        self._true_v.sub(n_t - 1), axes=axes)
-                    fig_true_v.colorbar(colors)
-                    plt.show()
+                    plot(self._v.sub(n_t - 1), self._zeta.sub(n_t - 1), self._true_v.sub(n_t - 1))
                 else:
-                    fig_v, axes = plt.subplots()
-                    colors = tripcolor(self._v.sub(n_t - 1), axes=axes)
-                    fig_v.colorbar(colors)
-                    fig_p, axes = plt.subplots()
-                    colors = tripcolor(self._p.sub(n_t - 1), axes=axes)
-                    fig_p.colorbar(colors)
-                    fig_zeta, axes = plt.subplots()
-                    colors = tripcolor(self._zeta.sub(n_t - 1), axes=axes)
-                    fig_zeta.colorbar(colors)
-                    fig_mu, axes = plt.subplots()
-                    colors = tripcolor(self._mu.sub(n_t - 1), axes=axes)
-                    fig_mu.colorbar(colors)
-                    fig_true_v, axes = plt.subplots()
-                    colors = tripcolor(
-                        self._true_v.sub(n_t - 1), axes=axes)
-                    fig_true_v.colorbar(colors)
-                    plt.show()
+                    plot(self._v.sub(n_t - 1), self._p.sub(n_t - 1), self._zeta.sub(n_t - 1), self._mu.sub(n_t - 1), self._true_v.sub(n_t - 1))
