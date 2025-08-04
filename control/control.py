@@ -66,6 +66,15 @@ def plot(*u):
     plt.show()
 
 
+def output(data):
+    for name, u in data.items():
+        output = File(f"{name}.pvd")
+        output.write(u)
+
+        with CheckpointFile(f"{name}.h5", mode="w") as h:
+            h.save_function(u)
+
+
 class Control:
     """control is a library for solving certain PDE-constrained
     optimization problems. The software employs the Firedrake
@@ -761,17 +770,7 @@ class Control:
             del system, pc_fn
 
             if create_output:
-                v_output = File("v.pvd")
-                v_output.write(v)
-
-                zeta_output = File("zeta.pvd")
-                zeta_output.write(zeta)
-
-                with CheckpointFile("v.h5", "w") as h:
-                    h.save_function(v)
-
-                with CheckpointFile("zeta.h5", "w") as h:
-                    h.save_function(zeta)
+                output({"v": v, "zeta": zeta})
 
             if plots:
                 plot(v, zeta, self._true_v)
@@ -942,17 +941,7 @@ class Control:
                 self.print_error()
 
             if create_output:
-                v_output = File("v.pvd")
-                v_output.write(self._v)
-
-                zeta_output = File("zeta.pvd")
-                zeta_output.write(self._zeta)
-
-                with CheckpointFile("v.h5", "w") as h:
-                    h.save_function(self._v)
-
-                with CheckpointFile("zeta.h5", "w") as h:
-                    h.save_function(self._zeta)
+                output({"v": self._v, "zeta": self._zeta})
 
             if plots:
                 plot(self._v, self._zeta, self._true_v)
@@ -1323,29 +1312,7 @@ class Control:
                 del self._inner_system, self._inner_pc_fn
 
             if create_output:
-                v_output = File("v.pvd")
-                v_output.write(v)
-
-                zeta_output = File("zeta.pvd")
-                zeta_output.write(zeta)
-
-                p_output = File("p.pvd")
-                p_output.write(p)
-
-                mu_output = File("mu.pvd")
-                mu_output.write(mu)
-
-                with CheckpointFile("v.h5", "w") as h:
-                    h.save_function(v)
-
-                with CheckpointFile("p.h5", "w") as h:
-                    h.save_function(p)
-
-                with CheckpointFile("zeta.h5", "w") as h:
-                    h.save_function(zeta)
-
-                with CheckpointFile("mu.h5", "w") as h:
-                    h.save_function(mu)
+                output({"v": v, "zeta": zeta, "p": p, "mu": mu})
 
             if plots:
                 plot(v, p, zeta, mu, self._true_v)
@@ -1600,29 +1567,7 @@ class Control:
                 self.print_error()
 
             if create_output:
-                v_output = File("v.pvd")
-                v_output.write(self._v)
-
-                zeta_output = File("zeta.pvd")
-                zeta_output.write(self._zeta)
-
-                p_output = File("p.pvd")
-                p_output.write(self._p)
-
-                mu_output = File("mu.pvd")
-                mu_output.write(self._mu)
-
-                with CheckpointFile("v.h5", "w") as h:
-                    h.save_function(self._v)
-
-                with CheckpointFile("p.h5", "w") as h:
-                    h.save_function(self._p)
-
-                with CheckpointFile("zeta.h5", "w") as h:
-                    h.save_function(self._zeta)
-
-                with CheckpointFile("mu.h5", "w") as h:
-                    h.save_function(self._mu)
+                output({"v": self._v, "zeta": self._zeta, "p": self._p, "mu": self._mu})
 
             if plots:
                 plot(self._v, self._p, self._zeta, self._mu, self._true_v)
@@ -3503,11 +3448,7 @@ class Control:
                 self.print_error(tau)
 
             if create_output:
-                with CheckpointFile("v.h5", "w") as h:
-                    h.save_function(v)
-
-                with CheckpointFile("zeta.h5", "w") as h:
-                    h.save_function(zeta)
+                output({"v": v, "zeta": zeta})
 
             if plots:
                 for i in range(n_t):
@@ -3705,11 +3646,7 @@ class Control:
                 self.print_error(tau)
 
             if create_output:
-                with CheckpointFile("v.h5", "w") as h:
-                    h.save_function(self._v)
-
-                with CheckpointFile("zeta.h5", "w") as h:
-                    h.save_function(self._zeta)
+                output({"v": self._v, "zeta": self._zeta})
 
             if plots:
                 for i in range(n_t):
@@ -4799,17 +4736,7 @@ class Control:
                 self.print_error(tau)
 
             if create_output:
-                with CheckpointFile("v.h5", "w") as h:
-                    h.save_function(v)
-
-                with CheckpointFile("p.h5", "w") as h:
-                    h.save_function(p)
-
-                with CheckpointFile("zeta.h5", "w") as h:
-                    h.save_function(zeta)
-
-                with CheckpointFile("mu.h5", "w") as h:
-                    h.save_function(mu)
+                output({"v": v, "zeta": zeta, "p": p, "mu": mu})
 
             if plots:
                 for i in range(n_t - 1):
@@ -5158,17 +5085,7 @@ class Control:
                 self.print_error(tau)
 
             if create_output:
-                with CheckpointFile("v.h5", "w") as h:
-                    h.save_function(self._v)
-
-                with CheckpointFile("p.h5", "w") as h:
-                    h.save_function(self._p)
-
-                with CheckpointFile("zeta.h5", "w") as h:
-                    h.save_function(self._zeta)
-
-                with CheckpointFile("mu.h5", "w") as h:
-                    h.save_function(self._mu)
+                output({"v": self._v, "zeta": self._zeta, "p": self._p, "mu": self._mu})
 
             if plots:
                 for i in range(n_t - 1):
