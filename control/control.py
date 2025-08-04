@@ -75,6 +75,12 @@ def output(data):
             h.save_function(u)
 
 
+def time(time_interval, i, n_t):
+    t_0, t_1 = time_interval
+    # Linearly interpolate
+    return (t_0 * (n_t - 1 - i) + t_1 * i) / (n_t - 1)
+
+
 class Control:
     """control is a library for solving certain PDE-constrained
     optimization problems. The software employs the Firedrake
@@ -146,12 +152,14 @@ class Control:
             self._v = Function(space_v, name="v")
             apply_bcs(self._bcs_v, self._v)
             self._zeta = Function(space_v, name="zeta")
+
             v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
             self._M_v = self._M_zeta = inner(v_trial, v_test) * dx
 
             if space_p is not None:
                 self._p = Function(space_p, name="p")
                 self._mu = Function(space_p, name="mu")
+
                 p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
                 self._M_p = self._M_mu = inner(p_trial, p_test) * dx
             else:
@@ -1573,24 +1581,22 @@ class Control:
                 plot(self._v, self._p, self._zeta, self._mu, self._true_v)
 
     class Instationary:
-        """Module employed for the solution of instationary control
-        problems."""
-        def __init__(self, space_v,
-                     forward_form, desired_state=None, force_function=None, *,
-                     beta=1.0e-3, space_p=None, Gauss_Newton=False,
-                     CN=True, n_t=20, initial_condition=None,
-                     time_interval=None, bcs_v=None):
-            """Constructor of the object Instationary.
+        def __init__(self, space_v, forward_form, desired_state=None,
+                     force_function=None, *, beta=1.0e-3, space_p=None,
+                     Gauss_Newton=False, CN=True, n_t=20,
+                     initial_condition=None, time_interval=(0.0, 1.0), bcs_v=None):
+            """Instationary control problem.
 
             Input:
-                - space_v             space whom the solution belongs to
+                - space_v             space to which the solution belongs
 
                 - forward_form        form that represents the differential
                                       operator in space
 
-                - desired_state       desired state
+                - desired_state       desired state, defaults to zero
 
-                - force_function      force function acting on the system
+                - force_function      force function acting on the system,
+                                      defaults to zero
 
                 - beta                regularization parameter
 
@@ -1613,26 +1619,26 @@ class Control:
                 - bcs_v               boundary conditions on the state
             """
 
+            bcs_v_arg = bcs_v
+
+            def bcs_v(space_v, t):
+                if bcs_v_arg is None:
+                    bc_v = ()
+                else:
+                    bc_v = bcs_v_arg(space_v, t)
+                if not isinstance(bc_v, Sequence):
+                    bc_v = (bc_v,)
+                return tuple(bc_v)
+
             if not isinstance(space_v, FunctionSpaceBase):
                 raise TypeError("Space must be a primal space")
             if space_p is not None \
                     and not isinstance(space_p, FunctionSpaceBase):
                 raise TypeError("Space must be a primal space")
 
-            # building auxiliary space
-            flattened_space_v = tuple(space_v for i in range(n_t))
-            full_space_v = MixedFunctionSpace(flattened_space_v)
-
-            v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
-
-            # in case no desired_state is passed, the solver assumes
-            # zero desired state
             if desired_state is None:
                 def desired_state(test_v, t):
                     return ZeroBaseForm((test_v,))
-
-            # in case no force_function is passed, the solver assumes
-            # zero force
             if force_function is None:
                 def force_function(test_v, t):
                     return ZeroBaseForm((test_v,))
@@ -1643,77 +1649,39 @@ class Control:
             self._desired_state = desired_state
             self._force_function = force_function
             self._beta = beta
-            self._initial_condition = initial_condition
-            if time_interval is not None:
-                self._time_interval = time_interval
-            else:
-                self._time_interval = (0.0, 1.0)
+            self._Gauss_Newton = Gauss_Newton
             self._CN = CN
             self._n_t = n_t
+            self._initial_condition = initial_condition
+            self._time_interval = time_interval
 
-            # building bcs at each point in time
             self._f_bcs_v = bcs_v
-            full_bcs_v = {}
-            if bcs_v is None:
-                for i in range(n_t):
-                    full_bcs_v[(i)] = ()
-            else:
-                t_0 = self._time_interval[0]
-                T_f = self._time_interval[1]
-                tau = (T_f - t_0) / (n_t - 1.0)
+            self._bcs_v = {i: bcs_v(space_v, Constant(time(time_interval, i, n_t)))
+                           for i in range(n_t)}
 
-                t = t_0
-                bcs_v_i = bcs_v(space_v, Constant(t))
-                if not isinstance(bcs_v_i, Sequence):
-                    full_bcs_v[(0)] = (bcs_v_i, )
-                else:
-                    full_bcs_v[(0)] = tuple(bcs_v_i)
-
-                for i in range(1, n_t):
-                    t += tau
-                    bcs_v_i = bcs_v(space_v, Constant(t))
-                    if not isinstance(bcs_v_i, Sequence):
-                        full_bcs_v[(i)] = (bcs_v_i, )
-                    else:
-                        full_bcs_v[(i)] = tuple(bcs_v_i)
-            self._bcs_v = full_bcs_v
-
-            self._M_v = inner(v_trial, v_test) * dx
-            self._M_zeta = inner(v_trial, v_test) * dx
-            self._M_p = None
-            self._M_mu = None
-
-            self._Gauss_Newton = Gauss_Newton
-
-            v = Function(full_space_v, name="v")
-            zeta = Function(full_space_v, name="zeta")
-
+            flattened_space_v = tuple(space_v for _ in range(n_t))
+            full_space_v = MixedFunctionSpace(flattened_space_v)
+            self._v = Function(full_space_v, name="v")
+            self._zeta = Function(full_space_v, name="zeta")
             for i in range(n_t):
-                bcs_v_i = full_bcs_v[(i)]
-                apply_bcs(bcs_v_i, v.sub(i))
+                apply_bcs(self._bcs_v[i], self._v.sub(i))
 
-            self._v = v
-            self._zeta = zeta
+            v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
+            self._M_v = self._M_zeta = inner(v_trial, v_test) * dx
 
             if space_p is not None:
-                p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
-
-                self._M_p = inner(p_trial, p_test) * dx
-                self._M_mu = inner(p_trial, p_test) * dx
-
-                # building auxiliary space
                 if not CN:
                     flattened_space_p = tuple(space_p for i in range(n_t))
                 else:
                     flattened_space_p = tuple(space_p for i in range(n_t - 1))
-
                 full_space_p = MixedFunctionSpace(flattened_space_p)
+                self._p = Function(full_space_p, name="p")
+                self._mu = Function(full_space_p, name="mu")
 
-                p = Function(full_space_p, name="p")
-                mu = Function(full_space_p, name="mu")
-
-                self._p = p
-                self._mu = mu
+                p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
+                self._M_p = self._M_mu = inner(p_trial, p_test) * dx
+            else:
+                self._M_p = self._M_mu = None
 
         @cached_property
         def comm(self):
