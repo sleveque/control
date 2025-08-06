@@ -349,7 +349,6 @@ class Control:
                                       method
             """
 
-            # solver parameters for the (1,1)-block
             if "sp_11block" in auxiliary_sp:
                 sp_11block = auxiliary_sp["sp_11block"]
             else:
@@ -359,8 +358,6 @@ class Control:
                               "ksp_atol": 0.0,
                               "ksp_rtol": 0.0}
 
-            # solver parameters for the factorization of the Schur complement
-            # approximation
             if "sp_Schur" in auxiliary_sp:
                 sp_Schur = auxiliary_sp["sp_Schur"]
             else:
@@ -372,45 +369,36 @@ class Control:
                             "ksp_atol": 0.0,
                             "ksp_rtol": 0.0}
 
-            # building the solvers
             solver_0 = LinearSolver(
                 assemble(self._M_v, bcs=bcs_v),
                 solver_parameters=sp_11block)
-
             solver_1 = LinearSolver(
                 assemble(D_v + (1.0 / self.beta**0.5) * self._M_v,
                          bcs=bcs_zeta),
                 solver_parameters=sp_Schur)
-
             solver_2 = LinearSolver(
                 assemble(D_zeta + (1.0 / self.beta**0.5) * self._M_zeta,
                          bcs=bcs_zeta),
                 solver_parameters=sp_Schur)
-
             solver_0.ksp.addConvergenceTest(converged, prepend=True)
             solver_1.ksp.addConvergenceTest(converged, prepend=True)
             solver_2.ksp.addConvergenceTest(converged, prepend=True)
 
-            # definition of preconditioners
             @garbage_cleanup(self.comm)
             def pc_linear(u_0, u_1, b_0, b_1):
                 # solving for the (1,1)-block
                 u_0.zero()
                 solver_0.solve(u_0, b_0.copy(deepcopy=True))
 
-                # u_1 = - b_1 + D_v * u_0
-                b = assemble(action(D_v, u_0) - b_1)
-
                 # solving for the Schur complement approximation
                 # first solve
+                # u_1 = - b_1 + D_v * u_0
+                b = assemble(action(D_v, u_0) - b_1)
                 apply_bcs(bcs_zeta, b)
                 u_1.zero()
                 solver_1.solve(u_1, b.copy(deepcopy=True))
-
-                # multiply for the (1,1)-block
-                b = assemble(action(self._M_v, u_1))
-
                 # second solve
+                b = assemble(action(self._M_v, u_1))
                 apply_bcs(bcs_zeta, b)
                 u_1.zero()
                 solver_2.solve(u_1, b.copy(deepcopy=True))
