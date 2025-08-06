@@ -141,7 +141,6 @@ class Control:
                     return ZeroBaseForm((test_v,))
 
             self._space_v = space_v
-            self._space_p = space_p
             self._forward_form = forward_form
             self._desired_state = desired_state
             self._force_function = force_function
@@ -157,226 +156,63 @@ class Control:
             self._M_v = self._M_zeta = inner(v_trial, v_test) * dx
 
             if space_p is not None:
-                self._p = Function(space_p, name="p")
-                self._mu = Function(space_p, name="mu")
-
-                p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
-                self._M_p = self._M_mu = inner(p_trial, p_test) * dx
+                self.set_space_p(space_p)
             else:
+                self._space_p = None
                 self._M_p = self._M_mu = None
 
         @cached_property
         def comm(self):
             return self._space_v.mesh().comm
 
-        def set_space_v(self, space_v, *, v=None, zeta=None,
-                        bcs_v_new=False, bcs_v=None):
-            """Modifying the space whom the solution belongs to.
-
-            Input:
-                - space_v        new space
-
-                - v              approximation of the state solution
-
-                - zeta           approximation of the adjoint soluton
-
-                - bcs_v_new      if True, new boundary conditions are imposed
-
-                - bcs_v          the boundary conditions on the state
+        def set_space_p(self, space_p):
             """
-            self._space_v = space_v
-            v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
-
-            self._M_v = inner(v_trial, v_test) * dx
-            self._M_zeta = inner(v_trial, v_test) * dx
-
-            if v is None:
-                v = Function(space_v, name="v")
-                v.interpolate(self._v)
-            else:
-                if v.function_space() != space_v:
-                    raise ValueError("Unexpected space")
-
-            if bcs_v_new:
-                if bcs_v is None:
-                    bcs_v = ()
-                elif not isinstance(bcs_v, Sequence):
-                    bcs_v = (bcs_v,)
-                else:
-                    bcs_v = tuple(bcs_v)
-                self._bcs_v = bcs_v
-
-            for bc in self._bcs_v:
-                bc.apply(v)
-
-            if zeta is None:
-                zeta = Function(space_v, name="zeta")
-                zeta.interpolate(self._zeta)
-            else:
-                if zeta.function_space() != space_v:
-                    raise ValueError("Unexpected space")
-                else:
-                    bcs_zeta = homogenize(self._bcs_v)
-                    for bc in bcs_zeta:
-                        bc.apply(zeta)
-
-            self._v = v
-            self._zeta = zeta
-
-        def set_space_p(self, space_p, *, p=None, mu=None):
-            """Modifying the space whom the pressure solution belongs to.
-
             Input:
                 - space_p        new pressure space
-
-                - p              approximation of the pressure state solution
-
-                - mu             approximation of the pressure adjoint soluton
             """
+
             self._space_p = space_p
+            self._p = Function(space_p, name="p")
+            self._mu = Function(space_p, name="mu")
             p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
-
-            self._M_p = inner(p_trial, p_test) * dx
-            self._M_mu = inner(p_trial, p_test) * dx
-
-            if p is None:
-                p = Function(space_p, name="p")
-            else:
-                if p.function_space() != space_p:
-                    raise ValueError("Unexpected space")
-
-            if mu is None:
-                mu = Function(space_p, name="mu")
-            else:
-                if mu.function_space() != space_p:
-                    raise ValueError("Unexpected space")
-
-            self._p = p
-            self._mu = mu
-
-        def set_forward_form(self, forward_form):
-            """Modifying the form that represents the differential operator
-            in space.
-
-            Input:
-                - forward_form        new form
-            """
-            self._forward_form = forward_form
-
-        def set_desired_state(self, desired_state):
-            """Modifying the desired state.
-
-            Input:
-                - desired_state        new desired state
-            """
-            self._desired_state = desired_state
-
-        def set_force_function(self, force_function):
-            """Modifying the force function acting on the system.
-
-            Input:
-                - force_function        new force function
-            """
-            self._force_function = force_function
-
-        def set_beta(self, beta):
-            """Modifying the regularization parameter.
-
-            Input:
-                - beta        new regularization parameter
-            """
-            self._beta = beta
-
-        def set_bcs_v(self, bcs_v, space_v=None):
-            """Modifying the boundary conditions on the state.
-
-            Input:
-                - bcs_v        new boundary conditions
-
-                - space_v      if one wishes to change also the
-                               space of the solution
-            """
-            if space_v is None:
-                if bcs_v is None:
-                    bcs_v = ()
-                elif not isinstance(bcs_v, Sequence):
-                    bcs_v = (bcs_v,)
-                else:
-                    bcs_v = tuple(bcs_v)
-
-                self._bcs_v = bcs_v
-            else:
-                self.set_space_v(space_v, bcs_v_new=True, bcs_v=bcs_v)
-
-        def set_Gauss_Newton(self, Gauss_Newton=True):
-            """Modifying the non-linear iteration.
-
-            Input:
-                - Gauss_Newton        if True, Gauss--Newton is applied,
-                                      otherwise a Picard linearization is
-                                      adopted
-            """
-            self._Gauss_Newton = Gauss_Newton
+            self._M_p = self._M_mu = inner(p_trial, p_test) * dx
 
         def set_v(self, v_new):
-            """Modifying the approximation of the state solution.
-
+            """
             Input:
                 - v_new        new approximation of the state solution
             """
-            if v_new.function_space() != self._space_v:
-                raise ValueError("Unexpected space")
-            else:
-                v_help = Function(v_new.function_space(), name="v")
-                v_help.assign(v_new)
-                for bc in self._bcs_v:
-                    bc.apply(v_help)
-                self._v.assign(v_help)
+
+            v = Function(self._space_v, name="v").assign(v_new)
+            apply_bcs(self._bcs_v, v)
+            self._v.assign(v)
 
         def set_zeta(self, zeta_new):
-            """Modifying the approximation of the adjoint solution.
-
+            """
             Input:
                 - zeta_new        new approximation of the adjoint solution
             """
-            if zeta_new.function_space() != self._space_v:
-                raise ValueError("Unexpected space")
-            else:
-                zeta_help = Function(zeta_new.function_space(), name="zeta")
-                zeta_help.assign(zeta_new)
-                bcs_zeta = homogenize(self._bcs_v)
-                for bc in bcs_zeta:
-                    bc.apply(zeta_help)
-                self._zeta.assign(zeta_help)
+
+            zeta = Function(self._space_v, name="zeta").assign(zeta_new)
+            apply_bcs(homogenize(self._bcs_v), zeta)
+            self._zeta.assign(zeta)
 
         def set_p(self, p_new):
-            """Modifying the approximation of the pressure state solution.
-
+            """
             Input:
                 - p_new        new approximation of the pressure state solution
             """
-            if self._space_p is not None:
-                if p_new.function_space() != self._space_p:
-                    raise ValueError("Unexpected space")
-                else:
-                    self._p.assign(p_new)
-            else:
-                raise ValueError("Undefined space_p: unable to assign value")
+
+            self._p.assign(p_new)
 
         def set_mu(self, mu_new):
-            """Modifying the approximation of the pressure adjoint solution.
-
+            """
             Input:
                 - mu_new        new approximation of the pressure adjoint
                                 solution
             """
-            if self._space_p is not None:
-                if mu_new.function_space() != self._space_p:
-                    raise ValueError("Unexpected space")
-                else:
-                    self._mu.assign(mu_new)
-            else:
-                raise ValueError("Undefined space_p: unable to assign value")
+
+            self._mu.assign(mu_new)
 
         def print_error(self):
             """Print the difference in the discretized L^2-norm
@@ -1644,7 +1480,6 @@ class Control:
                     return ZeroBaseForm((test_v,))
 
             self._space_v = space_v
-            self._space_p = space_p
             self._forward_form = forward_form
             self._desired_state = desired_state
             self._force_function = force_function
@@ -1670,404 +1505,69 @@ class Control:
             self._M_v = self._M_zeta = inner(v_trial, v_test) * dx
 
             if space_p is not None:
-                if not CN:
-                    flattened_space_p = tuple(space_p for i in range(n_t))
-                else:
-                    flattened_space_p = tuple(space_p for i in range(n_t - 1))
-                full_space_p = MixedFunctionSpace(flattened_space_p)
-                self._p = Function(full_space_p, name="p")
-                self._mu = Function(full_space_p, name="mu")
-
-                p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
-                self._M_p = self._M_mu = inner(p_trial, p_test) * dx
+                self.set_space_p(space_p)
             else:
+                self._space_p = None
                 self._M_p = self._M_mu = None
 
         @cached_property
         def comm(self):
             return self._space_v.mesh().comm
 
-        def set_space_v(self, space_v, *, v=None, zeta=None,
-                        bcs_v_new=False, bcs_v=None):
-            """Modifying the space whom the solution belongs to.
-
-            Input:
-                - space_v        new space
-
-                - v              approximation of the state solution
-
-                - zeta           approximation of the adjoint soluton
-
-                - bcs_v_new      if True, new boundary conditions are imposed
-
-                - bcs_v          the boundary conditions on the state
+        def set_space_p(self, space_p):
             """
-            self._space_v = space_v
-            v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
-
-            self._M_v = inner(v_trial, v_test) * dx
-            self._M_zeta = inner(v_trial, v_test) * dx
-
-            n_t = self._n_t
-
-            # auxiliary space
-            flattened_space_v = tuple(space_v for i in range(n_t))
-            full_space_v = MixedFunctionSpace(flattened_space_v)
-
-            # assign new value of the state variable
-            if v is None:
-                v = Function(full_space_v, name="v")
-                if self._initial_condition is not None:
-                    v_test = TestFunction(space_v)
-                    v.sub(0).assign(self._initial_condition(v_test))
-                for i in range(1, n_t):
-                    v.sub(i).interpolate(self._v.sub(i))
-            else:
-                if v.function_space() != full_space_v:
-                    raise ValueError("Unexpected space")
-
-            if bcs_v_new:
-                self._f_bcs_v = bcs_v
-
-            # building the boundary conditions on the state variable
-            full_bcs_v = {}
-            if self._f_bcs_v is None:
-                for i in range(n_t):
-                    full_bcs_v[(i)] = ()
-            else:
-                t_0 = self._time_interval[0]
-                T_f = self._time_interval[1]
-                tau = (T_f - t_0) / (n_t - 1.0)
-
-                t = t_0
-                bcs_v_i = self._f_bcs_v(space_v, Constant(t))
-                if not isinstance(bcs_v_i, Sequence):
-                    full_bcs_v[(0)] = (bcs_v_i, )
-                else:
-                    full_bcs_v[(0)] = tuple(bcs_v_i)
-
-                for i in range(1, n_t):
-                    t += tau
-                    bcs_v_i = self._f_bcs_v(space_v, Constant(t))
-                    if not isinstance(bcs_v_i, Sequence):
-                        full_bcs_v[(i)] = (bcs_v_i, )
-                    else:
-                        full_bcs_v[(i)] = tuple(bcs_v_i)
-            self._bcs_v = full_bcs_v
-
-            for i in range(n_t):
-                bcs_v_i = full_bcs_v[(i)]
-                apply_bcs(bcs_v_i, v.sub(i))
-
-            # assign new value to adjoint variable
-            if zeta is None:
-                zeta = Function(full_space_v, name="zeta")
-                for i in range(n_t - 1):
-                    zeta.sub(i).interpolate(self._zeta.sub(i))
-                zeta.sub(n_t - 1).zero()
-            else:
-                if zeta.function_space() != full_space_v:
-                    raise ValueError("Unexpected space")
-
-            bcs_zeta = homogenize(self._bcs_v[(1)])
-            for i in range(n_t):
-                apply_bcs(bcs_zeta, zeta.sub(i))
-
-            self._v = v
-            self._zeta = zeta
-
-        def set_space_p(self, space_p, *, p=None, mu=None):
-            """Modifying the space whom the pressure solution belongs to.
-
             Input:
                 - space_p        new pressure space
-
-                - p              approximation of the pressure state solution
-
-                - mu             approximation of the pressure adjoint soluton
             """
-            self._space_p = space_p
-            p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
 
-            self._M_p = inner(p_trial, p_test) * dx
-            self._M_mu = inner(p_trial, p_test) * dx
-
-            # auxiliary space
             if not self._CN:
-                flattened_space_p = tuple(space_p for i in range(self._n_t))
+                flattened_space_p = tuple(space_p for _ in range(self._n_t))
             else:
-                flattened_space_p = tuple(
-                    space_p for i in range(self._n_t - 1))
-
+                flattened_space_p = tuple(space_p for _ in range(self._n_t - 1))
             full_space_p = MixedFunctionSpace(flattened_space_p)
 
-            # assign new value of state pressure
-            if p is None:
-                p = Function(full_space_p, name="p")
-            else:
-                if p.function_space() != full_space_p:
-                    raise ValueError("Unexpected space")
-
-            # assign new value of adjoint pressure
-            if mu is None:
-                mu = Function(full_space_p, name="mu")
-            else:
-                if mu.function_space() != full_space_p:
-                    raise ValueError("Unexpected space")
-
-            self._p = p
-            self._mu = mu
-
-        def set_forward_form(self, forward_form):
-            """Modifying the form that represents the differential operator
-            in space.
-
-            Input:
-                - forward_form        new form
-            """
-            self._forward_form = forward_form
-
-        def set_desired_state(self, desired_state):
-            """Modifying the desired state.
-
-            Input:
-                - desired_state        new desired state
-            """
-            self._desired_state = desired_state
-
-        def set_force_function(self, force_function):
-            """Modifying the force function acting on the system.
-
-            Input:
-                - force_function        new force function
-            """
-            self._force_function = force_function
-
-        def set_beta(self, beta):
-            """Modifying the regularization parameter.
-
-            Input:
-                - beta        new regularization parameter
-            """
-            self._beta = beta
-
-        def set_initial_condition(self, initial_condition):
-            """Modifying the initial condition.
-
-            Input:
-                - initial_condition    new initial condition
-            """
-            self._initial_condition = initial_condition
-
-            v_test = TestFunction(self._space_v)
-            self._v.sub(0).assign(initial_condition(v_test))
-
-            bcs_v_0 = self._bcs_v[(0)]
-            apply_bcs(bcs_v_0, self._v.sub(0))
-
-        def set_time_interval(self, time_interval):
-            """Modifying the time interval.
-
-            Input:
-                - time_interval    new interval of time integration
-            """
-            self._time_interval = time_interval
-
-        def set_CN(self, *, CN=True):
-            """Modifying the time discretization.
-
-            Input:
-                - CN        if True, the trapezoidal rule is employed as time
-                            discretization, otherwise backward Euler is applied
-            """
-            if (self._CN or CN) and not (self._CN and CN):
-                self._CN = CN
-
-                if self._space_p is not None:
-                    self.set_space_p(self._space_p)
-
-        def set_n_t(self, n_t):
-            """Modifying the number of points in time.
-
-            Input:
-                - n_t    new number of points in time
-            """
-            self._n_t = n_t
-
-            # changing boundary conditions on the state variable
-            full_bcs_v = {}
-            if self._f_bcs_v is None:
-                for i in range(n_t):
-                    full_bcs_v[(i)] = ()
-            else:
-                t_0 = self._time_interval[0]
-                T_f = self._time_interval[1]
-                tau = (T_f - t_0) / (n_t - 1.0)
-
-                t = t_0
-                bcs_v_i = self._f_bcs_v(self._space_v, Constant(t))
-                if not isinstance(bcs_v_i, Sequence):
-                    full_bcs_v[(0)] = (bcs_v_i, )
-                else:
-                    full_bcs_v[(0)] = tuple(bcs_v_i)
-
-                for i in range(1, n_t):
-                    t += tau
-                    bcs_v_i = self._f_bcs_v(self._space_v, Constant(t))
-                    if not isinstance(bcs_v_i, Sequence):
-                        full_bcs_v[(i)] = (bcs_v_i, )
-                    else:
-                        full_bcs_v[(i)] = tuple(bcs_v_i)
-            self._bcs_v = full_bcs_v
-
-            # auxiliary space
-            flattened_space_v = tuple(self._space_v for i in range(n_t))
-            full_space_v = MixedFunctionSpace(flattened_space_v)
-
-            # constructing new solutions
-            v = Function(full_space_v, name="v")
-            if self._initial_condition is not None:
-                v_test = TestFunction(self._space_v)
-                v.zero()
-                v.sub(0).assign(self._initial_condition(v_test))
-            for i in range(n_t):
-                bcs_v_i = full_bcs_v[(i)]
-                apply_bcs(bcs_v_i, v.sub(i))
-
-            zeta = Function(full_space_v, name="zeta")
-
-            self._v = v
-            self._zeta = zeta
-
-            if self._space_p is not None:
-                if not self._CN:
-                    flattened_space_p = tuple(
-                        self._space_p for i in range(n_t))
-                else:
-                    flattened_space_p = tuple(
-                        self._space_p for i in range(n_t - 1))
-
-                full_space_p = MixedFunctionSpace(flattened_space_p)
-
-                p = Function(full_space_p, name="p")
-                mu = Function(full_space_p, name="mu")
-
-                self._p = p
-                self._mu = mu
-
-        def set_bcs_v(self, bcs_v, space_v=None):
-            """Modifying the boundary conditions on the state.
-
-            Input:
-                - bcs_v        new boundary conditions
-
-                - space_v      if one wishes to change also the
-                               space of the solution
-            """
-            if space_v is None:
-                self._f_bcs_v = bcs_v
-
-                full_bcs_v = {}
-                if bcs_v is None:
-                    for i in range(self._n_t):
-                        full_bcs_v[(i)] = ()
-                else:
-                    t_0 = self._time_interval[0]
-                    T_f = self._time_interval[1]
-                    tau = (T_f - t_0) / (self._n_t - 1.0)
-
-                    t = t_0
-                    bcs_v_i = bcs_v(self._space_v, Constant(t))
-                    if not isinstance(bcs_v_i, Sequence):
-                        full_bcs_v[(0)] = (bcs_v_i, )
-                    else:
-                        full_bcs_v[(0)] = tuple(bcs_v_i)
-
-                    for i in range(1, self._n_t):
-                        t += tau
-                        bcs_v_i = bcs_v(self._space_v, Constant(t))
-                        if not isinstance(bcs_v_i, Sequence):
-                            full_bcs_v[(i)] = (bcs_v_i, )
-                        else:
-                            full_bcs_v[(i)] = tuple(bcs_v_i)
-                self._bcs_v = full_bcs_v
-
-                for i in range(self._n_t):
-                    bcs_v_i = full_bcs_v[(i)]
-                    apply_bcs(bcs_v_i, self._v.sub(i))
-
-                bcs_zeta = homogenize(self._bcs_v[(1)])
-                for i in range(self._n_t):
-                    apply_bcs(bcs_zeta, self._zeta.sub(i))
-            else:
-                self._set_space_v(space_v, bcs_v_new=True, bcs_v=bcs_v)
-
-        def set_Gauss_Newton(self, Gauss_Newton=True):
-            """Modifying the non-linear iteration.
-
-            Input:
-                - Gauss_Newton        if True, Gauss--Newton is applied,
-                                      otherwise a Picard linearization is
-                                      adopted
-            """
-            self._Gauss_Newton = Gauss_Newton
+            self._space_p = space_p
+            self._p = Function(full_space_p, name="p")
+            self._mu = Function(full_space_p, name="mu")
+            p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
+            self._M_p = self._M_mu = inner(p_trial, p_test) * dx
 
         def set_v(self, v_new):
-            """Modifying the approximation of the state solution.
-
+            """
             Input:
                 - v_new        new approximation of the state solution
             """
-            if v_new.function_space() != self._v.function_space():
-                raise ValueError("Unexpected space")
-            else:
-                self._v.assign(v_new)
-                for i in range(self._n_t):
-                    bcs_v_i = self._bcs_v[(i)]
-                    apply_bcs(bcs_v_i, self._v.sub(i))
+
+            self._v.assign(v_new)
+            for i in range(self._n_t):
+                apply_bcs(self._bcs_v[i], self._v.sub(i))
 
         def set_zeta(self, zeta_new):
-            """Modifying the approximation of the adjoint solution.
-
+            """
             Input:
                 - zeta_new        new approximation of the adjoint solution
             """
-            if zeta_new.function_space() != self._zeta.function_space():
-                raise ValueError("Unexpected space")
-            else:
-                self._zeta.assign(zeta_new)
-                bcs_zeta = homogenize(self._bcs_v[(1)])
-                for i in range(self._n_t):
-                    apply_bcs(bcs_zeta, self._zeta.sub(i))
+
+            self._zeta.assign(zeta_new)
+            for i in range(self._n_t):
+                apply_bcs(homogenize(self._bcs_v[1]), self._zeta.sub(i))
 
         def set_p(self, p_new):
-            """Modifying the approximation of the pressure state solution.
-
+            """
             Input:
                 - p_new        new approximation of the pressure state solution
             """
-            if self._space_p is not None:
-                if p_new.function_space() != self._p.function_space():
-                    raise ValueError("Unexpected space")
-                else:
-                    self._p.assign(p_new)
-            else:
-                raise ValueError("Undefined space_p: unable to assign value")
+
+            self._p.assign(p_new)
 
         def set_mu(self, mu_new):
-            """Modifying the approximation of the pressure adjoint solution.
-
+            """
             Input:
                 - mu_new        new approximation of the pressure adjoint
                                 solution
             """
-            if self._space_p is not None:
-                if mu_new.function_space() != self._mu.function_space():
-                    raise ValueError("Unexpected space")
-                else:
-                    self._mu.assign(mu_new)
-            else:
-                raise ValueError("Undefined space_p: unable to assign value")
+
+            self._mu.assign(mu_new)
 
         def print_error(self, tau):
             """Print the difference in the discretized L^2-norm
