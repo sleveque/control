@@ -491,52 +491,39 @@ class Control:
 
             v_test, v_trial = TestFunction(self.space_v), TrialFunction(self.space_v)
 
-            inhomogeneous_bcs_v = False
-            for bc in self._bcs_v:
-                if not isinstance(bc.function_arg, ufl.classes.Zero):
-                    inhomogeneous_bcs_v = True
-
+            inhomogeneous_bcs_v = any((not isinstance(bc.function_arg, ufl.classes.Zero)) for bc in self._bcs_v)
             if inhomogeneous_bcs_v:
+                v_inhom = Function(self.space_v)
+                apply_bcs(self._bcs_v, v_inhom)
                 bcs_v = homogenize(self._bcs_v)
-                bcs_v_help = self._bcs_v
             else:
+                v_inhom = None
                 bcs_v = self._bcs_v
             bcs_zeta = bcs_v
 
-            # construction of nullspaces
             nullspace_v = DirichletBCNullspace(bcs_v)
             nullspace_zeta = DirichletBCNullspace(bcs_zeta)
 
-            # construction of the blocks of the matrix
-            v_old = Function(self.space_v, name="v_old")
-            v_old.assign(self._v)
-
+            v_old = Function(self.space_v, name="v_old").assign(self._v)
             D_v = self.construct_D_v(v_trial, v_test, v_old)
             D_zeta = adjoint(D_v)
 
-            # construction of the right-hand side
-            if inhomogeneous_bcs_v:
-                v_inhom = Function(self.space_v)
-                apply_bcs(bcs_v_help, v_inhom)
-            else:
-                v_inhom = None
-
             if f is None:
-                f = self.construct_f(inhomogeneous_bcs_v, v_test,
-                                     D_v, v_inhom, bcs_v)
-
+                f = self.construct_f(inhomogeneous_bcs_v, v_test, D_v, v_inhom, bcs_v)
             if v_d is None:
-                v_d = self.construct_v_d(v_test, inhomogeneous_bcs_v,
-                                         v_inhom, bcs_v)
-
-            # construction of the preconditioner
+                v_d = self.construct_v_d(v_test, inhomogeneous_bcs_v, v_inhom, bcs_v)
+            if solver_parameters is None:
+                solver_parameters = {"linear_solver": "gmres",
+                                     "gmres_restart": 10,
+                                     "maximum_iterations": 50,
+                                     "relative_tolerance": 1.0e-6,
+                                     "absolute_tolerance": 0.0,
+                                     "monitor_convergence": True}
             if P is None:
-                pc_fn = self.construct_pc(auxiliary_sp,
-                                          bcs_v, bcs_zeta, D_v, D_zeta)
+                pc_fn = self.construct_pc(auxiliary_sp, bcs_v, bcs_zeta, D_v, D_zeta)
             else:
                 pc_fn = P(self, D_zeta, D_v, bcs_v, bcs_zeta)
 
-            # building the system to be solved
             block_00 = {}
             block_00[(0, 0)] = self._M_v
             block_01 = {}
@@ -545,36 +532,20 @@ class Control:
             block_10[(0, 0)] = D_v
             block_11 = {}
             block_11[(0, 0)] = -(1.0 / self.beta) * self._M_zeta
-
             system = MultiBlockSystem(
                 self.space_v, self.space_v,
                 block_00=block_00, block_01=block_01,
                 block_10=block_10, block_11=block_11,
                 nullspace_0=(nullspace_v,), nullspace_1=(nullspace_zeta,))
 
-            # setting solver parameters
-            if solver_parameters is None:
-                solver_parameters = {"linear_solver": "gmres",
-                                     "gmres_restart": 10,
-                                     "maximum_iterations": 50,
-                                     "relative_tolerance": 1.0e-6,
-                                     "absolute_tolerance": 0.0,
-                                     "monitor_convergence": True}
-
             v = Function(self.space_v, name="v")
             zeta = Function(self.space_v, name="zeta")
-
-            # solving the system
             system.solve(
                 v, zeta, v_d, f,
                 solver_parameters=solver_parameters,
                 pc_fn=pc_fn)
-
-            # applying bcs
             if inhomogeneous_bcs_v:
                 v += v_inhom
-
-            # updating solutions
             self.set_v(v)
             self.set_zeta(zeta)
 
@@ -582,10 +553,8 @@ class Control:
 
             if create_output:
                 output({"v": v, "zeta": zeta})
-
             if plots:
                 plot(v, zeta, self._true_v)
-
             if print_error:
                 self.print_error()
 
