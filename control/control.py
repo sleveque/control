@@ -2,7 +2,7 @@ from firedrake import (
     CheckpointFile, Cofunction, Constant, Function, FunctionSpace,
     LinearSolver, MixedFunctionSpace, TestFunction, TrialFunction,
     ZeroBaseForm, action, adjoint, assemble, div, dx, grad, homogenize, inner,
-    sqrt, tripcolor
+    norm, sqrt, tripcolor
 )
 from firedrake.functionspaceimpl import WithGeometry as FunctionSpaceBase
 from firedrake.output import VTKFile as File
@@ -215,13 +215,12 @@ class Control:
             self._mu.assign(mu_new)
 
         def print_error(self):
-            """Print the difference in the discretized L^2-norm
-            between the numerical solution and the desired state.
+            """Print L^2 norm of the difference between the numerical solution
+            and the desired state.
             """
-            v_err = self._v - self._true_v
 
-            error = sqrt(abs(assemble(inner(v_err, v_err) * dx)))
-            print(f'Estimated error in the L2-norm: {error:.16e}')
+            error_norm = norm(self._v - self._true_v, norm_type="L2")
+            print(f'Estimated error in the L2-norm: {error_norm:.16e}')
 
         def construct_D_v(self, v_trial, v_test, v_old, *,
                           non_linear_res=False):
@@ -1570,13 +1569,12 @@ class Control:
             self._mu.assign(mu_new)
 
         def print_error(self, tau):
-            """Print the difference in the discretized L^2-norm
-            between the numerical solution and the desired state.
+            """Print L^2 norm of the difference between the numerical solution
+            and the desired state.
             """
-            v_err = self._true_v - self._v
-            error = sqrt(tau) * sqrt(abs(assemble(inner(v_err, v_err) * dx)))
 
-            print(f'Estimated error in the L2-norm: {error:.16e}')
+            error_norm = sqrt(tau) * norm(self._true_v - self._v, norm_type="L2")
+            print(f'Estimated error in the L2-norm: {error_norm:.16e}')
 
         def construct_D_v(self, v_trial, v_test, v_n_help, t, *,
                           non_linear_res=False):
