@@ -239,6 +239,7 @@ class Control:
             Output:
                 - D_v                   discretized forward form
             """
+
             if (not self._Gauss_Newton) or non_linear_res:
                 # if Gauss--Newton is not applied or we want to
                 # evaluate the residual, we take the Picard linearization
@@ -247,11 +248,9 @@ class Control:
             else:
                 # if we want to apply Gauss--Newton, we take the
                 # derivative of the form in the direction of v_old
-                D_v = ufl.derivative(self._forward_form(v_old,
-                                                        v_test,
-                                                        v_old),
-                                     v_old,
-                                     v_trial)
+                D_v = ufl.derivative(
+                    self._forward_form(v_old, v_test, v_old),
+                    v_old, v_trial)
 
             return D_v
 
@@ -278,14 +277,13 @@ class Control:
             Output:
                 - f                          discretized force function
             """
+
             if inhomogeneous_bcs_v:
                 f = assemble(self._force_function(v_test)
                              - action(D_v, v_inhom))
             else:
                 f = assemble(self._force_function(v_test))
-
             apply_bcs(bcs_v, f)
-
             return f
 
         def construct_v_d(self, v_test, inhomogeneous_bcs_v, v_inhom, bcs_v):
@@ -308,16 +306,15 @@ class Control:
             Output:
                 - v_d                        discretized desired state
             """
-            v_d, true_v = self._desired_state(v_test)
-            self._true_v = true_v
 
+            v_d, true_v = self._desired_state(v_test)
             if inhomogeneous_bcs_v:
                 v_d = assemble(v_d - action(self._M_v, v_inhom))
             else:
                 v_d = assemble(v_d)
-
             apply_bcs(bcs_v, v_d)
 
+            self._true_v = true_v
             return v_d
 
         def construct_pc(self, auxiliary_sp,
@@ -1513,6 +1510,9 @@ class Control:
         def comm(self):
             return self._space_v.mesh().comm
 
+        def time(self, i):
+            return time(self._time_interval, i, self._n_t)
+
         def set_space_p(self, space_p):
             """
             Input:
@@ -1596,6 +1596,7 @@ class Control:
             Output:
                 - D_v                   discretized forward form
             """
+
             if (not self._Gauss_Newton) or non_linear_res:
                 # if Gauss--Newton is not applied or we want to
                 # evaluate the residual, we take the Picard linearization
@@ -1606,8 +1607,7 @@ class Control:
                 # derivative of the form in the direction of v_n_help
                 D_v_i = ufl.derivative(
                     self._forward_form(v_n_help, v_test, v_n_help, t),
-                    v_n_help,
-                    v_trial)
+                    v_n_help, v_trial)
 
             return D_v_i
 
@@ -1622,23 +1622,11 @@ class Control:
             Output:
                 - f                   discretized force function
             """
+
             f = Cofunction(full_space_v.dual(), name="f")
-
-            n_t = self._n_t
-            t_0 = self._time_interval[0]
-            T_f = self._time_interval[1]
-
-            tau = (T_f - t_0) / (n_t - 1.0)
-
-            t = t_0
-            f.sub(0).assign(
-                assemble(self._force_function(v_test, Constant(t))))
-
-            for i in range(1, n_t):
-                t += tau
+            for i in range(self._n_t):
                 f.sub(i).assign(
-                    assemble(self._force_function(v_test, Constant(t))))
-
+                    assemble(self._force_function(v_test, Constant(self.time(i)))))
             return f
 
         def construct_v_d(self, full_space_v, v_test):
@@ -1652,28 +1640,15 @@ class Control:
             Output:
                 - v_d                 discretized desired state
             """
+
             v_d = Cofunction(full_space_v.dual(), name="v_d")
             true_v = Function(full_space_v, name="true_v")
-
-            n_t = self._n_t
-            t_0 = self._time_interval[0]
-            T_f = self._time_interval[1]
-
-            tau = (T_f - t_0) / (n_t - 1.0)
-
-            t = t_0
-            v_d_i, true_v_i = self._desired_state(v_test, Constant(t))
-            v_d.sub(0).assign(assemble(v_d_i))
-            true_v.sub(0).assign(true_v_i)
-
-            for i in range(1, n_t):
-                t += tau
-                v_d_i, true_v_i = self._desired_state(v_test, Constant(t))
+            for i in range(self._n_t):
+                v_d_i, true_v_i = self._desired_state(v_test, Constant(self.time(i)))
                 v_d.sub(i).assign(assemble(v_d_i))
                 true_v.sub(i).assign(true_v_i)
 
             self._true_v = true_v
-
             return v_d
 
         def construct_pc(self, auxiliary_sp, full_space_v,
