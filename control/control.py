@@ -177,6 +177,10 @@ class Control:
         def comm(self):
             return self._space_v.mesh().comm
 
+        @property
+        def beta(self):
+            return self._beta
+
         def set_space_p(self, space_p):
             """
             Input:
@@ -351,7 +355,6 @@ class Control:
                 - pc_linear           preconditioner to employ within Krylov
                                       method
             """
-            beta = self._beta
 
             # solver parameters for the (1,1)-block
             if "sp_11block" in auxiliary_sp:
@@ -382,12 +385,12 @@ class Control:
                 solver_parameters=sp_11block)
 
             solver_1 = LinearSolver(
-                assemble(D_v + (1.0 / beta**0.5) * self._M_v,
+                assemble(D_v + (1.0 / self.beta**0.5) * self._M_v,
                          bcs=bcs_zeta),
                 solver_parameters=sp_Schur)
 
             solver_2 = LinearSolver(
-                assemble(D_zeta + (1.0 / beta**0.5) * self._M_zeta,
+                assemble(D_zeta + (1.0 / self.beta**0.5) * self._M_zeta,
                          bcs=bcs_zeta),
                 solver_parameters=sp_Schur)
 
@@ -530,8 +533,6 @@ class Control:
             nullspace_v = DirichletBCNullspace(bcs_v)
             nullspace_zeta = DirichletBCNullspace(bcs_zeta)
 
-            beta = self._beta
-
             # construction of the blocks of the matrix
             v_old = Function(space_v, name="v_old")
             v_old.assign(self._v)
@@ -569,7 +570,7 @@ class Control:
             block_10 = {}
             block_10[(0, 0)] = D_v
             block_11 = {}
-            block_11[(0, 0)] = -(1.0 / beta) * self._M_zeta
+            block_11[(0, 0)] = -(1.0 / self.beta) * self._M_zeta
 
             system = MultiBlockSystem(
                 space_v, space_v,
@@ -668,8 +669,6 @@ class Control:
                 bcs_v = self._bcs_v
             bcs_zeta = bcs_v
 
-            beta = self._beta
-
             v_old = Function(space_v, name="v_old")
             zeta_old = Function(space_v, name="zeta_old")
             delta_v = Function(space_v, name="delta_v")
@@ -682,7 +681,7 @@ class Control:
             D_v = self.construct_D_v(
                 v_trial, v_test, v_old, non_linear_res=True)
             D_zeta = adjoint(D_v)
-            M_zeta = -(1.0 / beta) * self._M_zeta
+            M_zeta = -(1.0 / self.beta) * self._M_zeta
 
             # construction of the force function and the
             # desired state
@@ -867,13 +866,11 @@ class Control:
             space_1 = FunctionSpace(
                 space_p.mesh(), space_p.ufl_element() * space_p.ufl_element())
 
-            beta = self._beta
-
             v_old = Function(space_v, name="v_old")
             v_old.assign(self._v)
 
             # construction of discretized forward and adjoint operators
-            M_zeta = -(1.0 / beta) * self._M_zeta
+            M_zeta = -(1.0 / self.beta) * self._M_zeta
             D_v = self.construct_D_v(v_trial, v_test, v_old)
             D_zeta = adjoint(D_v)
 
@@ -999,9 +996,9 @@ class Control:
                     p_trial, p_test, v_old, non_linear_res=True)
                 block_01_p = adjoint(block_10_p)
                 if self._M_mu is not None:
-                    block_11_p = - (1.0 / beta) * self._M_mu
+                    block_11_p = - (1.0 / self.beta) * self._M_mu
                 else:
-                    block_11_p = - (1.0 / beta) * inner(p_trial, p_test) * dx
+                    block_11_p = - (1.0 / self.beta) * inner(p_trial, p_test) * dx
 
                 # construction of inner system (coupled velocities)
                 self._inner_system = MultiBlockSystem(
@@ -1219,8 +1216,6 @@ class Control:
                 bcs_v = self._bcs_v
             bcs_zeta = bcs_v
 
-            beta = self._beta
-
             v_old = Function(space_v, name="v_old")
             zeta_old = Function(space_v, name="zeta_old")
             delta_v = Function(space_v, name="delta_v")
@@ -1240,7 +1235,7 @@ class Control:
             D_v = self.construct_D_v(
                 v_trial, v_test, v_old, non_linear_res=True)
             D_zeta = adjoint(D_v)
-            M_zeta = -(1.0 / beta) * self._M_zeta
+            M_zeta = -(1.0 / self.beta) * self._M_zeta
 
             B = - inner(div(v_trial), p_test) * dx
             B_T = - inner(p_trial, div(v_test)) * dx
@@ -1467,6 +1462,10 @@ class Control:
         def comm(self):
             return self._space_v.mesh().comm
 
+        @property
+        def beta(self):
+            return self._beta
+
         def time(self, i):
             return time(self._time_interval, i, self._n_t)
 
@@ -1640,7 +1639,6 @@ class Control:
             """
             space_v = self._space_v
             n_t = self._n_t
-            beta = self._beta
             t_0 = self._time_interval[0]
             T_f = self._time_interval[1]
 
@@ -1682,7 +1680,7 @@ class Control:
             if self._CN:
                 # building the solvers for the preconditioner for the
                 # trapezoidal rule
-                my_const = 0.5 * Constant(tau / (beta**0.5))
+                my_const = 0.5 * Constant(tau / (self.beta**0.5))
 
                 for i in range(n_t - 1):
                     block_ii = block_10[(i, i)]
@@ -1706,7 +1704,7 @@ class Control:
             else:
                 # building the solvers for the preconditioner for
                 # backward Euler
-                my_const = Constant(tau / (beta**0.5))
+                my_const = Constant(tau / (self.beta**0.5))
 
                 block_ii = block_10[(0, 0)]
                 solver_i_state = LinearSolver(
@@ -2029,7 +2027,6 @@ class Control:
             """
             space_v = self._space_v
             n_t = self._n_t
-            beta = self._beta
             t_0 = self._time_interval[0]
             T_f = self._time_interval[1]
 
@@ -2108,7 +2105,7 @@ class Control:
                 b_help = Function(space_v)
                 b_help.assign(zeta_old.sub(n_t - 1))
                 b = assemble(
-                    action(Constant(tau / beta) * self._M_zeta, b_help))
+                    action(Constant(tau / self.beta) * self._M_zeta, b_help))
                 with b.dat.vec_ro as b_v, \
                         rhs_1.sub(n_t - 1).dat.vec as b_1_v:
                     b_1_v.axpy(1.0, b_v)
@@ -2170,7 +2167,7 @@ class Control:
 
                     b_help = Function(space_v)
                     b_help.assign(zeta_old.sub(i))
-                    b = assemble(action(Constant(tau / beta) * self._M_zeta,
+                    b = assemble(action(Constant(tau / self.beta) * self._M_zeta,
                                         b_help))
                     with b.dat.vec_ro as b_v, \
                             rhs_1.sub(i).dat.vec as b_1_v:
@@ -2239,7 +2236,7 @@ class Control:
 
                 b_help = Function(space_v)
                 b_help.assign(zeta_old.sub(0))
-                b = assemble(action(Constant(0.5 * tau / beta) * self._M_zeta,
+                b = assemble(action(Constant(0.5 * tau / self.beta) * self._M_zeta,
                                     b_help))
                 with b.dat.vec_ro as b_v, \
                         rhs_1.sub(0).dat.vec as b_1_v:
@@ -2247,7 +2244,7 @@ class Control:
 
                 b_help = Function(space_v)
                 b_help.assign(zeta_old.sub(1))
-                b = assemble(action(Constant(0.5 * tau / beta) * self._M_zeta,
+                b = assemble(action(Constant(0.5 * tau / self.beta) * self._M_zeta,
                                     b_help))
                 with b.dat.vec_ro as b_v, \
                         rhs_1.sub(0).dat.vec as b_1_v:
@@ -2325,7 +2322,7 @@ class Control:
                     b_help = Function(space_v)
                     b_help.assign(zeta_old.sub(i))
                     b = assemble(action(
-                        Constant(0.5 * tau / beta) * self._M_zeta,
+                        Constant(0.5 * tau / self.beta) * self._M_zeta,
                         b_help))
                     with b.dat.vec_ro as b_v, \
                             rhs_1.sub(i).dat.vec as b_1_v:
@@ -2334,7 +2331,7 @@ class Control:
                     b_help = Function(space_v)
                     b_help.assign(zeta_old.sub(i + 1))
                     b = assemble(action(
-                        Constant(0.5 * tau / beta) * self._M_zeta,
+                        Constant(0.5 * tau / self.beta) * self._M_zeta,
                         b_help))
                     with b.dat.vec_ro as b_v, \
                             rhs_1.sub(i).dat.vec as b_1_v:
@@ -2386,8 +2383,6 @@ class Control:
             t_0 = self._time_interval[0]
             T_f = self._time_interval[1]
             tau = (T_f - t_0) / (n_t - 1.0)
-
-            beta = self._beta
 
             if not self._CN:
                 epsilon = Constant(1.0e-3)
@@ -2483,7 +2478,7 @@ class Control:
                             block_00[(i, j)] = None
                             block_01[(i, j)] = -M_v
                             block_10[(i, j)] = None
-                            block_11[(i + 1, j)] = - Constant(tau / beta) * self._M_zeta
+                            block_11[(i + 1, j)] = - Constant(tau / self.beta) * self._M_zeta
                         else:
                             block_00[(i, j)] = None
                             block_01[(i, j)] = None
@@ -2508,12 +2503,12 @@ class Control:
                             block_00[(i, j)] = Constant(0.5 * tau) * self._M_v
                             block_01[(i, j)] = Constant(0.5 * tau) * D_zeta_i + M_v
                             block_10[(i, j)] = Constant(0.5 * tau) * D_v_i_plus + M_v
-                            block_11[(i, j)] = Constant(-0.5 * tau / beta) * self._M_zeta
+                            block_11[(i, j)] = Constant(-0.5 * tau / self.beta) * self._M_zeta
                         elif j == i + 1:
                             block_00[(i, j)] = None
                             block_01[(i, j)] = Constant(0.5 * tau) * D_zeta_i_plus - M_v
                             block_10[(i, j)] = None
-                            block_11[(i, j)] = Constant(-0.5 * tau / beta) * self._M_zeta
+                            block_11[(i, j)] = Constant(-0.5 * tau / self.beta) * self._M_zeta
                         else:
                             block_00[(i, j)] = None
                             block_01[(i, j)] = None
@@ -3122,8 +3117,6 @@ class Control:
             T_f = self._time_interval[1]
             tau = (T_f - t_0) / (n_t - 1.0)
 
-            beta = self._beta
-
             if not self._CN:
                 epsilon = Constant(1.0e-3)
 
@@ -3244,9 +3237,9 @@ class Control:
                     else:
                         block_00_p = Constant(0.5 * tau) * inner(p_trial, p_test) * dx
                     if self._M_mu is not None:
-                        block_11_p = - Constant(0.5 * (tau / beta)) * self._M_mu
+                        block_11_p = - Constant(0.5 * (tau / self.beta)) * self._M_mu
                     else:
-                        block_11_p = - Constant(0.5 * (tau / beta)) * inner(p_trial, p_test) * dx
+                        block_11_p = - Constant(0.5 * (tau / self.beta)) * inner(p_trial, p_test) * dx
                 else:
                     if self._M_p is not None:
                         block_00_p = Constant(tau) * self._M_p
@@ -3254,9 +3247,9 @@ class Control:
                         block_00_p = Constant(tau) * inner(p_trial,
                                                            p_test) * dx
                     if self._M_mu is not None:
-                        block_11_p = - Constant(tau / beta) * self._M_mu
+                        block_11_p = - Constant(tau / self.beta) * self._M_mu
                     else:
-                        block_11_p = - Constant(tau / beta) * inner(p_trial, p_test) * dx
+                        block_11_p = - Constant(tau / self.beta) * inner(p_trial, p_test) * dx
 
                 K_p = inner(grad(p_trial), grad(p_test)) * dx
                 M_p = inner(p_trial, p_test) * dx
@@ -3337,12 +3330,12 @@ class Control:
                             block_00[(i, j)] = None
                             block_00[(i, n_t + j)] = -M_v
                             block_00[(n_t + i, j)] = None
-                            block_00[(n_t + i + 1, n_t + j)] = - Constant(tau / beta) * self._M_zeta
+                            block_00[(n_t + i + 1, n_t + j)] = - Constant(tau / self.beta) * self._M_zeta
 
                             block_00_int[(i, j)] = None
                             block_01_int[(i, j)] = -M_v
                             block_10_int[(i, j)] = None
-                            block_11_int[(i + 1, j)] = - Constant(tau / beta) * self._M_zeta
+                            block_11_int[(i + 1, j)] = - Constant(tau / self.beta) * self._M_zeta
 
                             if P is None:
                                 block_01_int_p[(i, j)] = -M_p
@@ -3391,12 +3384,12 @@ class Control:
                             block_00[(i, j)] = Constant(0.5 * tau) * self._M_v
                             block_00[(i, n_t + j - 1)] = Constant(0.5 * tau) * D_zeta_i + M_v
                             block_00[(n_t + i - 1, j)] = Constant(0.5 * tau) * D_v_i_plus + M_v
-                            block_00[(n_t + i - 1, n_t + j - 1)] = - Constant(0.5 * (tau / beta)) * self._M_zeta
+                            block_00[(n_t + i - 1, n_t + j - 1)] = - Constant(0.5 * (tau / self.beta)) * self._M_zeta
 
                             block_00_int[(i, j)] = Constant(0.5 * tau) * self._M_v
                             block_01_int[(i, j)] = Constant(0.5 * tau) * D_zeta_i + M_v
                             block_10_int[(i, j)] = Constant(0.5 * tau) * D_v_i_plus + M_v
-                            block_11_int[(i, j)] = - Constant(0.5 * (tau / beta)) * self._M_zeta
+                            block_11_int[(i, j)] = - Constant(0.5 * (tau / self.beta)) * self._M_zeta
 
                             if P is None:
                                 block_00_int_p[(i, j)] = block_00_p
@@ -3407,12 +3400,12 @@ class Control:
                             block_00[(i, j)] = None
                             block_00[(i, n_t + j - 1)] = Constant(0.5 * tau) * D_zeta_i_plus - M_v
                             block_00[(n_t + i - 1, j)] = None
-                            block_00[(n_t + i - 1, n_t + j - 1)] = - Constant(0.5 * (tau / beta)) * self._M_zeta
+                            block_00[(n_t + i - 1, n_t + j - 1)] = - Constant(0.5 * (tau / self.beta)) * self._M_zeta
 
                             block_00_int[(i, j)] = None
                             block_01_int[(i, j)] = Constant(0.5 * tau) * D_zeta_i_plus - M_v
                             block_10_int[(i, j)] = None
-                            block_11_int[(i, j)] = - Constant(0.5 * (tau / beta)) * self._M_zeta
+                            block_11_int[(i, j)] = - Constant(0.5 * (tau / self.beta)) * self._M_zeta
 
                             if P is None:
                                 block_01_int_p[(i, j)] = Constant(0.5 * tau) * D_mu_i_plus - M_p
