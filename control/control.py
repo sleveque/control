@@ -75,6 +75,18 @@ def output(data):
             h.save_function(u)
 
 
+def axpy(y, alpha, x):
+    if isinstance(x, ufl.classes.BaseForm):
+        x = assemble(x)
+    with x.dat.vec_ro as x_v, y.dat.vec as y_v:
+        y_v.axpy(alpha, x_v)
+
+
+def vnorm(u):
+    with u.dat.vec_ro as u_v:
+        return u_v.norm()
+
+
 def time(time_interval, i, n_t):
     t_0, t_1 = time_interval
     # Linearly interpolate
@@ -392,9 +404,7 @@ class Control:
 
                 # u_1 = - b_1 + D_v * u_0
                 b = assemble(action(D_v, u_0))
-                with b.dat.vec as b_v, \
-                        b_1.dat.vec_ro as b_1_v:
-                    b_v.axpy(-1.0, b_1_v)
+                axpy(b, -1, b_1)
 
                 # solving for the Schur complement approximation
                 # first solve
@@ -452,24 +462,12 @@ class Control:
             rhs_1.assign(f)
 
             # evaluating non-linear residual (adjoint equation)
-            b = assemble(action(self._M_v, v_old))
-            with b.dat.vec_ro as b_v, \
-                    rhs_0.dat.vec as b_1_v:
-                b_1_v.axpy(-1.0, b_v)
-            b = assemble(action(D_zeta, zeta_old))
-            with b.dat.vec_ro as b_v, \
-                    rhs_0.dat.vec as b_1_v:
-                b_1_v.axpy(-1.0, b_v)
+            axpy(rhs_0, -1, action(self._M_v, v_old))
+            axpy(rhs_0, -1, action(D_zeta, zeta_old))
 
             # evaluating non-linear residual (state equation)
-            b = assemble(action(D_v, v_old))
-            with b.dat.vec_ro as b_v, \
-                    rhs_1.dat.vec as b_1_v:
-                b_1_v.axpy(-1.0, b_v)
-            b = assemble(action(M_zeta, zeta_old))
-            with b.dat.vec_ro as b_v, \
-                    rhs_1.dat.vec as b_1_v:
-                b_1_v.axpy(-1.0, b_v)
+            axpy(rhs_1, -1, action(D_v, v_old))
+            axpy(rhs_1, -1, action(M_zeta, zeta_old))
 
             # applying bcs
             apply_bcs(bcs_v, rhs_0)
@@ -599,9 +597,7 @@ class Control:
 
             # applying bcs
             if inhomogeneous_bcs_v:
-                with v.dat.vec as b_v, \
-                        v_inhom.dat.vec_ro as b_1_v:
-                    b_v.axpy(1.0, b_1_v)
+                axpy(v, 1, v_inhom)
 
             # updating solutions
             self.set_v(v)
@@ -706,8 +702,7 @@ class Control:
             rhs.sub(1).assign(rhs_1)
 
             # initial norm of non-linear residual
-            with rhs.dat.vec_ro as b_v:
-                norm_0 = b_v.norm()
+            norm_0 = vnorm(rhs)
             norm_k = norm_0
 
             k = 0
@@ -727,17 +722,13 @@ class Control:
                 delta_zeta.assign(self._zeta)
 
                 # updating the state solution
-                with delta_v.dat.vec_ro as b_v, \
-                        v_old.dat.vec as b_1_v:
-                    b_1_v.axpy(1.0, b_v)
+                axpy(v_old, 1, delta_v)
                 if inhomogeneous_bcs_v:
                     apply_bcs(bcs_v_help, v_old)
                 self.set_v(v_old)
 
                 # updating the adjoint solution
-                with delta_zeta.dat.vec_ro as b_v, \
-                        zeta_old.dat.vec as b_1_v:
-                    b_1_v.axpy(1.0, b_v)
+                axpy(zeta_old, 1, delta_zeta)
                 apply_bcs(bcs_zeta, zeta_old)
                 self.set_zeta(zeta_old)
 
@@ -755,8 +746,7 @@ class Control:
                 rhs.sub(1).assign(rhs_1)
 
                 # norm of non-linear residual
-                with rhs.dat.vec_ro as b_v:
-                    norm_k = b_v.norm()
+                norm_k = vnorm(rhs)
 
                 k += 1
 
@@ -1063,12 +1053,8 @@ class Control:
                     b_1_help = Cofunction(space_p.dual())
                     b_0_help.assign(assemble(action(B, v_help)))
                     b_1_help.assign(assemble(action(B, zeta_help)))
-                    with b_0_help.dat.vec as b_v, \
-                            b_1.sub(0).dat.vec_ro as b_1_v:
-                        b_v.axpy(-1.0, b_1_v)
-                    with b_1_help.dat.vec as b_v, \
-                            b_1.sub(1).dat.vec_ro as b_1_v:
-                        b_v.axpy(-1.0, b_1_v)
+                    axpy(b_0_help, -1, b_1.sub(0))
+                    axpy(b_1_help, -1, b_1.sub(1))
 
                     # solving for the Schur complement approximation (apply
                     # block-pressure convection--diffusion preconditioner)
@@ -1133,9 +1119,7 @@ class Control:
 
             # applying boundary conditions on state variable
             if inhomogeneous_bcs_v:
-                with v.dat.vec as b_v, \
-                        v_inhom.dat.vec_ro as b_1_v:
-                    b_v.axpy(1.0, b_1_v)
+                axpy(v, 1, v_inhom)
 
             p.assign(u_1_sol.sub(1))
             mu.assign(u_1_sol.sub(0))
@@ -1284,27 +1268,10 @@ class Control:
 
                 rhs_00.assign(rhs_0)
                 rhs_01.assign(rhs_1)
-
-                b = assemble(action(B_T, mu_old))
-                with b.dat.vec_ro as b_v, \
-                        rhs_00.dat.vec as b_1_v:
-                    b_1_v.axpy(-1.0, b_v)
-
-                b = assemble(action(B_T, p_old))
-                with b.dat.vec_ro as b_v, \
-                        rhs_01.dat.vec as b_1_v:
-                    b_1_v.axpy(-1.0, b_v)
-
-                b = assemble(action(B, v_old))
-                with b.dat.vec_ro as b_v, \
-                        rhs_10.dat.vec as b_1_v:
-                    b_1_v.axpy(-1.0, b_v)
-
-                b = assemble(action(B, zeta_old))
-                with b.dat.vec_ro as b_v, \
-                        rhs_11.dat.vec as b_1_v:
-                    b_1_v.axpy(-1.0, b_v)
-
+                axpy(rhs_00, -1, action(B_T, mu_old))
+                axpy(rhs_01, -1, action(B_T, p_old))
+                axpy(rhs_10, -1, action(B, v_old))
+                axpy(rhs_11, -1, action(B, zeta_old))
                 apply_bcs(bcs_v, rhs_00)
                 apply_bcs(bcs_zeta, rhs_01)
 
@@ -1320,8 +1287,7 @@ class Control:
             rhs.sub(3).assign(rhs_11)
 
             # initial norm of the non-linear residual
-            with rhs.dat.vec_ro as b_v:
-                norm_0 = b_v.norm()
+            norm_0 = vnorm(rhs)
             norm_k = norm_0
 
             k = 0
@@ -1344,27 +1310,19 @@ class Control:
                 delta_mu.assign(self._mu)
 
                 # updating the solutions
-                with delta_v.dat.vec_ro as b_v, \
-                        v_old.dat.vec as b_1_v:
-                    b_1_v.axpy(1.0, b_v)
+                axpy(v_old, 1, delta_v)
                 if inhomogeneous_bcs_v:
                     apply_bcs(bcs_v_help, v_old)
                 self.set_v(v_old)
 
-                with delta_zeta.dat.vec_ro as b_v, \
-                        zeta_old.dat.vec as b_1_v:
-                    b_1_v.axpy(1.0, b_v)
+                axpy(zeta_old, 1, delta_zeta)
                 apply_bcs(bcs_zeta, zeta_old)
                 self.set_zeta(zeta_old)
 
-                with delta_p.dat.vec_ro as b_v, \
-                        p_old.dat.vec as b_1_v:
-                    b_1_v.axpy(1.0, b_v)
+                axpy(p_old, 1, delta_p)
                 self.set_p(p_old)
 
-                with delta_mu.dat.vec_ro as b_v, \
-                        mu_old.dat.vec as b_1_v:
-                    b_1_v.axpy(1.0, b_v)
+                axpy(mu_old, 1, delta_mu)
                 self.set_mu(mu_old)
 
                 # construction of the discretized forward and adjoint forms
@@ -1381,8 +1339,7 @@ class Control:
                 rhs.sub(3).assign(rhs_11)
 
                 # norm of the non-linear residual
-                with rhs.dat.vec_ro as b_v:
-                    norm_k = b_v.norm()
+                norm_k = vnorm(rhs)
 
                 k += 1
 
