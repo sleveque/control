@@ -976,10 +976,8 @@ def test_GN_stationary_non_linear_control_with_reference_sol():
 
         my_control_stationary = Control.Stationary(
             space_0, forw_diff_operator, desired_state=desired_state,
-            force_function=force_f, beta=my_beta, bcs_v=bc)
-
-        # employing Gauss-Newton
-        my_control_stationary.set_Gauss_Newton()
+            force_function=force_f, beta=my_beta, bcs_v=bc,
+            Gauss_Newton=True)
 
         solver_parameters = {"linear_solver": "fgmres",
                              "fgmres_restart": 10,
