@@ -96,6 +96,8 @@ of the KKT conditions and the definition of the linear solvers.
 Control contains the class Stationary and the class Instationary,
 employed for the solution of the corresponding control problem.
 """
+
+
 class Stationary:
     def __init__(self, space_v, forward_form, desired_state=None,
                  force_function=None, *, beta=1.0e-3, space_p=None,
@@ -1296,6 +1298,7 @@ class Stationary:
 
         if plots:
             plot(self._v, self._p, self._zeta, self._mu, self._true_v)
+
 
 class Instationary:
     def __init__(self, space_v, forward_form, desired_state=None,
