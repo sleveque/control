@@ -24,7 +24,7 @@ from functools import cached_property
 
 __all__ = \
     [
-        "Stationary"
+        "Stationary",
         "Instationary"
     ]
 
