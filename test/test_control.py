@@ -10,7 +10,7 @@ from firedrake.adjoint import (
     set_working_tape
 )
 
-from control.control import Control
+from control.control import Stationary, Instationary
 from control.preconditioner import ConstantNullspace
 
 from functools import partial
@@ -72,7 +72,7 @@ def test_stationary_linear_control():
 
     beta = 1.0e-3
 
-    my_control_stationary = Control.Stationary(
+    my_control_stationary = Stationary(
         space_0, forw_diff_operator, desired_state=desired_state,
         force_function=force_f, beta=beta, bcs_v=None)
 
@@ -194,7 +194,7 @@ def test_MMS_stationary_linear_Poisson_control():
             space_0 = FunctionSpace(mesh, "Lagrange", degree)
             bc = DirichletBC(space_0, 0.0, "on_boundary")
 
-            my_control_stationary = Control.Stationary(
+            my_control_stationary = Stationary(
                 space_0, forw_diff_operator, desired_state=desired_state,
                 force_function=force_f, beta=beta, bcs_v=bc)
 
@@ -285,7 +285,7 @@ def test_stationary_incompressible_linear_control():
 
     beta = 1.0e-3
 
-    my_control_stationary = Control.Stationary(
+    my_control_stationary = Stationary(
         space_0, forw_diff_operator, desired_state=desired_state,
         force_function=force_f, beta=beta, space_p=space_1,
         bcs_v=DirichletBC(space_0, 0.0, "on_boundary"))
@@ -500,7 +500,7 @@ def test_MMS_stationary_Stokes_control():
                     (1. / 4.) * (X_1 ** 4 - X_2 ** 4)]),
                 "on_boundary")
 
-            my_control_stationary = Control.Stationary(
+            my_control_stationary = Stationary(
                 space_0, forw_diff_operator, desired_state=desired_state,
                 force_function=force_f, beta=beta, space_p=space_1, bcs_v=bc)
 
@@ -667,7 +667,7 @@ def test_stationary_linear_control_with_reference_sol():
 
         my_beta = 1.0
 
-        my_control_stationary = Control.Stationary(
+        my_control_stationary = Stationary(
             space_0, forw_diff_operator, desired_state=desired_state,
             force_function=force_f, beta=my_beta, bcs_v=bc)
 
@@ -820,7 +820,7 @@ def test_Picard_stationary_non_linear_control_with_reference_sol():
 
         my_beta = 1.0
 
-        my_control_stationary = Control.Stationary(
+        my_control_stationary = Stationary(
             space_0, forw_diff_operator, desired_state=desired_state,
             force_function=force_f, beta=my_beta, bcs_v=bc)
 
@@ -974,7 +974,7 @@ def test_GN_stationary_non_linear_control_with_reference_sol():
 
         my_beta = 1.0
 
-        my_control_stationary = Control.Stationary(
+        my_control_stationary = Stationary(
             space_0, forw_diff_operator, desired_state=desired_state,
             force_function=force_f, beta=my_beta, bcs_v=bc,
             Gauss_Newton=True)
@@ -1123,7 +1123,7 @@ def test_stationary_incompressible_non_linear_control():
 
     beta = 1.0e-3
 
-    my_control_stationary = Control.Stationary(
+    my_control_stationary = Stationary(
         space_v, forw_diff_operator, desired_state=desired_state,
         force_function=force_f, beta=beta, space_p=space_p,
         bcs_v=my_DirichletBC_v)
@@ -1253,7 +1253,7 @@ def test_MMS_stationary_Navier_Stokes_control():
                     (1. / 4.) * (X_1 ** 4 - X_2 ** 4)]),
                 "on_boundary")
 
-            my_control_stationary = Control.Stationary(
+            my_control_stationary = Stationary(
                 space_0, forw_diff_operator, desired_state=desired_state,
                 force_function=force_f, beta=beta, space_p=space_1, bcs_v=bc)
 
@@ -1391,7 +1391,7 @@ def test_instationary_linear_control_BE():
         my_DirichletBC = DirichletBC(space_0, 0.0, "on_boundary")
         return my_DirichletBC
 
-    my_control_instationary = Control.Instationary(
+    my_control_instationary = Instationary(
         space_0, forw_diff_operator, desired_state=desired_state,
         force_function=force_f, beta=beta, time_interval=(0.0, 1.0),
         CN=False, n_t=n_t, bcs_v=my_DirichletBC_t)
@@ -1608,7 +1608,7 @@ def test_instationary_linear_control_CN():
         my_DirichletBC = DirichletBC(space_0, 0.0, "on_boundary")
         return my_DirichletBC
 
-    my_control_instationary = Control.Instationary(
+    my_control_instationary = Instationary(
         space_0, forw_diff_operator, desired_state=desired_state,
         force_function=force_f, beta=beta, time_interval=(0.0, 1.0),
         CN=True, n_t=n_t, bcs_v=my_DirichletBC_t)
@@ -1898,7 +1898,7 @@ def test_MMS_instationary_heat_control_BE_convergence_FE():
             space_0 = FunctionSpace(mesh, "Lagrange", degree)
             space_0_ref = FunctionSpace(mesh, "Lagrange", degree + 2)
 
-            my_control_instationary = Control.Instationary(
+            my_control_instationary = Instationary(
                 space_0, forw_diff_operator, desired_state=desired_state,
                 force_function=force_f, beta=beta, CN=False, n_t=n_t,
                 initial_condition=initial_condition,
@@ -2052,7 +2052,7 @@ def test_MMS_instationary_heat_control_BE_convergence_time():
             space_0 = FunctionSpace(mesh, "Lagrange", degree)
             space_0_ref = FunctionSpace(mesh, "Lagrange", degree + 2)
 
-            my_control_instationary = Control.Instationary(
+            my_control_instationary = Instationary(
                 space_0, forw_diff_operator, desired_state=desired_state,
                 force_function=force_f, beta=beta, CN=False, n_t=n_t,
                 initial_condition=initial_condition,
@@ -2209,7 +2209,7 @@ def test_MMS_instationary_heat_control_CN_convergence_FE():
             space_0 = FunctionSpace(mesh, "Lagrange", degree)
             space_0_ref = FunctionSpace(mesh, "Lagrange", degree + 2)
 
-            my_control_instationary = Control.Instationary(
+            my_control_instationary = Instationary(
                 space_0, forw_diff_operator, desired_state=desired_state,
                 force_function=force_f, beta=beta, n_t=n_t,
                 initial_condition=initial_condition,
@@ -2366,7 +2366,7 @@ def test_MMS_instationary_heat_control_CN_convergence_time():
             space_0 = FunctionSpace(mesh, "Lagrange", degree)
             space_0_ref = FunctionSpace(mesh, "Lagrange", degree + 2)
 
-            my_control_instationary = Control.Instationary(
+            my_control_instationary = Instationary(
                 space_0, forw_diff_operator, desired_state=desired_state,
                 force_function=force_f, beta=beta, n_t=n_t,
                 initial_condition=initial_condition,
@@ -2563,7 +2563,7 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_FE():
             space_0 = FunctionSpace(mesh, "Lagrange", degree)
             space_0_ref = FunctionSpace(mesh, "Lagrange", degree + 2)
 
-            my_control_instationary = Control.Instationary(
+            my_control_instationary = Instationary(
                 space_0, forw_diff_operator, desired_state=desired_state,
                 force_function=force_f, beta=beta, CN=False, n_t=n_t,
                 initial_condition=initial_condition,
@@ -2744,7 +2744,7 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_time():
             space_0 = FunctionSpace(mesh, "Lagrange", degree)
             space_0_ref = FunctionSpace(mesh, "Lagrange", degree + 2)
 
-            my_control_instationary = Control.Instationary(
+            my_control_instationary = Instationary(
                 space_0, forw_diff_operator, desired_state=desired_state,
                 force_function=force_f, beta=beta, CN=False, n_t=n_t,
                 initial_condition=initial_condition,
@@ -2929,7 +2929,7 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_FE():
             space_0 = FunctionSpace(mesh, "Lagrange", degree)
             space_0_ref = FunctionSpace(mesh, "Lagrange", degree + 2)
 
-            my_control_instationary = Control.Instationary(
+            my_control_instationary = Instationary(
                 space_0, forw_diff_operator, desired_state=desired_state,
                 force_function=force_f, beta=beta, n_t=n_t,
                 initial_condition=initial_condition,
@@ -3114,7 +3114,7 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_time():
             space_0 = FunctionSpace(mesh, "Lagrange", degree)
             space_0_ref = FunctionSpace(mesh, "Lagrange", degree + 2)
 
-            my_control_instationary = Control.Instationary(
+            my_control_instationary = Instationary(
                 space_0, forw_diff_operator, desired_state=desired_state,
                 force_function=force_f, beta=beta, n_t=n_t,
                 initial_condition=initial_condition,
@@ -3287,7 +3287,7 @@ def test_instationary_Stokes_control_BE_with_exact_sol():
 
         return inner(f, test) * dx
 
-    my_control_instationary = Control.Instationary(
+    my_control_instationary = Instationary(
         space_v, forw_diff_operator_v, desired_state=desired_state_v,
         force_function=force_f_v, beta=beta,
         initial_condition=initial_condition_v,
@@ -3446,7 +3446,7 @@ def test_instationary_Stokes_control_CN_with_exact_sol():
 
         return inner(f, test) * dx
 
-    my_control_instationary = Control.Instationary(
+    my_control_instationary = Instationary(
         space_v, forw_diff_operator_v, desired_state=desired_state_v,
         force_function=force_f_v, beta=beta,
         initial_condition=initial_condition_v,
@@ -3656,7 +3656,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
 
             space_v_ref = VectorFunctionSpace(mesh, "Lagrange", degree + 2)
 
-            my_control_instationary = Control.Instationary(
+            my_control_instationary = Instationary(
                 space_v, forw_diff_operator_v, desired_state=desired_state_v,
                 force_function=force_f_v, beta=beta,
                 initial_condition=initial_condition_v,
@@ -3892,7 +3892,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
 
         space_v_ref = VectorFunctionSpace(mesh, "Lagrange", degree + 2)
 
-        my_control_instationary = Control.Instationary(
+        my_control_instationary = Instationary(
             space_v, forw_diff_operator_v, desired_state=desired_state_v,
             force_function=force_f_v, beta=beta,
             initial_condition=initial_condition_v,
@@ -4127,7 +4127,7 @@ def test_MMS_instationary_Stokes_control_CN_convergence_FE():
 
             space_v_ref = VectorFunctionSpace(mesh, "Lagrange", degree + 2)
 
-            my_control_instationary = Control.Instationary(
+            my_control_instationary = Instationary(
                 space_v, forw_diff_operator_v, desired_state=desired_state_v,
                 force_function=force_f_v, beta=beta,
                 initial_condition=initial_condition_v,
@@ -4361,7 +4361,7 @@ def test_MMS_instationary_Stokes_control_CN_convergence_time():
 
         space_v_ref = VectorFunctionSpace(mesh, "Lagrange", degree + 2)
 
-        my_control_instationary = Control.Instationary(
+        my_control_instationary = Instationary(
             space_v, forw_diff_operator_v, desired_state=desired_state_v,
             force_function=force_f_v, beta=beta,
             initial_condition=initial_condition_v,
@@ -4537,7 +4537,7 @@ def test_instationary_Navier_Stokes_BE():
 
         return inner(f, test) * dx
 
-    my_control_instationary = Control.Instationary(
+    my_control_instationary = Instationary(
         space_v, forw_diff_operator_v, desired_state=desired_state_v,
         force_function=force_f_v, beta=beta,
         initial_condition=initial_condition_v,
@@ -4667,7 +4667,7 @@ def test_instationary_Navier_Stokes_CN():
 
         return inner(f, test) * dx
 
-    my_control_instationary = Control.Instationary(
+    my_control_instationary = Instationary(
         space_v, forw_diff_operator_v, desired_state=desired_state_v,
         force_function=force_f_v, beta=beta,
         initial_condition=initial_condition_v,
@@ -4835,7 +4835,7 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
 
         space_v_ref = VectorFunctionSpace(mesh, "Lagrange", degree + 2)
 
-        my_control_instationary = Control.Instationary(
+        my_control_instationary = Instationary(
             space_v, forw_diff_operator_v, desired_state=desired_state_v,
             force_function=force_f_v, beta=beta,
             initial_condition=initial_condition_v,
@@ -5048,7 +5048,7 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
 
         space_v_ref = VectorFunctionSpace(mesh, "Lagrange", degree + 2)
 
-        my_control_instationary = Control.Instationary(
+        my_control_instationary = Instationary(
             space_v, forw_diff_operator_v, desired_state=desired_state_v,
             force_function=force_f_v, beta=beta,
             initial_condition=initial_condition_v,
@@ -5260,7 +5260,7 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE():
 
             space_v_ref = VectorFunctionSpace(mesh, "Lagrange", degree + 2)
 
-            my_control_instationary = Control.Instationary(
+            my_control_instationary = Instationary(
                 space_v, forw_diff_operator_v, desired_state=desired_state_v,
                 force_function=force_f_v, beta=beta,
                 initial_condition=initial_condition_v,
@@ -5472,7 +5472,7 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
 
         space_v_ref = VectorFunctionSpace(mesh, "Lagrange", degree + 2)
 
-        my_control_instationary = Control.Instationary(
+        my_control_instationary = Instationary(
             space_v, forw_diff_operator_v, desired_state=desired_state_v,
             force_function=force_f_v, beta=beta,
             initial_condition=initial_condition_v,
