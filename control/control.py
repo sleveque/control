@@ -2903,8 +2903,7 @@ class Instationary:
                 rhs.sub(n_t - 1 + i).assign(rhs_1.sub(i))
 
         # norm of the initial non-linear residual
-        with rhs.dat.vec_ro as b_v:
-            norm_0 = b_v.norm()
+        norm_0 = vnorm(rhs)
         norm_k = norm_0
 
         k = 0
@@ -2953,8 +2952,7 @@ class Instationary:
                     rhs.sub(n_t - 1 + i).assign(rhs_1.sub(i))
 
             # norm of non-linear residual
-            with rhs.dat.vec_ro as b_v:
-                norm_k = b_v.norm()
+            norm_k = vnorm(rhs)
 
             k += 1
 
@@ -4311,8 +4309,7 @@ class Instationary:
                 rhs.sub(3 * n_t - 3 + i).assign(rhs_11.sub(i))
 
         # norm of the initial non-linear residual
-        with rhs.dat.vec_ro as b_v:
-            norm_0 = b_v.norm()
+        norm_0 = vnorm(rhs)
         norm_k = norm_0
 
         with rhs_10.dat.vec as b_v:
@@ -4385,8 +4382,7 @@ class Instationary:
                     rhs.sub(3 * n_t - 3 + i).assign(rhs_11.sub(i))
 
             # norm of the non-linear residual
-            with rhs.dat.vec_ro as b_v:
-                norm_k = b_v.norm()
+            norm_k = vnorm(rhs)
 
             with rhs_10.dat.vec as b_v:
                 b_v.scale(tau)
