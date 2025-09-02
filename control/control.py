@@ -1740,8 +1740,8 @@ class Instationary:
 
                 b = apply_T_2(b, self.space_v, n_t - 1)
 
+                b -= b_1
                 for i in range(n_t - 1):
-                    b.sub(i) -= b_1.sub(i)
                     apply_bcs(bcs_zeta, b.sub(i))
 
                 # solving for the Schur complement approximation
