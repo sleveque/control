@@ -1741,9 +1741,7 @@ class Instationary:
                 b = apply_T_2(b, self.space_v, n_t - 1)
 
                 for i in range(n_t - 1):
-                    with b.sub(i).dat.vec as b_v, \
-                            b_1.sub(i).dat.vec_ro as b_1_v:
-                        b_v.axpy(-1.0, b_1_v)
+                    b.sub(i) -= b_1.sub(i)
                     apply_bcs(bcs_zeta, b.sub(i))
 
                 # solving for the Schur complement approximation
@@ -1761,9 +1759,7 @@ class Instationary:
                     b_help = Function(self.space_v)
                     b_help.assign(u_1.sub(i - 1))
                     b_help_new = assemble(action(block_ij, b_help))
-                    with b.sub(i).dat.vec as b_v, \
-                            b_help_new.dat.vec_ro as b_1_v:
-                        b_v.axpy(-1.0, b_1_v)
+                    b.sub(i) -= b_help_new
                     apply_bcs(bcs_zeta, b.sub(i))
                     b_help = Cofunction(self.space_v.dual())
                     b_help.assign(b.sub(i))
@@ -1801,9 +1797,7 @@ class Instationary:
                     b_help.assign(u_1.sub(i + 1))
                     block_ij = block_01[(i, i + 1)] + my_const * self._M_zeta
                     b_help_new = assemble(action(block_ij, b_help))
-                    with b.sub(i).dat.vec as b_v, \
-                            b_help_new.dat.vec_ro as b_1_v:
-                        b_v.axpy(-1.0, b_1_v)
+                    b.sub(i) -= b_help_new
                     apply_bcs(bcs_zeta, b.sub(i))
                     b_help = Cofunction(self.space_v.dual())
                     b_help.assign(b.sub(i))
@@ -1833,25 +1827,20 @@ class Instationary:
                 b_help = Function(self.space_v)
                 b_help.assign(u_0.sub(0))
                 b.sub(0).assign(assemble(action(block_ii, b_help)))
-                with b.sub(0).dat.vec as b_v, \
-                        b_1.sub(0).dat.vec_ro as b_1_v:
-                    b_v.axpy(-1.0, b_1_v)
+                b.sub(0) -= b_1.sub(0)
                 apply_bcs(bcs_zeta, b.sub(0))
 
                 for i in range(1, n_t):
-                    block_ij = block_10[(i, i - 1)]
-                    b_help = Function(self.space_v)
-                    b_help.assign(u_0.sub(i - 1))
-                    b_help_new = assemble(action(block_ij, b_help))
                     block_ii = block_10[(i, i)]
-                    b_help.assign(u_0.sub(i))
-                    b.sub(i).assign(assemble(action(block_ii, b_help)))
-                    with b.sub(i).dat.vec as b_v, \
-                            b_help_new.dat.vec_ro as b_1_v:
-                        b_v.axpy(1.0, b_1_v)
-                    with b.sub(i).dat.vec as b_v, \
-                            b_1.sub(i).dat.vec_ro as b_1_v:
-                        b_v.axpy(-1.0, b_1_v)
+                    block_ij = block_10[(i, i - 1)]
+                    b_help_i = Function(self.space_v)
+                    b_help_i.assign(u_0.sub(i))
+                    b_help_j = Function(self.space_v)
+                    b_help_j.assign(u_0.sub(i - 1))
+                    b.sub(i).assign(assemble(
+                        action(block_ii, b_help_i)
+                        + action(block_ij, b_help_j)))
+                    b.sub(i) -= b_1.sub(i)
                     apply_bcs(bcs_zeta, b.sub(i))
 
                 # solving for the Schur complement approximation
@@ -1868,9 +1857,7 @@ class Instationary:
                     b_help = Function(self.space_v)
                     b_help.assign(u_1.sub(i - 1))
                     b_help_new = assemble(action(block_ij, b_help))
-                    with b.sub(i).dat.vec as b_v, \
-                            b_help_new.dat.vec_ro as b_1_v:
-                        b_v.axpy(-1.0, b_1_v)
+                    b.sub(i) -= b_help_new
                     apply_bcs(bcs_zeta, b.sub(i))
 
                     b_help = Cofunction(self.space_v.dual())
@@ -1912,9 +1899,7 @@ class Instationary:
                     b_help.assign(u_1.sub(i + 1))
                     block_ij = block_01[(i, i + 1)]
                     b_help_new = assemble(action(block_ij, b_help))
-                    with b.sub(i).dat.vec as b_v, \
-                            b_help_new.dat.vec_ro as b_1_v:
-                        b_v.axpy(-1.0, b_1_v)
+                    b.sub(i) -= b_help_new
                     apply_bcs(bcs_zeta, b.sub(i))
 
                     b_help = Cofunction(self.space_v.dual())
