@@ -2897,16 +2897,12 @@ class Instationary:
             delta_zeta.assign(self._zeta)
 
             # updating the solutions
-            with delta_v.dat.vec_ro as b_v, \
-                    v_old.dat.vec as b_0_v:
-                b_0_v.axpy(1.0, b_v)
+            v_old += delta_v
             if inhomogeneous_bcs_v:
                 for i in range(n_t):
                     apply_bcs(bcs_v_help[(i)], v_old.sub(i))
 
-            with delta_zeta.dat.vec_ro as b_v, \
-                    zeta_old.dat.vec as b_1_v:
-                b_1_v.axpy(1.0, b_v)
+            zeta_old += delta_zeta
             for i in range(n_t):
                 apply_bcs(bcs_zeta, zeta_old.sub(i))
 
