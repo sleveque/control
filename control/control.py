@@ -1979,8 +1979,8 @@ class Instationary:
 
             b_help = Function(self.space_v)
             b_help.assign(v_old.sub(0))
-            rhs_1.sub(0).assign(
-                assemble(action(Constant(tau) * D_v_0 + M_v, v_0)
+            rhs_1.sub(0).assign(assemble(
+                action(Constant(tau) * D_v_0 + M_v, v_0)
                 - action(Constant(tau) * D_v_i + M_v, b_help)))
             apply_bcs(bcs_v, rhs_1.sub(0))
 
