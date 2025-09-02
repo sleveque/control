@@ -2047,70 +2047,29 @@ class Instationary:
             D_zeta_i = adjoint(D_v_i)
             D_zeta_i_plus = adjoint(D_v_i_plus)
 
-            rhs_0.sub(0).assign(0.5 * tau * (v_d.sub(0) + v_d.sub(1)))
-            b_help = Function(self.space_v)
-            b_help.assign(v_old.sub(0))
-            b = assemble(action(Constant(0.5 * tau) * self._M_v, b_help))
-            with b.dat.vec_ro as b_v, \
-                    rhs_0.sub(0).dat.vec as b_0_v:
-                b_0_v.axpy(-1.0, b_v)
+            b_help_v0 = Function(self.space_v)
+            b_help_v0.assign(v_old.sub(0))
+            b_help_v1 = Function(self.space_v)
+            b_help_v1.assign(v_old.sub(1))
+            b_help_zeta0 = Function(self.space_v)
+            b_help_zeta0.assign(zeta_old.sub(0))
+            b_help_zeta1 = Function(self.space_v)
+            b_help_zeta1.assign(zeta_old.sub(1))
 
-            b_help = Function(self.space_v)
-            b_help.assign(v_old.sub(1))
-            b = assemble(action(Constant(0.5 * tau) * self._M_v, b_help))
-            with b.dat.vec_ro as b_v, \
-                    rhs_0.sub(0).dat.vec as b_0_v:
-                b_0_v.axpy(-1.0, b_v)
-
-            b_help = Function(self.space_v)
-            b_help.assign(zeta_old.sub(0))
-            b = assemble(
-                action(Constant(0.5 * tau) * D_zeta_i + M_v, b_help))
-            with b.dat.vec_ro as b_v, \
-                    rhs_0.sub(0).dat.vec as b_0_v:
-                b_0_v.axpy(-1.0, b_v)
-
-            b_help = Function(self.space_v)
-            b_help.assign(zeta_old.sub(1))
-            b = assemble(action(Constant(0.5 * tau) * D_zeta_i_plus - M_v,
-                                b_help))
-            with b.dat.vec_ro as b_v, \
-                    rhs_0.sub(0).dat.vec as b_0_v:
-                b_0_v.axpy(-1.0, b_v)
+            rhs_0.sub(0).assign(assemble(
+                0.5 * tau * (v_d.sub(0) + v_d.sub(1))
+                - action(Constant(0.5 * tau) * self._M_v, b_help_v0)
+                - action(Constant(0.5 * tau) * self._M_v, b_help_v1)
+                - action(Constant(0.5 * tau) * D_zeta_i + M_v, b_help_zeta0)
+                - action(Constant(0.5 * tau) * D_zeta_i_plus - M_v, b_help_zeta1)))
             apply_bcs(bcs_zeta, rhs_0.sub(0))
 
-            rhs_1.sub(0).assign(0.5 * tau * (f.sub(0) + f.sub(1)))
-            b_help = Function(self.space_v)
-            b_help.assign(v_old.sub(0))
-            b = assemble(
-                action(Constant(0.5 * tau) * D_v_i - M_v, b_help))
-            with b.dat.vec_ro as b_v, \
-                    rhs_1.sub(0).dat.vec as b_1_v:
-                b_1_v.axpy(-1.0, b_v)
-
-            b_help = Function(self.space_v)
-            b_help.assign(v_old.sub(1))
-            b = assemble(
-                action(Constant(0.5 * tau) * D_v_i_plus + M_v, b_help))
-            with b.dat.vec_ro as b_v, \
-                    rhs_1.sub(0).dat.vec as b_1_v:
-                b_1_v.axpy(-1.0, b_v)
-
-            b_help = Function(self.space_v)
-            b_help.assign(zeta_old.sub(0))
-            b = assemble(action(Constant(0.5 * tau / self.beta) * self._M_zeta,
-                                b_help))
-            with b.dat.vec_ro as b_v, \
-                    rhs_1.sub(0).dat.vec as b_1_v:
-                b_1_v.axpy(1.0, b_v)
-
-            b_help = Function(self.space_v)
-            b_help.assign(zeta_old.sub(1))
-            b = assemble(action(Constant(0.5 * tau / self.beta) * self._M_zeta,
-                                b_help))
-            with b.dat.vec_ro as b_v, \
-                    rhs_1.sub(0).dat.vec as b_1_v:
-                b_1_v.axpy(1.0, b_v)
+            rhs_1.sub(0).assign(assemble(
+                0.5 * tau * (f.sub(0) + f.sub(1))
+                - action(Constant(0.5 * tau) * D_v_i - M_v, b_help_v0)
+                - action(Constant(0.5 * tau) * D_v_i_plus + M_v, b_help_v1)
+                + action(Constant(0.5 * tau / self.beta) * self._M_zeta, b_help_zeta0)
+                + action(Constant(0.5 * tau / self.beta) * self._M_zeta, b_help_zeta1)))
             apply_bcs(bcs_v, rhs_1.sub(0))
 
             t = t_0
