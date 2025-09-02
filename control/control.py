@@ -1796,10 +1796,8 @@ class Instationary:
                     b_help = Function(self.space_v)
                     b_help.assign(u_1.sub(i + 1))
                     block_ij = block_01[(i, i + 1)] + my_const * self._M_zeta
-                    b_help_new = assemble(action(block_ij, b_help))
-                    with b.sub(i).dat.vec as b_v, \
-                            b_help_new.dat.vec_ro as b_1_v:
-                        b_v.axpy(-1.0, b_1_v)
+                    b_help_new = assemble(b.sub(i) - action(block_ij, b_help))
+                    b.sub(i).assign(b_help_new)
                     apply_bcs(bcs_zeta, b.sub(i))
                     b_help = Cofunction(self.space_v.dual())
                     b_help.assign(b.sub(i))
@@ -1858,10 +1856,8 @@ class Instationary:
                     block_ij = block_10[(i, i - 1)]
                     b_help = Function(self.space_v)
                     b_help.assign(u_1.sub(i - 1))
-                    b_help_new = assemble(action(block_ij, b_help))
-                    with b.sub(i).dat.vec as b_v, \
-                            b_help_new.dat.vec_ro as b_1_v:
-                        b_v.axpy(-1.0, b_1_v)
+                    b_help_new = assemble(b.sub(i) - action(block_ij, b_help))
+                    b.sub(i).assign(b_help_new)
                     apply_bcs(bcs_zeta, b.sub(i))
 
                     b_help = Cofunction(self.space_v.dual())
@@ -1902,10 +1898,8 @@ class Instationary:
                     b_help = Function(self.space_v)
                     b_help.assign(u_1.sub(i + 1))
                     block_ij = block_01[(i, i + 1)]
-                    b_help_new = assemble(action(block_ij, b_help))
-                    with b.sub(i).dat.vec as b_v, \
-                            b_help_new.dat.vec_ro as b_1_v:
-                        b_v.axpy(-1.0, b_1_v)
+                    b_help_new = assemble(b.sub(i) - action(block_ij, b_help))
+                    b.sub(i).assign(b_help_new)
                     apply_bcs(bcs_zeta, b.sub(i))
 
                     b_help = Cofunction(self.space_v.dual())
@@ -1971,38 +1965,23 @@ class Instationary:
                                        v_0, Constant(t_0),
                                        non_linear_res=True)
 
-            rhs_0.sub(0).assign(tau * v_d.sub(0))
-            b_help = Function(self.space_v)
-            b_help.assign(v_old.sub(0))
-            b = assemble(action(Constant(tau) * self._M_v, b_help))
-            with b.dat.vec_ro as b_v, \
-                    rhs_0.sub(0).dat.vec as b_0_v:
-                b_0_v.axpy(-1.0, b_v)
-
-            b_help = Function(self.space_v)
-            b_help.assign(zeta_old.sub(0))
-            b = assemble(action(Constant(tau) * D_zeta_i + M_v, b_help))
-            with b.dat.vec_ro as b_v, \
-                    rhs_0.sub(0).dat.vec as b_0_v:
-                b_0_v.axpy(-1.0, b_v)
-
-            b_help = Function(self.space_v)
-            b_help.assign(zeta_old.sub(1))
-            b = assemble(action(M_v, b_help))
-            with b.dat.vec_ro as b_v, \
-                    rhs_0.sub(0).dat.vec as b_0_v:
-                b_0_v.axpy(1.0, b_v)
+            b_help_v = Function(self.space_v)
+            b_help_v.assign(v_old.sub(0))
+            b_help_zeta0 = Function(self.space_v)
+            b_help_zeta0.assign(zeta_old.sub(0))
+            b_help_zeta1 = Function(self.space_v)
+            b_help_zeta1.assign(zeta_old.sub(1))
+            rhs_0.sub(0).assign(assemble(
+                tau * v_d.sub(0) - action(Constant(tau) * self._M_v, b_help_v)
+                - action(Constant(tau) * D_zeta_i + M_v, b_help_zeta0)
+                + action(M_v, b_help_zeta1)))
             apply_bcs(bcs_zeta, rhs_0.sub(0))
 
-            b = assemble(action(Constant(tau) * D_v_0 + M_v, v_0))
-            rhs_1.sub(0).assign(b)
-
             b_help = Function(self.space_v)
             b_help.assign(v_old.sub(0))
-            b = assemble(action(Constant(tau) * D_v_i + M_v, b_help))
-            with b.dat.vec_ro as b_v, \
-                    rhs_1.sub(0).dat.vec as b_1_v:
-                b_1_v.axpy(-1.0, b_v)
+            rhs_1.sub(0).assign(
+                assemble(action(Constant(tau) * D_v_0 + M_v, v_0)
+                - action(Constant(tau) * D_v_i + M_v, b_help)))
             apply_bcs(bcs_v, rhs_1.sub(0))
 
             D_v_i = self.construct_D_v(v_trial, v_test,
