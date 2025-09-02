@@ -1758,10 +1758,8 @@ class Instationary:
                     block_ij = block_10[(i, i - 1)] + my_const * self._M_v
                     b_help = Function(self.space_v)
                     b_help.assign(u_1.sub(i - 1))
-                    b_help_new = assemble(action(block_ij, b_help))
-                    with b.sub(i).dat.vec as b_v, \
-                            b_help_new.dat.vec_ro as b_1_v:
-                        b_v.axpy(-1.0, b_1_v)
+                    b_help_new = assemble(b.sub(i) - action(block_ij, b_help))
+                    b.sub(i).assign(b_help_new)
                     apply_bcs(bcs_zeta, b.sub(i))
                     b_help = Cofunction(self.space_v.dual())
                     b_help.assign(b.sub(i))
