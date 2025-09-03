@@ -4025,60 +4025,44 @@ class Instationary:
                 for i in range(n_t):
                     b_p_help = Function(space_p)
                     b_p_help.assign(mu_old.sub(i))
-                    b = assemble(action(Constant(tau) * B_T, b_p_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_00.sub(i).dat.vec as b_0_v:
-                        b_0_v.axpy(-1.0, b_v)
-
+                    rhs_00.sub(i).assign(assemble(
+                        rhs_00.sub(i) - action(Constant(tau) * B_T, b_p_help)))
                     apply_bcs(bcs_v, rhs_00.sub(i))
 
                     b_p_help = Function(space_p)
                     b_p_help.assign(p_old.sub(i))
-                    b = assemble(action(Constant(tau) * B_T, b_p_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_01.sub(i).dat.vec as b_0_v:
-                        b_0_v.axpy(-1.0, b_v)
-
+                    rhs_01.sub(i).assign(assemble(
+                        rhs_01.sub(i) - action(Constant(tau) * B_T, b_p_help)))
                     apply_bcs(bcs_zeta, rhs_01.sub(i))
 
                     b_help = Function(self.space_v)
                     b_help.assign(v_old.sub(i))
-                    b = assemble(action(B, b_help))
-                    rhs_10.sub(i).assign(-b)
+                    rhs_10.sub(i).assign(assemble(- action(B, b_help)))
 
                     b_help = Function(self.space_v)
                     b_help.assign(zeta_old.sub(i))
-                    b = assemble(action(B, b_help))
-                    rhs_11.sub(i).assign(-b)
+                    rhs_11.sub(i).assign(assemble(- action(B, b_help)))
             else:
                 for i in range(n_t - 1):
                     b_p_help = Function(space_p)
                     b_p_help.assign(mu_old.sub(i))
-                    b = assemble(action(Constant(tau) * B_T, b_p_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_00.sub(i).dat.vec as b_0_v:
-                        b_0_v.axpy(-1.0, b_v)
-
+                    rhs_00.sub(i).assign(assemble(
+                        rhs_00.sub(i) - action(Constant(tau) * B_T, b_p_help)))
                     apply_bcs(bcs_v, rhs_00.sub(i))
 
                     b_p_help = Function(space_p)
                     b_p_help.assign(p_old.sub(i))
-                    b = assemble(action(Constant(tau) * B_T, b_p_help))
-                    with b.dat.vec_ro as b_v, \
-                            rhs_01.sub(i).dat.vec as b_0_v:
-                        b_0_v.axpy(-1.0, b_v)
-
+                    rhs_01.sub(i).assign(assemble(
+                        rhs_01.sub(i) - action(Constant(tau) * B_T, b_p_help)))
                     apply_bcs(bcs_zeta, rhs_01.sub(i))
 
                     b_help = Function(self.space_v)
                     b_help.assign(v_old.sub(i + 1))
-                    b = assemble(action(B, b_help))
-                    rhs_10.sub(i).assign(-b)
+                    rhs_10.sub(i).assign(assemble(- action(B, b_help)))
 
                     b_help = Function(self.space_v)
                     b_help.assign(zeta_old.sub(i))
-                    b = assemble(action(B, b_help))
-                    rhs_11.sub(i).assign(-b)
+                    rhs_11.sub(i).assign(assemble(- action(B, b_help)))
 
             return rhs_00, rhs_01, rhs_10, rhs_11
 
@@ -4130,26 +4114,18 @@ class Instationary:
             delta_mu.assign(self._mu)
 
             # udpating the solutions
-            with delta_v.dat.vec_ro as b_v, \
-                    v_old.dat.vec as b_0_v:
-                b_0_v.axpy(1.0, b_v)
+            v_old += delta_v
             if inhomogeneous_bcs_v:
                 for i in range(n_t):
                     apply_bcs(bcs_v_help[(i)], v_old.sub(i))
 
-            with delta_p.dat.vec_ro as b_v, \
-                    p_old.dat.vec as b_0_v:
-                b_0_v.axpy(1.0, b_v)
+            p_old += delta_p
 
-            with delta_zeta.dat.vec_ro as b_v, \
-                    zeta_old.dat.vec as b_1_v:
-                b_1_v.axpy(1.0, b_v)
+            zeta_old += delta_zeta
             for i in range(n_t):
                 apply_bcs(bcs_zeta, zeta_old.sub(i))
 
-            with delta_mu.dat.vec_ro as b_v, \
-                    mu_old.dat.vec as b_1_v:
-                b_1_v.axpy(1.0, b_v)
+            mu_old += delta_mu
 
             self.set_v(v_old)
             self.set_zeta(zeta_old)
