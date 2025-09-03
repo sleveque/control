@@ -2321,16 +2321,14 @@ class Instationary:
         if not self._CN:
             # backward Euler
             if check_v_d:
-                b_0.sub(0).assign(tau * v_d.sub(0))
-
                 if inhomogeneous_bcs_v:
                     v_inhom = Function(self.space_v)
                     apply_bcs(bcs_v_help[(0)], v_inhom)
-                    b_help = assemble(action(
-                        Constant(tau) * self._M_v, v_inhom))
-                    with b_0.sub(0).dat.vec as b_v, \
-                            b_help.dat.vec_ro as b_1_v:
-                        b_v.axpy(-1.0, b_1_v)
+                    b_0.sub(0).assign(assemble(
+                        tau * v_d.sub(0)
+                        - action(Constant(tau) * self._M_v, v_inhom)))
+                else:
+                    b_0.sub(0).assign(tau * v_d.sub(0))
 
                 apply_bcs(bcs_zeta, b_0.sub(0))
             else:
@@ -2340,16 +2338,15 @@ class Instationary:
                 D_v_i = self.construct_D_v(v_trial, v_test,
                                            v_0, Constant(t_0))
 
-                b_1.sub(0).assign(assemble(action(
-                    Constant(tau) * D_v_i + M_v, v_0)))
-
                 if inhomogeneous_bcs_v:
                     v_inhom = Function(self.space_v)
                     apply_bcs(bcs_v_help[(0)], v_inhom)
-                    b_help = assemble(action(tau * D_v_i + M_v, v_inhom))
-                    with b_1.sub(0).dat.vec as b_v, \
-                            b_help.dat.vec_ro as b_1_v:
-                        b_v.axpy(-1.0, b_1_v)
+                    b_1.sub(0).assign(assemble(
+                        action(Constant(tau) * D_v_i + M_v, v_0)
+                        - action(Constant(tau) * D_v_i + M_v, v_inhom)))
+                else:
+                    b_1.sub(0).assign(assemble(action(
+                        Constant(tau) * D_v_i + M_v, v_0)))
 
                 apply_bcs(bcs_v, b_1.sub(0))
             else:
@@ -2358,24 +2355,20 @@ class Instationary:
             t = t_0
             for i in range(1, n_t - 1):
                 if check_v_d:
-                    b_0.sub(i).assign(tau * v_d.sub(i))
-
                     if inhomogeneous_bcs_v:
                         v_inhom = Function(self.space_v)
                         apply_bcs(bcs_v_help[(i)], v_inhom)
-                        b_help = assemble(
-                            action(Constant(tau) * self._M_v, v_inhom))
-                        with b_0.sub(i).dat.vec as b_v, \
-                                b_help.dat.vec_ro as b_1_v:
-                            b_v.axpy(-1.0, b_1_v)
+                        b_0.sub(i).assign(assemble(
+                            tau * v_d.sub(i)
+                            - action(Constant(tau) * self._M_v, v_inhom)))
+                    else:
+                        b_0.sub(i).assign(tau * v_d.sub(i))
 
                     apply_bcs(bcs_zeta, b_0.sub(i))
                 else:
                     b_0.sub(i).assign(v_d.sub(i))
 
                 if check_f:
-                    b_1.sub(i).assign(tau * f.sub(i))
-
                     if inhomogeneous_bcs_v:
                         t += tau
                         v_n_help.assign(v_old.sub(i))
@@ -2383,20 +2376,15 @@ class Instationary:
                         D_v_i = self.construct_D_v(v_trial, v_test,
                                                    v_n_help, Constant(t))
 
-                        v_inhom = Function(self.space_v)
-                        apply_bcs(bcs_v_help[(i)], v_inhom)
-                        b_help = assemble(action(
-                            Constant(tau) * D_v_i + M_v, v_inhom))
-                        with b_1.sub(i).dat.vec as b_v, \
-                                b_help.dat.vec_ro as b_1_v:
-                            b_v.axpy(-1.0, b_1_v)
-
-                        v_inhom = Function(self.space_v)
-                        apply_bcs(bcs_v_help[(i - 1)], v_inhom)
-                        b_help = assemble(action(M_v, v_inhom))
-                        with b_1.sub(i).dat.vec as b_v, \
-                                b_help.dat.vec_ro as b_1_v:
-                            b_v.axpy(1.0, b_1_v)
+                        v_inhom0 = Function(self.space_v)
+                        apply_bcs(bcs_v_help[(i - 1)], v_inhom0)
+                        v_inhom_1 = Function(self.space_v)
+                        apply_bcs(bcs_v_help[(i)], v_inhom_1)
+                        b_1.sub(i).assign(assemble(
+                            tau * f.sub(i) + action(M_v, v_inhom0)
+                            - action(Constant(tau) * D_v_i + M_v, v_inhom_1)))
+                    else:
+                        b_1.sub(i).assign(tau * f.sub(i))
 
                     apply_bcs(bcs_v, b_1.sub(i))
                 else:
@@ -2406,27 +2394,21 @@ class Instationary:
                 b_0.sub(n_t - 1).assign(v_d.sub(n_t - 1))
 
             if check_f:
-                b_1.sub(n_t - 1).assign(tau * f.sub(n_t - 1))
                 if inhomogeneous_bcs_v:
                     v_n_help.assign(v_old.sub(n_t - 1))
 
                     D_v_i = self.construct_D_v(v_trial, v_test,
                                                v_n_help, Constant(T_f))
 
-                    v_inhom = Function(self.space_v)
-                    apply_bcs(bcs_v_help[(n_t - 1)], v_inhom)
-                    b_help = assemble(
-                        action(Constant(tau) * D_v_i + M_v, v_inhom))
-                    with b_1.sub(n_t - 1).dat.vec as b_v, \
-                            b_help.dat.vec_ro as b_1_v:
-                        b_v.axpy(-1.0, b_1_v)
-
-                    v_inhom = Function(self.space_v)
-                    apply_bcs(bcs_v_help[(n_t - 2)], v_inhom)
-                    b_help = assemble(action(M_v, v_inhom))
-                    with b_1.sub(n_t - 1).dat.vec as b_v, \
-                            b_help.dat.vec_ro as b_1_v:
-                        b_v.axpy(1.0, b_1_v)
+                    v_inhom0 = Function(self.space_v)
+                    apply_bcs(bcs_v_help[(n_t - 2)], v_inhom0)
+                    v_inhom1 = Function(self.space_v)
+                    apply_bcs(bcs_v_help[(n_t - 1)], v_inhom1)
+                    b_1.sub(n_t - 1).assign(assemble(
+                        tau * f.sub(n_t - 1) + action(M_v, v_inhom0)
+                        - action(Constant(tau) * D_v_i + M_v, v_inhom1)))
+                else:
+                    b_1.sub(n_t - 1).assign(tau * f.sub(n_t - 1))
 
                 apply_bcs(bcs_v, b_1.sub(n_t - 1))
             else:
@@ -2435,81 +2417,72 @@ class Instationary:
             # trapezoidal rule
             for i in range(n_t - 1):
                 if check_v_d:
-                    b_0.sub(i).assign(
-                        0.5 * tau * (v_d.sub(i) + v_d.sub(i + 1)))
-
                     if inhomogeneous_bcs_v:
-                        v_inhom = Function(self.space_v)
-                        apply_bcs(bcs_v_help[(i + 1)], v_inhom)
-                        b_help = assemble(action(
-                            Constant(0.5 * tau) * self._M_v, v_inhom))
-                        with b_0.sub(i).dat.vec as b_v, \
-                                b_help.dat.vec_ro as b_1_v:
-                            b_v.axpy(-1.0, b_1_v)
+                        v_inhom1 = Function(self.space_v)
+                        apply_bcs(bcs_v_help[(i + 1)], v_inhom1)
 
                         if i > 0:
-                            v_inhom = Function(self.space_v)
-                            apply_bcs(bcs_v_help[(i)], v_inhom)
-                            b_help = assemble(action(
-                                Constant(0.5 * tau) * self._M_v, v_inhom))
-                            with b_0.sub(i).dat.vec as b_v, \
-                                    b_help.dat.vec_ro as b_1_v:
-                                b_v.axpy(-1.0, b_1_v)
+                            v_inhom0 = Function(self.space_v)
+                            apply_bcs(bcs_v_help[(i)], v_inhom0)
+                            b_0.sub(i).assign(assemble(
+                                0.5 * tau * (v_d.sub(i) + v_d.sub(i + 1))
+                                - action(Constant(0.5 * tau) * self._M_v, v_inhom0)
+                                - action(Constant(0.5 * tau) * self._M_v, v_inhom1)))
+                        else:
+                            b_0.sub(i).assign(assemble(
+                                0.5 * tau * (v_d.sub(i) + v_d.sub(i + 1))
+                                - action(Constant(0.5 * tau) * self._M_v, v_inhom1)))
+                    else:
+                        b_0.sub(i).assign(
+                            0.5 * tau * (v_d.sub(i) + v_d.sub(i + 1)))
 
                     apply_bcs(bcs_zeta, b_0.sub(i))
                 else:
                     b_0.sub(i).assign(v_d.sub(i))
 
                 if check_f:
-                    b_1.sub(i).assign(
-                        0.5 * tau * (f.sub(i) + f.sub(i + 1)))
-
                     if inhomogeneous_bcs_v:
                         t = t_0 + (i + 1) * tau
                         v_n_help.assign(v_old.sub(i + 1))
-                        D_v_i = self.construct_D_v(v_trial, v_test,
-                                                   v_n_help, Constant(t))
-                        v_inhom = Function(self.space_v)
-                        apply_bcs(bcs_v_help[(i + 1)], v_inhom)
-                        b_help = assemble(action(
-                            Constant(0.5 * tau) * D_v_i + M_v, v_inhom))
-                        with b_1.sub(i).dat.vec as b_v, \
-                                b_help.dat.vec_ro as b_1_v:
-                            b_v.axpy(-1.0, b_1_v)
+                        D_v_i = self.construct_D_v(
+                            v_trial, v_test, v_n_help, Constant(t))
+                        v_inhom1 = Function(self.space_v)
+                        apply_bcs(bcs_v_help[(i + 1)], v_inhom1)
 
                         if i > 0:
                             t = t_0 + i * tau
                             v_n_help.assign(v_old.sub(i))
-                            D_v_i = self.construct_D_v(
+                            D_v_j = self.construct_D_v(
                                 v_trial, v_test, v_n_help, Constant(t))
-                            v_inhom = Function(self.space_v)
-                            apply_bcs(bcs_v_help[(i)], v_inhom)
-                            b_help = assemble(action(
-                                Constant(0.5 * tau) * D_v_i - M_v,
-                                v_inhom))
-                            with b_1.sub(i).dat.vec as b_v, \
-                                    b_help.dat.vec_ro as b_1_v:
-                                b_v.axpy(-1.0, b_1_v)
+                            v_inhom0 = Function(self.space_v)
+                            apply_bcs(bcs_v_help[(i)], v_inhom0)
+
+                            b_1.sub(i).assign(assemble(
+                                0.5 * tau * (f.sub(i) + f.sub(i + 1))
+                                - action(Constant(0.5 * tau) * D_v_j - M_v, v_inhom0)
+                                - action(Constant(0.5 * tau) * D_v_i + M_v, v_inhom1)))
+                        else:
+                            b_1.sub(i).assign(assemble(
+                                0.5 * tau * (f.sub(i) + f.sub(i + 1))
+                                - action(Constant(0.5 * tau) * D_v_i + M_v, v_inhom1)))
+                    else:
+                        b_1.sub(i).assign(
+                            0.5 * tau * (f.sub(i) + f.sub(i + 1)))
 
                     apply_bcs(bcs_v, b_1.sub(i))
                 else:
                     b_1.sub(i).assign(f.sub(i))
 
             if check_v_d:
-                b = assemble(action(Constant(0.5 * tau) * self._M_v, v_0))
-                with b_0.sub(0).dat.vec as b_v, \
-                        b.dat.vec_ro as b_1_v:
-                    b_v.axpy(-1.0, b_1_v)
+                b_0.sub(0).assign(assemble(
+                    b_0.sub(0) - action(Constant(0.5 * tau) * self._M_v, v_0)))
                 apply_bcs(bcs_zeta, b_0.sub(0))
 
             if check_f:
-                D_v_i = self.construct_D_v(v_trial, v_test,
-                                           v_0, Constant(t_0))
-                b = assemble(action(
-                    Constant(0.5 * tau) * D_v_i - M_v, v_0))
-                with b_1.sub(0).dat.vec as b_v, \
-                        b.dat.vec_ro as b_1_v:
-                    b_v.axpy(-1.0, b_1_v)
+                D_v_i = self.construct_D_v(
+                    v_trial, v_test, v_0, Constant(t_0))
+                b_1.sub(0).assign(assemble(
+                    b_1.sub(0) - action(Constant(0.5 * tau) * D_v_i - M_v, v_0)))
                 apply_bcs(bcs_v, b_1.sub(0))
 
             b_0 = apply_T_1(b_0, self.space_v, n_t - 1)
