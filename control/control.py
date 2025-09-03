@@ -3323,7 +3323,7 @@ class Instationary:
                                 - action(Constant(0.5 * tau) * self._M_v, v_inhom1)))
                         else:
                             b_0_0.sub(i).assign(assemble(
-                                0.5 * tau * (v_d.sub(i) + v_d.sub(i + 1)
+                                0.5 * tau * (v_d.sub(i) + v_d.sub(i + 1))
                                 - action(Constant(0.5 * tau) * self._M_v, v_inhom1))))
                     else:
                         b_0_0.sub(i).assign(
