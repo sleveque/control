@@ -36,7 +36,7 @@ instantiating an Instationary object. For the example considered, the code looks
 	    X = SpatialCoordinate(mesh)
 
 	    v_d = Function(space, name="v_d")
-	    v_d.interpolate(t * cos(0.5 * pi * x) * cos(0.5 * pi * y))
+	    v_d.interpolate(t * cos(0.5 * pi * X[0]) * cos(0.5 * pi * X[1]))
 
 	    return inner(v_d, test) * dx, v_d
 
@@ -46,7 +46,7 @@ instantiating an Instationary object. For the example considered, the code looks
 	    X = SpatialCoordinate(mesh)
 
 	    f = Function(space, name="f")
-	    f.interpolate(cos(0.5 * pi * x) * cos(0.5 * pi * y))
+	    f.interpolate(cos(0.5 * pi * X[0]) * cos(0.5 * pi * X[1]))
 
 	    return inner(f, test) * dx
 
