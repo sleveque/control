@@ -34,8 +34,6 @@ instantiating an Instationary object. For the example considered, the code looks
 	    space = test.function_space()
 	    mesh = space.mesh()
 	    X = SpatialCoordinate(mesh)
-	    x = X[0] - 1.0
-	    y = X[1] - 1.0
 
 	    v_d = Function(space, name="v_d")
 	    v_d.interpolate(t * cos(0.5 * pi * x) * cos(0.5 * pi * y))
@@ -46,8 +44,6 @@ instantiating an Instationary object. For the example considered, the code looks
 	    space = test.function_space()
 	    mesh = space.mesh()
 	    X = SpatialCoordinate(mesh)
-	    x = X[0] - 1.0
-	    y = X[1] - 1.0
 
 	    f = Function(space, name="f")
 	    f.interpolate(cos(0.5 * pi * x) * cos(0.5 * pi * y))
