@@ -1620,7 +1620,7 @@ class Instationary:
         if self._CN:
             # building the solvers for the preconditioner for the
             # trapezoidal rule
-            my_const = 0.5 * Constant(tau / (self.beta**0.5))
+            my_const = Constant(0.5 * tau / (self.beta**0.5))
 
             for i in range(n_t - 1):
                 block_ii = block_10[(i, i)]
@@ -1948,6 +1948,12 @@ class Instationary:
         T_f = self._time_interval[1]
 
         tau = (T_f - t_0) / (n_t - 1.0)
+        if not self._CN:
+            const_tau = Constant(tau)
+            const_tau_beta = Constant(tau / self.beta)
+        else:
+            const_tau = Constant(0.5 * tau)
+            const_tau_beta = Constant(0.5 * tau / self.beta)
 
         v_test, v_trial = TestFunction(self.space_v), TrialFunction(self.space_v)
 
@@ -1972,16 +1978,16 @@ class Instationary:
             b_help_zeta1 = Function(self.space_v)
             b_help_zeta1.assign(zeta_old.sub(1))
             rhs_0.sub(0).assign(assemble(
-                tau * v_d.sub(0) - action(Constant(tau) * self._M_v, b_help_v)
-                - action(Constant(tau) * D_zeta_i + M_v, b_help_zeta0)
+                tau * v_d.sub(0) - action(const_tau * self._M_v, b_help_v)
+                - action(const_tau * D_zeta_i + M_v, b_help_zeta0)
                 + action(M_v, b_help_zeta1)))
             apply_bcs(bcs_zeta, rhs_0.sub(0))
 
             b_help = Function(self.space_v)
             b_help.assign(v_old.sub(0))
             rhs_1.sub(0).assign(assemble(
-                action(Constant(tau) * D_v_0 + M_v, v_0)
-                - action(Constant(tau) * D_v_i + M_v, b_help)))
+                action(const_tau * D_v_0 + M_v, v_0)
+                - action(const_tau * D_v_i + M_v, b_help)))
             apply_bcs(bcs_v, rhs_1.sub(0))
 
             D_v_i = self.construct_D_v(v_trial, v_test,
@@ -1997,14 +2003,14 @@ class Instationary:
             b_help_zeta.assign(zeta_old.sub(n_t - 1))
             rhs_1.sub(n_t - 1).assign(assemble(
                 tau * f.sub(n_t - 1) + action(M_v, b_help_v0)
-                - action(Constant(tau) * D_v_i + M_v, b_help_v1)
-                + action(Constant(tau / self.beta) * self._M_zeta, b_help_zeta)))
+                - action(const_tau * D_v_i + M_v, b_help_v1)
+                + action(const_tau_beta * self._M_zeta, b_help_zeta)))
             apply_bcs(bcs_v, rhs_1.sub(n_t - 1))
 
             b_help = Function(self.space_v)
             b_help.assign(zeta_old.sub(n_t - 1))
             rhs_0.sub(n_t - 1).assign(assemble(
-                - action(Constant(tau) * D_zeta_i + M_v, b_help)))
+                - action(const_tau * D_zeta_i + M_v, b_help)))
             apply_bcs(bcs_zeta, rhs_0.sub(n_t - 1))
 
             t = t_0
@@ -2026,14 +2032,14 @@ class Instationary:
 
                 rhs_0.sub(i).assign(assemble(
                     tau * v_d.sub(i) + action(M_v, b_help_zeta1)
-                    - action(Constant(tau) * self._M_v, b_help_v1)
-                    - action(Constant(tau) * D_zeta_i + M_v, b_help_zeta0)))
+                    - action(const_tau * self._M_v, b_help_v1)
+                    - action(const_tau * D_zeta_i + M_v, b_help_zeta0)))
                 apply_bcs(bcs_zeta, rhs_0.sub(i))
 
                 rhs_1.sub(i).assign(assemble(
                     tau * f.sub(i) + action(M_v, b_help_v0)
-                    - action(Constant(tau) * D_v_i + M_v, b_help_v1)
-                    + action(Constant(tau / self.beta) * self._M_zeta, b_help_zeta0)))
+                    - action(const_tau * D_v_i + M_v, b_help_v1)
+                    + action(const_tau_beta * self._M_zeta, b_help_zeta0)))
                 apply_bcs(bcs_v, rhs_1.sub(i))
         else:
             # evaluating non-linear residual for the trapezoidal rule
@@ -2058,18 +2064,18 @@ class Instationary:
 
             rhs_0.sub(0).assign(assemble(
                 0.5 * tau * (v_d.sub(0) + v_d.sub(1))
-                - action(Constant(0.5 * tau) * self._M_v, b_help_v0)
-                - action(Constant(0.5 * tau) * self._M_v, b_help_v1)
-                - action(Constant(0.5 * tau) * D_zeta_i + M_v, b_help_zeta0)
-                - action(Constant(0.5 * tau) * D_zeta_i_plus - M_v, b_help_zeta1)))
+                - action(const_tau * self._M_v, b_help_v0)
+                - action(const_tau * self._M_v, b_help_v1)
+                - action(const_tau * D_zeta_i + M_v, b_help_zeta0)
+                - action(const_tau * D_zeta_i_plus - M_v, b_help_zeta1)))
             apply_bcs(bcs_zeta, rhs_0.sub(0))
 
             rhs_1.sub(0).assign(assemble(
                 0.5 * tau * (f.sub(0) + f.sub(1))
-                - action(Constant(0.5 * tau) * D_v_i - M_v, b_help_v0)
-                - action(Constant(0.5 * tau) * D_v_i_plus + M_v, b_help_v1)
-                + action(Constant(0.5 * tau / self.beta) * self._M_zeta, b_help_zeta0)
-                + action(Constant(0.5 * tau / self.beta) * self._M_zeta, b_help_zeta1)))
+                - action(const_tau * D_v_i - M_v, b_help_v0)
+                - action(const_tau * D_v_i_plus + M_v, b_help_v1)
+                + action(const_tau_beta * self._M_zeta, b_help_zeta0)
+                + action(const_tau_beta * self._M_zeta, b_help_zeta1)))
             apply_bcs(bcs_v, rhs_1.sub(0))
 
             t = t_0
@@ -2096,18 +2102,18 @@ class Instationary:
 
                 rhs_0.sub(i).assign(assemble(
                     0.5 * tau * (v_d.sub(i) + v_d.sub(i + 1))
-                    - action(Constant(0.5 * tau) * self._M_v, b_help_v0)
-                    - action(Constant(0.5 * tau) * self._M_v, b_help_v1)
-                    - action(Constant(0.5 * tau) * D_zeta_i + M_v, b_help_zeta0)
-                    - action(Constant(0.5 * tau) * D_zeta_i_plus - M_v, b_help_zeta1)))
+                    - action(const_tau * self._M_v, b_help_v0)
+                    - action(const_tau * self._M_v, b_help_v1)
+                    - action(const_tau * D_zeta_i + M_v, b_help_zeta0)
+                    - action(const_tau * D_zeta_i_plus - M_v, b_help_zeta1)))
                 apply_bcs(bcs_zeta, rhs_0.sub(i))
 
                 rhs_1.sub(i).assign(assemble(
                     0.5 * tau * (f.sub(i) + f.sub(i + 1))
-                    - action(Constant(0.5 * tau) * D_v_i - M_v, b_help_v0)
-                    - action(Constant(0.5 * tau) * D_v_i_plus + M_v, b_help_v1)
-                    + action(Constant(0.5 * tau / self.beta) * self._M_zeta, b_help_zeta0)
-                    + action(Constant(0.5 * tau / self.beta) * self._M_zeta, b_help_zeta1)))
+                    - action(const_tau * D_v_i - M_v, b_help_v0)
+                    - action(const_tau * D_v_i_plus + M_v, b_help_v1)
+                    + action(const_tau_beta * self._M_zeta, b_help_zeta0)
+                    + action(const_tau_beta * self._M_zeta, b_help_zeta1)))
                 apply_bcs(bcs_v, rhs_1.sub(i))
 
         return rhs_0, rhs_1
@@ -2155,6 +2161,12 @@ class Instationary:
         t_0 = self._time_interval[0]
         T_f = self._time_interval[1]
         tau = (T_f - t_0) / (n_t - 1.0)
+        if not self._CN:
+            const_tau = Constant(tau)
+            const_tau_beta = Constant(tau / self.beta)
+        else:
+            const_tau = Constant(0.5 * tau)
+            const_tau_beta = Constant(0.5 * tau / self.beta)
 
         if not self._CN:
             epsilon = Constant(1.0e-3)
@@ -2242,15 +2254,15 @@ class Instationary:
                         block_10[(i, j)] = -M_v
                         block_11[(i + 1, j)] = None
                     elif j == i:
-                        block_00[(i, j)] = Constant(tau) * self._M_v
-                        block_01[(i, j)] = Constant(tau) * D_zeta_i + M_v
-                        block_10[(i, j)] = Constant(tau) * D_v_i + M_v
+                        block_00[(i, j)] = const_tau * self._M_v
+                        block_01[(i, j)] = const_tau * D_zeta_i + M_v
+                        block_10[(i, j)] = const_tau * D_v_i + M_v
                         block_11[(i + 1, j)] = None
                     elif j == i + 1:
                         block_00[(i, j)] = None
                         block_01[(i, j)] = -M_v
                         block_10[(i, j)] = None
-                        block_11[(i + 1, j)] = - Constant(tau / self.beta) * self._M_zeta
+                        block_11[(i + 1, j)] = - const_tau_beta * self._M_zeta
                     else:
                         block_00[(i, j)] = None
                         block_01[(i, j)] = None
@@ -2267,20 +2279,20 @@ class Instationary:
 
                 for j in range(n_t - 1):
                     if j == i - 1:
-                        block_00[(i, j)] = Constant(0.5 * tau) * self._M_v
+                        block_00[(i, j)] = const_tau * self._M_v
                         block_01[(i, j)] = None
-                        block_10[(i, j)] = Constant(0.5 * tau) * D_v_i - M_v
+                        block_10[(i, j)] = const_tau * D_v_i - M_v
                         block_11[(i, j)] = None
                     elif j == i:
-                        block_00[(i, j)] = Constant(0.5 * tau) * self._M_v
-                        block_01[(i, j)] = Constant(0.5 * tau) * D_zeta_i + M_v
-                        block_10[(i, j)] = Constant(0.5 * tau) * D_v_i_plus + M_v
-                        block_11[(i, j)] = Constant(-0.5 * tau / self.beta) * self._M_zeta
+                        block_00[(i, j)] = const_tau * self._M_v
+                        block_01[(i, j)] = const_tau * D_zeta_i + M_v
+                        block_10[(i, j)] = const_tau * D_v_i_plus + M_v
+                        block_11[(i, j)] = - const_tau_beta * self._M_zeta
                     elif j == i + 1:
                         block_00[(i, j)] = None
-                        block_01[(i, j)] = Constant(0.5 * tau) * D_zeta_i_plus - M_v
+                        block_01[(i, j)] = const_tau * D_zeta_i_plus - M_v
                         block_10[(i, j)] = None
-                        block_11[(i, j)] = Constant(-0.5 * tau / self.beta) * self._M_zeta
+                        block_11[(i, j)] = - const_tau_beta * self._M_zeta
                     else:
                         block_00[(i, j)] = None
                         block_01[(i, j)] = None
@@ -2303,9 +2315,9 @@ class Instationary:
             block_00[(n_t - 1, n_t - 2)] = None
             block_00[(n_t - 1, n_t - 1)] = None
             block_01[(n_t - 1, n_t - 2)] = None
-            block_01[(n_t - 1, n_t - 1)] = Constant(tau) * D_zeta_i + M_v
+            block_01[(n_t - 1, n_t - 1)] = const_tau * D_zeta_i + M_v
             block_10[(n_t - 1, n_t - 2)] = - M_v
-            block_10[(n_t - 1, n_t - 1)] = Constant(tau) * D_v_i + M_v
+            block_10[(n_t - 1, n_t - 1)] = const_tau * D_v_i + M_v
 
         # construction of right-hand side
         if not self._CN:
@@ -2326,7 +2338,7 @@ class Instationary:
                     apply_bcs(bcs_v_help[(0)], v_inhom)
                     b_0.sub(0).assign(assemble(
                         tau * v_d.sub(0)
-                        - action(Constant(tau) * self._M_v, v_inhom)))
+                        - action(const_tau * self._M_v, v_inhom)))
                 else:
                     b_0.sub(0).assign(tau * v_d.sub(0))
 
@@ -2342,11 +2354,11 @@ class Instationary:
                     v_inhom = Function(self.space_v)
                     apply_bcs(bcs_v_help[(0)], v_inhom)
                     b_1.sub(0).assign(assemble(
-                        action(Constant(tau) * D_v_i + M_v, v_0)
-                        - action(Constant(tau) * D_v_i + M_v, v_inhom)))
+                        action(const_tau * D_v_i + M_v, v_0)
+                        - action(const_tau * D_v_i + M_v, v_inhom)))
                 else:
                     b_1.sub(0).assign(assemble(action(
-                        Constant(tau) * D_v_i + M_v, v_0)))
+                        const_tau * D_v_i + M_v, v_0)))
 
                 apply_bcs(bcs_v, b_1.sub(0))
             else:
@@ -2360,7 +2372,7 @@ class Instationary:
                         apply_bcs(bcs_v_help[(i)], v_inhom)
                         b_0.sub(i).assign(assemble(
                             tau * v_d.sub(i)
-                            - action(Constant(tau) * self._M_v, v_inhom)))
+                            - action(const_tau * self._M_v, v_inhom)))
                     else:
                         b_0.sub(i).assign(tau * v_d.sub(i))
 
@@ -2382,7 +2394,7 @@ class Instationary:
                         apply_bcs(bcs_v_help[(i)], v_inhom_1)
                         b_1.sub(i).assign(assemble(
                             tau * f.sub(i) + action(M_v, v_inhom0)
-                            - action(Constant(tau) * D_v_i + M_v, v_inhom_1)))
+                            - action(const_tau * D_v_i + M_v, v_inhom_1)))
                     else:
                         b_1.sub(i).assign(tau * f.sub(i))
 
@@ -2406,7 +2418,7 @@ class Instationary:
                     apply_bcs(bcs_v_help[(n_t - 1)], v_inhom1)
                     b_1.sub(n_t - 1).assign(assemble(
                         tau * f.sub(n_t - 1) + action(M_v, v_inhom0)
-                        - action(Constant(tau) * D_v_i + M_v, v_inhom1)))
+                        - action(const_tau * D_v_i + M_v, v_inhom1)))
                 else:
                     b_1.sub(n_t - 1).assign(tau * f.sub(n_t - 1))
 
@@ -2426,12 +2438,12 @@ class Instationary:
                             apply_bcs(bcs_v_help[(i)], v_inhom0)
                             b_0.sub(i).assign(assemble(
                                 0.5 * tau * (v_d.sub(i) + v_d.sub(i + 1))
-                                - action(Constant(0.5 * tau) * self._M_v, v_inhom0)
-                                - action(Constant(0.5 * tau) * self._M_v, v_inhom1)))
+                                - action(const_tau * self._M_v, v_inhom0)
+                                - action(const_tau * self._M_v, v_inhom1)))
                         else:
                             b_0.sub(i).assign(assemble(
                                 0.5 * tau * (v_d.sub(i) + v_d.sub(i + 1))
-                                - action(Constant(0.5 * tau) * self._M_v, v_inhom1)))
+                                - action(const_tau * self._M_v, v_inhom1)))
                     else:
                         b_0.sub(i).assign(
                             0.5 * tau * (v_d.sub(i) + v_d.sub(i + 1)))
@@ -2459,12 +2471,12 @@ class Instationary:
 
                             b_1.sub(i).assign(assemble(
                                 0.5 * tau * (f.sub(i) + f.sub(i + 1))
-                                - action(Constant(0.5 * tau) * D_v_j - M_v, v_inhom0)
-                                - action(Constant(0.5 * tau) * D_v_i + M_v, v_inhom1)))
+                                - action(const_tau * D_v_j - M_v, v_inhom0)
+                                - action(const_tau * D_v_i + M_v, v_inhom1)))
                         else:
                             b_1.sub(i).assign(assemble(
                                 0.5 * tau * (f.sub(i) + f.sub(i + 1))
-                                - action(Constant(0.5 * tau) * D_v_i + M_v, v_inhom1)))
+                                - action(const_tau * D_v_i + M_v, v_inhom1)))
                     else:
                         b_1.sub(i).assign(
                             0.5 * tau * (f.sub(i) + f.sub(i + 1)))
@@ -2475,14 +2487,14 @@ class Instationary:
 
             if check_v_d:
                 b_0.sub(0).assign(assemble(
-                    b_0.sub(0) - action(Constant(0.5 * tau) * self._M_v, v_0)))
+                    b_0.sub(0) - action(const_tau * self._M_v, v_0)))
                 apply_bcs(bcs_zeta, b_0.sub(0))
 
             if check_f:
                 D_v_i = self.construct_D_v(
                     v_trial, v_test, v_0, Constant(t_0))
                 b_1.sub(0).assign(assemble(
-                    b_1.sub(0) - action(Constant(0.5 * tau) * D_v_i - M_v, v_0)))
+                    b_1.sub(0) - action(const_tau * D_v_i - M_v, v_0)))
                 apply_bcs(bcs_v, b_1.sub(0))
 
             b_0 = apply_T_1(b_0, self.space_v, n_t - 1)
@@ -2846,6 +2858,13 @@ class Instationary:
         t_0 = self._time_interval[0]
         T_f = self._time_interval[1]
         tau = (T_f - t_0) / (n_t - 1.0)
+        if not self._CN:
+            const_tau = Constant(tau)
+            const_tau_beta = Constant(tau / self.beta)
+        else:
+            const_tau = Constant(0.5 * tau)
+            const_tau_help = Constant(tau)
+            const_tau_beta = Constant(0.5 * tau / self.beta)
 
         if not self._CN:
             epsilon = Constant(1.0e-3)
@@ -2963,23 +2982,22 @@ class Instationary:
 
             if self._CN:
                 if self._M_p is not None:
-                    block_00_p = Constant(0.5 * tau) * self._M_p
+                    block_00_p = const_tau * self._M_p
                 else:
-                    block_00_p = Constant(0.5 * tau) * inner(p_trial, p_test) * dx
+                    block_00_p = const_tau * inner(p_trial, p_test) * dx
                 if self._M_mu is not None:
-                    block_11_p = - Constant(0.5 * (tau / self.beta)) * self._M_mu
+                    block_11_p = - const_tau_beta * self._M_mu
                 else:
-                    block_11_p = - Constant(0.5 * (tau / self.beta)) * inner(p_trial, p_test) * dx
+                    block_11_p = - const_tau_beta * inner(p_trial, p_test) * dx
             else:
                 if self._M_p is not None:
-                    block_00_p = Constant(tau) * self._M_p
+                    block_00_p = const_tau * self._M_p
                 else:
-                    block_00_p = Constant(tau) * inner(p_trial,
-                                                       p_test) * dx
+                    block_00_p = const_tau * inner(p_trial, p_test) * dx
                 if self._M_mu is not None:
-                    block_11_p = - Constant(tau / self.beta) * self._M_mu
+                    block_11_p = - const_tau_beta * self._M_mu
                 else:
-                    block_11_p = - Constant(tau / self.beta) * inner(p_trial, p_test) * dx
+                    block_11_p = - const_tau_beta * inner(p_trial, p_test) * dx
 
             K_p = inner(grad(p_trial), grad(p_test)) * dx
             M_p = inner(p_trial, p_test) * dx
@@ -2989,8 +3007,8 @@ class Instationary:
                 for j in range(2 * n_t):
                     block_11[(i, j)] = None
                     if j == i:
-                        block_01[(i, j)] = Constant(tau) * B_T
-                        block_10[(i, j)] = Constant(tau) * B
+                        block_01[(i, j)] = const_tau * B_T
+                        block_10[(i, j)] = const_tau * B
                     else:
                         block_01[(i, j)] = None
                         block_10[(i, j)] = None
@@ -2999,8 +3017,8 @@ class Instationary:
                 for j in range(2 * n_t - 2):
                     block_11[(i, j)] = None
                     if j == i:
-                        block_01[(i, j)] = Constant(tau) * B_T
-                        block_10[(i, j)] = Constant(tau) * B
+                        block_01[(i, j)] = const_tau_help * B_T
+                        block_10[(i, j)] = const_tau_help * B
                     else:
                         block_01[(i, j)] = None
                         block_10[(i, j)] = None
@@ -3042,30 +3060,30 @@ class Instationary:
                         if P is None:
                             block_10_int_p[(i, j)] = -M_p
                     elif j == i:
-                        block_00[(i, j)] = Constant(tau) * self._M_v
-                        block_00[(i, n_t + j)] = Constant(tau) * D_zeta_i + M_v
-                        block_00[(n_t + i, j)] = Constant(tau) * D_v_i + M_v
+                        block_00[(i, j)] = const_tau * self._M_v
+                        block_00[(i, n_t + j)] = const_tau * D_zeta_i + M_v
+                        block_00[(n_t + i, j)] = const_tau * D_v_i + M_v
                         block_00[(n_t + i + 1, n_t + j)] = None
 
-                        block_00_int[(i, j)] = Constant(tau) * self._M_v
-                        block_01_int[(i, j)] = Constant(tau) * D_zeta_i + M_v
-                        block_10_int[(i, j)] = Constant(tau) * D_v_i + M_v
+                        block_00_int[(i, j)] = const_tau * self._M_v
+                        block_01_int[(i, j)] = const_tau * D_zeta_i + M_v
+                        block_10_int[(i, j)] = const_tau * D_v_i + M_v
                         block_11_int[(i + 1, j)] = None
 
                         if P is None:
                             block_00_int_p[(i, j)] = block_00_p
-                            block_01_int_p[(i, j)] = Constant(tau) * D_mu_i + M_p
-                            block_10_int_p[(i, j)] = Constant(tau) * D_p_i + M_p
+                            block_01_int_p[(i, j)] = const_tau * D_mu_i + M_p
+                            block_10_int_p[(i, j)] = const_tau * D_p_i + M_p
                     elif j == i + 1:
                         block_00[(i, j)] = None
                         block_00[(i, n_t + j)] = -M_v
                         block_00[(n_t + i, j)] = None
-                        block_00[(n_t + i + 1, n_t + j)] = - Constant(tau / self.beta) * self._M_zeta
+                        block_00[(n_t + i + 1, n_t + j)] = - const_tau_beta * self._M_zeta
 
                         block_00_int[(i, j)] = None
                         block_01_int[(i, j)] = -M_v
                         block_10_int[(i, j)] = None
-                        block_11_int[(i + 1, j)] = - Constant(tau / self.beta) * self._M_zeta
+                        block_11_int[(i + 1, j)] = - const_tau_beta * self._M_zeta
 
                         if P is None:
                             block_01_int_p[(i, j)] = -M_p
@@ -3097,48 +3115,48 @@ class Instationary:
 
                 for j in range(n_t - 1):
                     if j == i - 1:
-                        block_00[(i, j)] = Constant(0.5 * tau) * self._M_v
+                        block_00[(i, j)] = const_tau * self._M_v
                         block_00[(i, n_t + j - 1)] = None
-                        block_00[(n_t + i - 1, j)] = Constant(0.5 * tau) * D_v_i - M_v
+                        block_00[(n_t + i - 1, j)] = const_tau * D_v_i - M_v
                         block_00[(n_t + i - 1, n_t + j - 1)] = None
 
-                        block_00_int[(i, j)] = Constant(0.5 * tau) * self._M_v
+                        block_00_int[(i, j)] = const_tau * self._M_v
                         block_01_int[(i, j)] = None
-                        block_10_int[(i, j)] = Constant(0.5 * tau) * D_v_i - M_v
+                        block_10_int[(i, j)] = const_tau * D_v_i - M_v
                         block_11_int[(i, j)] = None
 
                         if P is None:
                             block_00_int_p[(i, j)] = block_00_p
-                            block_10_int_p[(i, j)] = Constant(0.5 * tau) * D_p_i - M_p
+                            block_10_int_p[(i, j)] = const_tau * D_p_i - M_p
                     elif j == i:
-                        block_00[(i, j)] = Constant(0.5 * tau) * self._M_v
-                        block_00[(i, n_t + j - 1)] = Constant(0.5 * tau) * D_zeta_i + M_v
-                        block_00[(n_t + i - 1, j)] = Constant(0.5 * tau) * D_v_i_plus + M_v
-                        block_00[(n_t + i - 1, n_t + j - 1)] = - Constant(0.5 * (tau / self.beta)) * self._M_zeta
+                        block_00[(i, j)] = const_tau * self._M_v
+                        block_00[(i, n_t + j - 1)] = const_tau * D_zeta_i + M_v
+                        block_00[(n_t + i - 1, j)] = const_tau * D_v_i_plus + M_v
+                        block_00[(n_t + i - 1, n_t + j - 1)] = - const_tau_beta * self._M_zeta
 
-                        block_00_int[(i, j)] = Constant(0.5 * tau) * self._M_v
-                        block_01_int[(i, j)] = Constant(0.5 * tau) * D_zeta_i + M_v
-                        block_10_int[(i, j)] = Constant(0.5 * tau) * D_v_i_plus + M_v
-                        block_11_int[(i, j)] = - Constant(0.5 * (tau / self.beta)) * self._M_zeta
+                        block_00_int[(i, j)] = const_tau * self._M_v
+                        block_01_int[(i, j)] = const_tau * D_zeta_i + M_v
+                        block_10_int[(i, j)] = const_tau * D_v_i_plus + M_v
+                        block_11_int[(i, j)] = - const_tau_beta * self._M_zeta
 
                         if P is None:
                             block_00_int_p[(i, j)] = block_00_p
-                            block_01_int_p[(i, j)] = Constant(0.5 * tau) * D_mu_i + M_p
-                            block_10_int_p[(i, j)] = Constant(0.5 * tau) * D_p_i_plus + M_p
+                            block_01_int_p[(i, j)] = const_tau * D_mu_i + M_p
+                            block_10_int_p[(i, j)] = const_tau * D_p_i_plus + M_p
                             block_11_int_p[(i, j)] = block_11_p
                     elif j == i + 1:
                         block_00[(i, j)] = None
-                        block_00[(i, n_t + j - 1)] = Constant(0.5 * tau) * D_zeta_i_plus - M_v
+                        block_00[(i, n_t + j - 1)] = const_tau * D_zeta_i_plus - M_v
                         block_00[(n_t + i - 1, j)] = None
-                        block_00[(n_t + i - 1, n_t + j - 1)] = - Constant(0.5 * (tau / self.beta)) * self._M_zeta
+                        block_00[(n_t + i - 1, n_t + j - 1)] = - const_tau_beta * self._M_zeta
 
                         block_00_int[(i, j)] = None
-                        block_01_int[(i, j)] = Constant(0.5 * tau) * D_zeta_i_plus - M_v
+                        block_01_int[(i, j)] = const_tau * D_zeta_i_plus - M_v
                         block_10_int[(i, j)] = None
-                        block_11_int[(i, j)] = - Constant(0.5 * (tau / self.beta)) * self._M_zeta
+                        block_11_int[(i, j)] = - const_tau_beta * self._M_zeta
 
                         if P is None:
-                            block_01_int_p[(i, j)] = Constant(0.5 * tau) * D_mu_i_plus - M_p
+                            block_01_int_p[(i, j)] = const_tau * D_mu_i_plus - M_p
                             block_11_int_p[(i, j)] = block_11_p
                     else:
                         block_00[(i, j)] = None
@@ -3177,21 +3195,21 @@ class Instationary:
             block_00[(n_t - 1, n_t - 2)] = None
             block_00[(n_t - 1, n_t - 1)] = None
             block_00[(n_t - 1, 2 * n_t - 2)] = None
-            block_00[(n_t - 1, 2 * n_t - 1)] = Constant(tau) * D_zeta_i + M_v
+            block_00[(n_t - 1, 2 * n_t - 1)] = const_tau * D_zeta_i + M_v
             block_00[(2 * n_t - 1, n_t - 2)] = - M_v
-            block_00[(2 * n_t - 1, n_t - 1)] = Constant(tau) * D_v_i + M_v
+            block_00[(2 * n_t - 1, n_t - 1)] = const_tau * D_v_i + M_v
 
             block_00_int[(n_t - 1, n_t - 2)] = None
             block_00_int[(n_t - 1, n_t - 1)] = None
             block_01_int[(n_t - 1, n_t - 2)] = None
-            block_01_int[(n_t - 1, n_t - 1)] = Constant(tau) * D_zeta_i + M_v
+            block_01_int[(n_t - 1, n_t - 1)] = const_tau * D_zeta_i + M_v
             block_10_int[(n_t - 1, n_t - 2)] = - M_v
-            block_10_int[(n_t - 1, n_t - 1)] = Constant(tau) * D_v_i + M_v
+            block_10_int[(n_t - 1, n_t - 1)] = const_tau * D_v_i + M_v
 
             if P is None:
-                block_01_int_p[(n_t - 1, n_t - 1)] = Constant(tau) * D_mu_i + M_p
+                block_01_int_p[(n_t - 1, n_t - 1)] = const_tau * D_mu_i + M_p
                 block_10_int_p[(n_t - 1, n_t - 2)] = - M_p
-                block_10_int_p[(n_t - 1, n_t - 1)] = Constant(tau) * D_p_i + M_p
+                block_10_int_p[(n_t - 1, n_t - 1)] = const_tau * D_p_i + M_p
 
         # construction of the right-hand side
         if not self._CN:
@@ -3201,7 +3219,7 @@ class Instationary:
                     v_inhom = Function(self.space_v)
                     apply_bcs(bcs_v_help[(0)], v_inhom)
                     b_0_0.sub(0).assign(assemble(
-                        tau * v_d.sub(0) - action(Constant(tau) * self._M_v, v_inhom)))
+                        tau * v_d.sub(0) - action(const_tau * self._M_v, v_inhom)))
                 else:
                     b_0_0.sub(0).assign(tau * v_d.sub(0))
                 apply_bcs(bcs_v, b_0_0.sub(0))
@@ -3216,11 +3234,11 @@ class Instationary:
                     v_inhom = Function(self.space_v)
                     apply_bcs(bcs_v_help[(0)], v_inhom)
                     b_0_1.sub(0).assign(assemble(
-                        action(Constant(tau) * D_v_i + M_v, v_0)
-                        - action(Constant(tau) * D_v_i + M_v, v_inhom)))
+                        action(const_tau * D_v_i + M_v, v_0)
+                        - action(const_tau * D_v_i + M_v, v_inhom)))
                 else:
                     b_0_1.sub(0).assign(assemble(
-                        action(Constant(tau) * D_v_i + M_v, v_0)))
+                        action(const_tau * D_v_i + M_v, v_0)))
 
                 apply_bcs(bcs_zeta, b_0_1.sub(0))
             else:
@@ -3234,7 +3252,7 @@ class Instationary:
                         apply_bcs(bcs_v_help[(i)], v_inhom)
                         b_0_0.sub(i).assign(assemble(
                             tau * v_d.sub(i)
-                            - action(Constant(tau) * self._M_v, v_inhom)))
+                            - action(const_tau * self._M_v, v_inhom)))
                     else:
                         b_0_0.sub(i).assign(tau * v_d.sub(i))
                     apply_bcs(bcs_zeta, b_0_0.sub(i))
@@ -3255,7 +3273,7 @@ class Instationary:
                         apply_bcs(bcs_v_help[(i)], v_inhom1)
                         b_0_1.sub(i).assign(assemble(
                             tau * f.sub(i) + action(M_v, v_inhom0)
-                            - action(Constant(tau) * D_v_i + M_v, v_inhom1)))
+                            - action(const_tau * D_v_i + M_v, v_inhom1)))
                     else:
                         b_0_1.sub(i).assign(tau * f.sub(i))
                     apply_bcs(bcs_v, b_0_1.sub(i))
@@ -3278,7 +3296,7 @@ class Instationary:
                     apply_bcs(bcs_v_help[(n_t - 1)], v_inhom1)
                     b_0_1.sub(n_t - 1).assign(assemble(
                         tau * f.sub(n_t - 1) + action(M_v, v_inhom0)
-                        - action(Constant(tau) * D_v_i + M_v, v_inhom1)))
+                        - action(const_tau * D_v_i + M_v, v_inhom1)))
                 else:
                     b_0_1.sub(n_t - 1).assign(
                         tau * f.sub(n_t - 1))
@@ -3292,7 +3310,7 @@ class Instationary:
                         v_inhom = Function(self.space_v)
                         apply_bcs(bcs_v_help[(i)], v_inhom)
                         b_1_0.sub(i).assign(assemble(
-                            - action(Constant(tau) * B, v_inhom)))
+                            - action(const_tau * B, v_inhom)))
             else:
                 for i in range(n_t):
                     b_1_0.sub(i).assign(div_v.sub(i))
@@ -3319,12 +3337,12 @@ class Instationary:
                             apply_bcs(bcs_v_help[(i)], v_inhom0)
                             b_0_0.sub(i).assign(assemble(
                                 0.5 * tau * (v_d.sub(i) + v_d.sub(i + 1))
-                                - action(Constant(0.5 * tau) * self._M_v, v_inhom0)
-                                - action(Constant(0.5 * tau) * self._M_v, v_inhom1)))
+                                - action(const_tau * self._M_v, v_inhom0)
+                                - action(const_tau * self._M_v, v_inhom1)))
                         else:
                             b_0_0.sub(i).assign(assemble(
                                 0.5 * tau * (v_d.sub(i) + v_d.sub(i + 1))
-                                - action(Constant(0.5 * tau) * self._M_v, v_inhom1)))
+                                - action(const_tau * self._M_v, v_inhom1)))
                     else:
                         b_0_0.sub(i).assign(
                             0.5 * tau * (v_d.sub(i) + v_d.sub(i + 1)))
@@ -3351,12 +3369,12 @@ class Instationary:
                             apply_bcs(bcs_v_help[(i)], v_inhom0)
                             b_0_1.sub(i).assign(assemble(
                                 0.5 * tau * (f.sub(i) + f.sub(i + 1))
-                                - action(Constant(0.5 * tau) * D_v_i - M_v, v_inhom0)
-                                - action(Constant(0.5 * tau) * D_v_j + M_v, v_inhom1)))
+                                - action(const_tau * D_v_i - M_v, v_inhom0)
+                                - action(const_tau * D_v_j + M_v, v_inhom1)))
                         else:
                             b_0_1.sub(i).assign(assemble(
                                 0.5 * tau * (f.sub(i) + f.sub(i + 1))
-                                - action(Constant(0.5 * tau) * D_v_j + M_v, v_inhom1)))
+                                - action(const_tau * D_v_j + M_v, v_inhom1)))
                     else:
                         b_0_1.sub(i).assign(
                             0.5 * tau * (f.sub(i) + f.sub(i + 1)))
@@ -3367,7 +3385,7 @@ class Instationary:
             if check_v_d:
                 b_0_0.sub(0).assign(assemble(
                     b_0_0.sub(0)
-                    - action(Constant(0.5 * tau) * self._M_v, v_0)))
+                    - action(const_tau * self._M_v, v_0)))
                 apply_bcs(bcs_zeta, b_0_0.sub(0))
 
             if check_f:
@@ -3376,7 +3394,7 @@ class Instationary:
 
                 b_0_1.sub(0).assign(assemble(
                     b_0_1.sub(0)
-                    - action(Constant(0.5 * tau) * D_v_i - M_v, v_0)))
+                    - action(const_tau * D_v_i - M_v, v_0)))
                 apply_bcs(bcs_v, b_0_1.sub(0))
 
             if div_v is None:
@@ -3385,7 +3403,7 @@ class Instationary:
                         v_inhom = Function(self.space_v)
                         apply_bcs(bcs_v_help[(i + 1)], v_inhom)
                         b_1_0.sub(i).assign(assemble(
-                            - action(Constant(tau) * B, v_inhom)))
+                            - action(const_tau_help * B, v_inhom)))
             else:
                 for i in range(n_t - 1):
                     b_1_0.sub(i).assign(div_v.sub(i))
@@ -3534,12 +3552,12 @@ class Instationary:
                         v_help.assign(u_0.sub(i))
                         b_0_help.sub(i).assign(assemble(action(B, v_help)))
                         with b_0_help.sub(i).dat.vec as b_v:
-                            b_v.scale(Constant(tau))
+                            b_v.scale(tau)
 
                         v_help.assign(u_0.sub(n_t - 1 + i))
                         b_1_help.sub(i).assign(assemble(action(B, v_help)))
                         with b_1_help.sub(i).dat.vec as b_v:
-                            b_v.scale(Constant(tau))
+                            b_v.scale(tau)
 
                     b_0_help = apply_T_2(b_0_help, space_p, n_t - 1)
                     b_1_help = apply_T_1(b_1_help, space_p, n_t - 1)
@@ -3555,9 +3573,9 @@ class Instationary:
                     # block-pressure convection--diffusion preconditioner)
                     for i in range(n_t - 1):
                         with b_0_help.sub(i).dat.vec as b_v:
-                            b_v.scale(Constant(1.0 / (tau**2)))
+                            b_v.scale(1.0 / (tau**2))
                         with b_1_help.sub(i).dat.vec as b_v:
-                            b_v.scale(Constant(1.0 / (tau**2)))
+                            b_v.scale(1.0 / (tau**2))
 
                     b_0_help = apply_T_2_inv(b_0_help, space_p, n_t - 1)
                     b_1_help = apply_T_1_inv(b_1_help, space_p, n_t - 1)
@@ -3666,12 +3684,12 @@ class Instationary:
                         v_help.assign(u_0.sub(i))
                         b_0_help.sub(i).assign(assemble(action(B, v_help)))
                         with b_0_help.sub(i).dat.vec as b_v:
-                            b_v.scale(Constant(tau))
+                            b_v.scale(tau)
 
                         v_help.assign(u_0.sub(n_t + i))
                         b_1_help.sub(i).assign(assemble(action(B, v_help)))
                         with b_1_help.sub(i).dat.vec as b_v:
-                            b_v.scale(Constant(tau))
+                            b_v.scale(tau)
 
                     for i in range(n_t):
                         b_0_help.sub(i).assign(assemble(
@@ -3685,9 +3703,9 @@ class Instationary:
                     # block-pressure convection--diffusion preconditioner)
                     for i in range(n_t):
                         with b_0_help.sub(i).dat.vec as b_v:
-                            b_v.scale(Constant(1.0 / (tau**2)))
+                            b_v.scale(1.0 / (tau**2))
                         with b_1_help.sub(i).dat.vec as b_v:
-                            b_v.scale(Constant(1.0 / (tau**2)))
+                            b_v.scale(1.0 / (tau**2))
 
                     p_help = Cofunction(space_p.dual())
                     for i in range(n_t):
@@ -3874,6 +3892,7 @@ class Instationary:
         t_0 = self._time_interval[0]
         T_f = self._time_interval[1]
         tau = (T_f - t_0) / (n_t - 1.0)
+        const_tau = Constant(tau)
 
         inhomogeneous_bcs_v = False
         for i, bc_i in self._bcs_v.items():
@@ -3971,13 +3990,13 @@ class Instationary:
                     b_p_help = Function(space_p)
                     b_p_help.assign(mu_old.sub(i))
                     rhs_00.sub(i).assign(assemble(
-                        rhs_00.sub(i) - action(Constant(tau) * B_T, b_p_help)))
+                        rhs_00.sub(i) - action(const_tau * B_T, b_p_help)))
                     apply_bcs(bcs_v, rhs_00.sub(i))
 
                     b_p_help = Function(space_p)
                     b_p_help.assign(p_old.sub(i))
                     rhs_01.sub(i).assign(assemble(
-                        rhs_01.sub(i) - action(Constant(tau) * B_T, b_p_help)))
+                        rhs_01.sub(i) - action(const_tau * B_T, b_p_help)))
                     apply_bcs(bcs_zeta, rhs_01.sub(i))
 
                     b_help = Function(self.space_v)
@@ -3992,13 +4011,13 @@ class Instationary:
                     b_p_help = Function(space_p)
                     b_p_help.assign(mu_old.sub(i))
                     rhs_00.sub(i).assign(assemble(
-                        rhs_00.sub(i) - action(Constant(tau) * B_T, b_p_help)))
+                        rhs_00.sub(i) - action(const_tau * B_T, b_p_help)))
                     apply_bcs(bcs_v, rhs_00.sub(i))
 
                     b_p_help = Function(space_p)
                     b_p_help.assign(p_old.sub(i))
                     rhs_01.sub(i).assign(assemble(
-                        rhs_01.sub(i) - action(Constant(tau) * B_T, b_p_help)))
+                        rhs_01.sub(i) - action(const_tau * B_T, b_p_help)))
                     apply_bcs(bcs_zeta, rhs_01.sub(i))
 
                     b_help = Function(self.space_v)
