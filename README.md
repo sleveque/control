@@ -24,7 +24,7 @@ instantiating an Instationary object. For the example considered, the code looks
 	from firedrake import *
 	from control.control import *
 
-	mesh = RectangleMesh(10, 10, 2.0, 2.0)
+	mesh = RectangleMesh(10, 10, 1.0, 1.0, originX=-1.0, originY=-1.0)
 	space_0 = FunctionSpace(mesh, "Lagrange", 1)
 
 	def forw_diff_operator(trial, test, v, t):
