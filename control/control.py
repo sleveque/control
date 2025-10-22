@@ -1,3 +1,9 @@
+"""A library for solving certain PDE-constrained optimization problems. Uses
+Firedrake to derive the finite element discretization of the problems
+considered, and the Python interface to PETSc for the derivation of the KKT
+conditions and the definition of the linear solvers.
+"""
+
 from firedrake import (
     CheckpointFile, Cofunction, Constant, Function, FunctionSpace,
     LinearSolver, MixedFunctionSpace, TestFunction, TrialFunction,
@@ -19,7 +25,7 @@ import petsc4py.PETSc as PETSc
 import ufl
 
 from collections.abc import Sequence
-from functools import cached_property
+from functools import cached_property, wraps
 
 
 __all__ = \
@@ -29,30 +35,30 @@ __all__ = \
     ]
 
 
-# definition of convergence for ksp linear solvers
+# Used to avoid convergence errors when max_it is reached
 def converged(ksp, it, rnorm):
     return it >= ksp.max_it
 
 
 def garbage_cleanup(comm):
     def wrapper(fn):
+        @wraps(fn)
         def wrapped_fn(*args, **kwargs):
             return_value = fn(*args, **kwargs)
             PETSc.garbage_cleanup(comm)
             return return_value
         return wrapped_fn
-
     return wrapper
 
 
 def garbage_cleanup_method(attr_name="comm"):
     def wrapper(fn):
+        @wraps(fn)
         def wrapped_fn(self, *args, **kwargs):
             return_value = fn(self, *args, **kwargs)
             PETSc.garbage_cleanup(getattr(self, attr_name))
             return return_value
         return wrapped_fn
-
     return wrapper
 
 
@@ -71,7 +77,6 @@ def output(data):
     for name, u in data.items():
         output = File(f"{name}.pvd")
         output.write(u)
-
         with CheckpointFile(f"{name}.h5", mode="w") as h:
             h.save_function(u)
 
@@ -85,17 +90,6 @@ def time(time_interval, i, n_t):
     t_0, t_1 = time_interval
     # Linearly interpolate
     return (t_0 * (n_t - 1 - i) + t_1 * i) / (n_t - 1)
-
-
-"""control is a library for solving certain PDE-constrained
-optimization problems. The software employs the Firedrake
-system to derive the finite element discretization of the problems
-considered, using the Python interface to PETSc for the derivation
-of the KKT conditions and the definition of the linear solvers.
-
-Control contains the class Stationary and the class Instationary,
-employed for the solution of the corresponding control problem.
-"""
 
 
 class Stationary:
