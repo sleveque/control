@@ -265,7 +265,7 @@ def test_stationary_incompressible_linear_control():
 
         # desired state
         v_d = Function(space, name="v_d")
-        v_d.interpolate((0.0, 0.0))
+        v_d.interpolate(as_vector((0.0, 0.0)))
 
         # true v
         true_v = Function(space, name="true_v")
@@ -279,7 +279,7 @@ def test_stationary_incompressible_linear_control():
         # force function
         f = Function(space)
 
-        f.interpolate((0.0, 0.0))
+        f.interpolate(as_vector((0.0, 0.0)))
 
         return inner(f, test) * dx
 
