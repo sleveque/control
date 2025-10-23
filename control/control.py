@@ -92,6 +92,10 @@ def time(time_interval, i, n_t):
     return (t_0 * (n_t - 1 - i) + t_1 * i) / (n_t - 1)
 
 
+def mass(space):
+    return inner(TrialFunction(space), TestFunction(space)) * dx
+
+
 class Stationary:
     def __init__(self, space_v, forward_form, desired_state=None,
                  force_function=None, *, beta=1.0e-3, space_p=None,
@@ -152,15 +156,12 @@ class Stationary:
         self._v = Function(space_v, name="v")
         apply_bcs(self._bcs_v, self._v)
         self._zeta = Function(space_v, name="zeta")
+        self._M_v = self._M_zeta = mass(space_v)
 
-        v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
-        self._M_v = self._M_zeta = inner(v_trial, v_test) * dx
-
+        self._space_p = None
+        self._M_p = self._M_mu = None
         if space_p is not None:
             self.set_space_p(space_p)
-        else:
-            self._space_p = None
-            self._M_p = self._M_mu = None
 
     @property
     def space_v(self):
@@ -183,8 +184,7 @@ class Stationary:
         self._space_p = space_p
         self._p = Function(space_p, name="p")
         self._mu = Function(space_p, name="mu")
-        p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
-        self._M_p = self._M_mu = inner(p_trial, p_test) * dx
+        self._M_p = self._M_mu = mass(space_p)
 
     def set_v(self, v_new):
         """
@@ -249,45 +249,39 @@ class Stationary:
             - D_v                   discretized forward form
         """
 
-        if (not self._Gauss_Newton) or non_linear_res:
+        if not self._Gauss_Newton or non_linear_res:
             # if Gauss--Newton is not applied or we want to
             # evaluate the residual, we take the Picard linearization
             # of the forward form
-            D_v = self._forward_form(v_trial, v_test, v_old)
+            return self._forward_form(v_trial, v_test, v_old)
         else:
             # if we want to apply Gauss--Newton, we take the
             # derivative of the form in the direction of v_old
-            D_v = ufl.derivative(
+            return ufl.derivative(
                 self._forward_form(v_old, v_test, v_old),
                 v_old, v_trial)
 
-        return D_v
-
-    def construct_f(self, inhomogeneous_bcs_v, v_test,
-                    D_v, v_inhom, bcs_v):
+    def construct_f(self, v_test, D_v, bcs_v, *, v_inhom=None):
         """Construction of the vector containing the force function.
 
         Input:
-            - inhomogeneous_bcs_v        if True, inhomogeneous bcs have to
-                                         be imposed
-
             - v_test                     test function
 
             - D_v                        discretized forward form
+
+            - bcs_v                      homogenization of the bcs on the
+                                         state variable
 
             - v_inhom                    function that is zero in the
                                          interior of the domain and
                                          interpolates the state variable on
                                          the boundary
 
-            - bcs_v                      homogenization of the bcs on the
-                                         state variable
-
         Output:
             - f                          discretized force function
         """
 
-        if inhomogeneous_bcs_v:
+        if v_inhom is not None:
             f = assemble(self._force_function(v_test)
                          - action(D_v, v_inhom))
         else:
@@ -295,29 +289,26 @@ class Stationary:
         apply_bcs(bcs_v, f)
         return f
 
-    def construct_v_d(self, v_test, inhomogeneous_bcs_v, v_inhom, bcs_v):
+    def construct_v_d(self, v_test, bcs_v, *, v_inhom=None):
         """Construction of the vector containing the desired state.
 
         Input:
             - v_test                     test function
 
-            - inhomogeneous_bcs_v        if True, inhomogeneous bcs have to
-                                         be imposed
+            - bcs_v                      homogenization of the bcs on the
+                                         state variable
 
             - v_inhom                    function that is zero in the
                                          interior of the domain and
                                          interpolates the state variable on
                                          the boundary
 
-            - bcs_v                      homogenization of the bcs on the
-                                         state variable
-
         Output:
             - v_d                        discretized desired state
         """
 
         v_d, true_v = self._desired_state(v_test)
-        if inhomogeneous_bcs_v:
+        if v_inhom is not None:
             v_d = assemble(v_d - action(self._M_v, v_inhom))
         else:
             v_d = assemble(v_d)
@@ -487,8 +478,7 @@ class Stationary:
 
         v_test, v_trial = TestFunction(self.space_v), TrialFunction(self.space_v)
 
-        inhomogeneous_bcs_v = any((not isinstance(bc.function_arg, ufl.classes.Zero)) for bc in self._bcs_v)
-        if inhomogeneous_bcs_v:
+        if any((not isinstance(bc.function_arg, ufl.classes.Zero)) for bc in self._bcs_v):
             v_inhom = Function(self.space_v)
             apply_bcs(self._bcs_v, v_inhom)
             bcs_v = homogenize(self._bcs_v)
@@ -505,9 +495,9 @@ class Stationary:
         D_zeta = adjoint(D_v)
 
         if f is None:
-            f = self.construct_f(inhomogeneous_bcs_v, v_test, D_v, v_inhom, bcs_v)
+            f = self.construct_f(v_test, D_v, bcs_v, v_inhom=v_inhom)
         if v_d is None:
-            v_d = self.construct_v_d(v_test, inhomogeneous_bcs_v, v_inhom, bcs_v)
+            v_d = self.construct_v_d(v_test, bcs_v, v_inhom=v_inhom)
         if solver_parameters is None:
             solver_parameters = {"linear_solver": "gmres",
                                  "gmres_restart": 10,
@@ -540,7 +530,7 @@ class Stationary:
             v, zeta, v_d, f,
             solver_parameters=solver_parameters,
             pc_fn=pc_fn)
-        if inhomogeneous_bcs_v:
+        if v_inhom is not None:
             v += v_inhom
         self.set_v(v)
         self.set_zeta(zeta)
@@ -596,16 +586,12 @@ class Stationary:
 
         v_test, v_trial = TestFunction(self.space_v), TrialFunction(self.space_v)
 
-        inhomogeneous_bcs_v = False
-        for bc in self._bcs_v:
-            if not isinstance(bc.function_arg, ufl.classes.Zero):
-                inhomogeneous_bcs_v = True
-
-        if inhomogeneous_bcs_v:
+        if any(not isinstance(bc.function_arg, ufl.classes.Zero) for bc in self._bcs_v):
             bcs_v = homogenize(self._bcs_v)
             bcs_v_help = self._bcs_v
         else:
             bcs_v = self._bcs_v
+            bcs_v_help = None
         bcs_zeta = bcs_v
 
         v_old = Function(self.space_v, name="v_old")
@@ -661,7 +647,7 @@ class Stationary:
 
             # updating the state solution
             v_old += delta_v
-            if inhomogeneous_bcs_v:
+            if bcs_v_help is not None:
                 apply_bcs(bcs_v_help, v_old)
             self.set_v(v_old)
 
@@ -780,16 +766,12 @@ class Stationary:
             self.set_space_p(space_p)
         p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
 
-        inhomogeneous_bcs_v = False
-        for bc in self._bcs_v:
-            if not isinstance(bc.function_arg, ufl.classes.Zero):
-                inhomogeneous_bcs_v = True
-
-        if inhomogeneous_bcs_v:
+        if any(not isinstance(bc.function_arg, ufl.classes.Zero) for bc in self._bcs_v):
             bcs_v = homogenize(self._bcs_v)
             bcs_v_help = self._bcs_v
         else:
             bcs_v = self._bcs_v
+            bcs_v_help = None
         bcs_zeta = bcs_v
 
         # construction of nullspaces
@@ -816,7 +798,7 @@ class Stationary:
         B = - inner(div(v_trial), p_test) * dx
         B_T = - inner(p_trial, div(v_test)) * dx
 
-        if inhomogeneous_bcs_v:
+        if bcs_v_help is not None:
             v_inhom = Function(self.space_v)
             apply_bcs(bcs_v_help, v_inhom)
         else:
@@ -824,18 +806,16 @@ class Stationary:
 
         # construction of force function
         if f is None:
-            f = self.construct_f(inhomogeneous_bcs_v, v_test,
-                                 D_v, v_inhom, bcs_v)
+            f = self.construct_f(v_test, D_v, bcs_v, v_inhom=v_inhom)
 
         # construction of desired state
         if v_d is None:
-            v_d = self.construct_v_d(v_test, inhomogeneous_bcs_v,
-                                     v_inhom, bcs_v)
+            v_d = self.construct_v_d(v_test, bcs_v, v_inhom=v_inhom)
 
         # construction of right-hand side
         if div_v is None:
             div_v = Function(space_p)
-            if inhomogeneous_bcs_v:
+            if v_inhom is not None:
                 div_v = assemble(- action(B, v_inhom))
 
         if div_zeta is None:
@@ -1052,7 +1032,7 @@ class Stationary:
         zeta.assign(u_0_sol.sub(1))
 
         # applying boundary conditions on state variable
-        if inhomogeneous_bcs_v:
+        if v_inhom is not None:
             v += v_inhom
 
         p.assign(u_1_sol.sub(1))
@@ -1141,16 +1121,12 @@ class Stationary:
         space_1 = FunctionSpace(
             space_p.mesh(), space_p.ufl_element() * space_p.ufl_element())
 
-        inhomogeneous_bcs_v = False
-        for bc in self._bcs_v:
-            if not isinstance(bc.function_arg, ufl.classes.Zero):
-                inhomogeneous_bcs_v = True
-
-        if inhomogeneous_bcs_v:
+        if any(not isinstance(bc.function_arg, ufl.classes.Zero) for bc in self._bcs_v):
             bcs_v = homogenize(self._bcs_v)
             bcs_v_help = self._bcs_v
         else:
             bcs_v = self._bcs_v
+            bcs_v_help = None
         bcs_zeta = bcs_v
 
         v_old = Function(self.space_v, name="v_old")
@@ -1235,7 +1211,7 @@ class Stationary:
 
             # updating the solutions
             v_old += delta_v
-            if inhomogeneous_bcs_v:
+            if bcs_v_help is not None:
                 apply_bcs(bcs_v_help, v_old)
             self.set_v(v_old)
 
