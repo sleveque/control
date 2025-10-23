@@ -149,7 +149,6 @@ class Stationary:
 
         self._space_v = space_v
         self._forward_form = forward_form
-        self._v_d, self._true_v = desired_state(self._test_v)
         self._force_function = force_function
         self._beta = beta
         self._Gauss_Newton = Gauss_Newton
@@ -164,6 +163,8 @@ class Stationary:
         self._M_p = self._M_mu = None
         if space_p is not None:
             self.set_space_p(space_p)
+
+        self._v_d, self._true_v = desired_state(self._v_test)
 
     @property
     def space_v(self):
