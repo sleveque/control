@@ -187,7 +187,7 @@ class Stationary:
         self._space_p = space_p
         self._p = Function(space_p, name="p")
         self._mu = Function(space_p, name="mu")
-        (self._test_p, self._trial_p), self._M_p = _, self._M_mu = mass(space_p)
+        (self._p_test, self._p_trial), self._M_p = _, self._M_mu = mass(space_p)
 
     def set_v(self, v_new):
         """
