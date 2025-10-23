@@ -93,7 +93,9 @@ def time(time_interval, i, n_t):
 
 
 def mass(space):
-    return inner(TrialFunction(space), TestFunction(space)) * dx
+    test = TestFunction(space)
+    trial = TrialFunction(space)
+    return (test, trial), inner(trial, test) * dx
 
 
 class Stationary:
@@ -140,14 +142,14 @@ class Stationary:
 
         if desired_state is None:
             def desired_state(test_v):
-                return ZeroBaseForm((test_v,))
+                return ZeroBaseForm((test_v,)), Function(test_v.function_space())
         if force_function is None:
             def force_function(test_v):
                 return ZeroBaseForm((test_v,))
 
         self._space_v = space_v
         self._forward_form = forward_form
-        self._desired_state = desired_state
+        self._v_d, self._true_v = desired_state(self._test_v)
         self._force_function = force_function
         self._beta = beta
         self._Gauss_Newton = Gauss_Newton
@@ -156,7 +158,7 @@ class Stationary:
         self._v = Function(space_v, name="v")
         apply_bcs(self._bcs_v, self._v)
         self._zeta = Function(space_v, name="zeta")
-        self._M_v = self._M_zeta = mass(space_v)
+        (self._v_test, self._v_trial), self._M_v = _, self._M_zeta = mass(space_v)
 
         self._space_p = None
         self._M_p = self._M_mu = None
@@ -184,7 +186,7 @@ class Stationary:
         self._space_p = space_p
         self._p = Function(space_p, name="p")
         self._mu = Function(space_p, name="mu")
-        self._M_p = self._M_mu = mass(space_p)
+        (self._test_p, self._trial_p), self._M_p = _, self._M_mu = mass(space_p)
 
     def set_v(self, v_new):
         """
@@ -289,12 +291,10 @@ class Stationary:
         apply_bcs(bcs_v, f)
         return f
 
-    def construct_v_d(self, v_test, bcs_v, *, v_inhom=None):
+    def construct_v_d(self, bcs_v, *, v_inhom=None):
         """Construction of the vector containing the desired state.
 
         Input:
-            - v_test                     test function
-
             - bcs_v                      homogenization of the bcs on the
                                          state variable
 
@@ -307,14 +307,11 @@ class Stationary:
             - v_d                        discretized desired state
         """
 
-        v_d, true_v = self._desired_state(v_test)
         if v_inhom is not None:
-            v_d = assemble(v_d - action(self._M_v, v_inhom))
+            v_d = assemble(self._v_d - action(self._M_v, v_inhom))
         else:
-            v_d = assemble(v_d)
+            v_d = assemble(self._v_d)
         apply_bcs(bcs_v, v_d)
-
-        self._true_v = true_v
         return v_d
 
     def construct_pc(self, auxiliary_sp,
@@ -476,8 +473,7 @@ class Stationary:
                                        generated
         """
 
-        v_test, v_trial = TestFunction(self.space_v), TrialFunction(self.space_v)
-
+        v_test, v_trial = self._v_test, self._v_trial
         if any((not isinstance(bc.function_arg, ufl.classes.Zero)) for bc in self._bcs_v):
             v_inhom = Function(self.space_v)
             apply_bcs(self._bcs_v, v_inhom)
@@ -497,7 +493,7 @@ class Stationary:
         if f is None:
             f = self.construct_f(v_test, D_v, bcs_v, v_inhom=v_inhom)
         if v_d is None:
-            v_d = self.construct_v_d(v_test, bcs_v, v_inhom=v_inhom)
+            v_d = self.construct_v_d(bcs_v, v_inhom=v_inhom)
         if solver_parameters is None:
             solver_parameters = {"linear_solver": "gmres",
                                  "gmres_restart": 10,
@@ -584,8 +580,7 @@ class Stationary:
                                           are generated
         """
 
-        v_test, v_trial = TestFunction(self.space_v), TrialFunction(self.space_v)
-
+        v_test, v_trial = self._v_test, self._v_trial
         if any(not isinstance(bc.function_arg, ufl.classes.Zero) for bc in self._bcs_v):
             bcs_v = homogenize(self._bcs_v)
             bcs_v_help = self._bcs_v
@@ -612,9 +607,7 @@ class Stationary:
         # desired state
         f = assemble(self._force_function(v_test))
 
-        v_d, true_v = self._desired_state(v_test)
-        v_d = assemble(v_d)
-        self._true_v = true_v
+        v_d = assemble(self._v_d)
 
         # construction of the non-linear residual
         rhs_0, rhs_1 = self.non_linear_res_eval(
@@ -756,7 +749,7 @@ class Stationary:
                                        generated
         """
 
-        v_test, v_trial = TestFunction(self.space_v), TrialFunction(self.space_v)
+        v_test, v_trial = self._v_test, self._v_trial
         if space_p is None:
             if self._space_p is not None:
                 space_p = self._space_p
@@ -764,7 +757,7 @@ class Stationary:
                 raise ValueError("Undefined space_p")
         else:
             self.set_space_p(space_p)
-        p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
+        p_test, p_trial = self._p_test, self._p_trial
 
         if any(not isinstance(bc.function_arg, ufl.classes.Zero) for bc in self._bcs_v):
             bcs_v = homogenize(self._bcs_v)
@@ -810,7 +803,7 @@ class Stationary:
 
         # construction of desired state
         if v_d is None:
-            v_d = self.construct_v_d(v_test, bcs_v, v_inhom=v_inhom)
+            v_d = self.construct_v_d(bcs_v, v_inhom=v_inhom)
 
         # construction of right-hand side
         if div_v is None:
@@ -1105,7 +1098,7 @@ class Stationary:
                                          are generated
         """
 
-        v_test, v_trial = TestFunction(self.space_v), TrialFunction(self.space_v)
+        v_test, v_trial = self._v_test, self._v_trial
         if space_p is None:
             if self._space_p is not None:
                 space_p = self._space_p
@@ -1113,7 +1106,7 @@ class Stationary:
                 raise ValueError("Undefined space_p")
         else:
             self.set_space_p(space_p)
-        p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
+        p_test, p_trial = self._p_test, self._p_trial
 
         # construction of auxiliary spaces
         space_0 = FunctionSpace(
@@ -1156,9 +1149,7 @@ class Stationary:
         # construction of force function and desired state
         f = assemble(self._force_function(v_test))
 
-        v_d, true_v = self._desired_state(v_test)
-        v_d = assemble(v_d)
-        self._true_v = true_v
+        v_d = assemble(self._v_d)
 
         # function for the evaluation of the non-linear residual,
         # in case of incompressible control problems
