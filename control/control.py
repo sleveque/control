@@ -361,11 +361,11 @@ class Stationary:
             assemble(self._M_v, bcs=bcs_v),
             solver_parameters=sp_11block)
         solver_1 = LinearSolver(
-            assemble(D_v + (1.0 / self.beta**0.5) * self._M_v,
+            assemble(D_v + Constant(1.0 / self.beta**0.5) * self._M_v,
                      bcs=bcs_zeta),
             solver_parameters=sp_Schur)
         solver_2 = LinearSolver(
-            assemble(D_zeta + (1.0 / self.beta**0.5) * self._M_zeta,
+            assemble(D_zeta + Constant(1.0 / self.beta**0.5) * self._M_zeta,
                      bcs=bcs_zeta),
             solver_parameters=sp_Schur)
         solver_0.ksp.addConvergenceTest(converged, prepend=True)
@@ -394,13 +394,11 @@ class Stationary:
         return pc_linear
 
     @garbage_cleanup_method()
-    def non_linear_res_eval(self, space_v, v_d, f, v_old, zeta_old,
+    def non_linear_res_eval(self, v_d, f, v_old, zeta_old,
                             D_v, D_zeta, M_zeta, bcs_v, bcs_zeta):
         """Construction of the non-linear residual.
 
         Input:
-            - space_v      space of state and adjoint variables
-
             - v_d          desired state
 
             - f            force function
@@ -477,11 +475,9 @@ class Stationary:
         if any((not isinstance(bc.function_arg, ufl.classes.Zero)) for bc in self._bcs_v):
             v_inhom = Function(self.space_v)
             apply_bcs(self._bcs_v, v_inhom)
-            bcs_v = homogenize(self._bcs_v)
         else:
             v_inhom = None
-            bcs_v = self._bcs_v
-        bcs_zeta = bcs_v
+        bcs_zeta = bcs_v = homogenize(self._bcs_v)
 
         nullspace_v = DirichletBCNullspace(bcs_v)
         nullspace_zeta = DirichletBCNullspace(bcs_zeta)
@@ -513,7 +509,7 @@ class Stationary:
         block_10 = {}
         block_10[(0, 0)] = D_v
         block_11 = {}
-        block_11[(0, 0)] = -(1.0 / self.beta) * self._M_zeta
+        block_11[(0, 0)] = -Constant(1.0 / self.beta) * self._M_zeta
         system = MultiBlockSystem(
             self.space_v, self.space_v,
             block_00=block_00, block_01=block_01,
@@ -582,12 +578,10 @@ class Stationary:
 
         v_test, v_trial = self._v_test, self._v_trial
         if any(not isinstance(bc.function_arg, ufl.classes.Zero) for bc in self._bcs_v):
-            bcs_v = homogenize(self._bcs_v)
             bcs_v_help = self._bcs_v
         else:
-            bcs_v = self._bcs_v
             bcs_v_help = None
-        bcs_zeta = bcs_v
+        bcs_zeta = bcs_v = homogenize(self._bcs_v)
 
         v_old = Function(self.space_v, name="v_old")
         zeta_old = Function(self.space_v, name="zeta_old")
@@ -601,7 +595,7 @@ class Stationary:
         D_v = self.construct_D_v(
             v_trial, v_test, v_old, non_linear_res=True)
         D_zeta = adjoint(D_v)
-        M_zeta = -(1.0 / self.beta) * self._M_zeta
+        M_zeta = -Constant(1.0 / self.beta) * self._M_zeta
 
         # construction of the force function and the
         # desired state
@@ -611,7 +605,7 @@ class Stationary:
 
         # construction of the non-linear residual
         rhs_0, rhs_1 = self.non_linear_res_eval(
-            self.space_v, v_d, f, v_old, zeta_old,
+            v_d, f, v_old, zeta_old,
             D_v, D_zeta, M_zeta, bcs_v, bcs_zeta)
 
         rhs = Cofunction((self.space_v * self.space_v).dual(), name="rhs")
@@ -656,7 +650,7 @@ class Stationary:
 
             # construction of the non-linear residual
             rhs_0, rhs_1 = self.non_linear_res_eval(
-                self.space_v, v_d, f, v_old, zeta_old,
+                v_d, f, v_old, zeta_old,
                 D_v, D_zeta, M_zeta, bcs_v, bcs_zeta)
 
             rhs.sub(0).assign(rhs_0)
@@ -754,18 +748,16 @@ class Stationary:
             if self._space_p is not None:
                 space_p = self._space_p
             else:
-                raise ValueError("Undefined space_p")
+                raise RuntimeError("Undefined space_p")
         else:
             self.set_space_p(space_p)
         p_test, p_trial = self._p_test, self._p_trial
 
         if any(not isinstance(bc.function_arg, ufl.classes.Zero) for bc in self._bcs_v):
-            bcs_v = homogenize(self._bcs_v)
             bcs_v_help = self._bcs_v
         else:
-            bcs_v = self._bcs_v
             bcs_v_help = None
-        bcs_zeta = bcs_v
+        bcs_zeta = bcs_v = homogenize(self._bcs_v)
 
         # construction of nullspaces
         nullspace_v = DirichletBCNullspace(bcs_v)
@@ -784,7 +776,7 @@ class Stationary:
         v_old.assign(self._v)
 
         # construction of discretized forward and adjoint operators
-        M_zeta = -(1.0 / self.beta) * self._M_zeta
+        M_zeta = -Constant(1.0 / self.beta) * self._M_zeta
         D_v = self.construct_D_v(v_trial, v_test, v_old)
         D_zeta = adjoint(D_v)
 
@@ -908,9 +900,9 @@ class Stationary:
                 p_trial, p_test, v_old, non_linear_res=True)
             block_01_p = adjoint(block_10_p)
             if self._M_mu is not None:
-                block_11_p = - (1.0 / self.beta) * self._M_mu
+                block_11_p = -Constant(1.0 / self.beta) * self._M_mu
             else:
-                block_11_p = - (1.0 / self.beta) * inner(p_trial, p_test) * dx
+                block_11_p = -Constant(1.0 / self.beta) * inner(p_trial, p_test) * dx
 
             # construction of inner system (coupled velocities)
             self._inner_system = MultiBlockSystem(
@@ -1115,12 +1107,10 @@ class Stationary:
             space_p.mesh(), space_p.ufl_element() * space_p.ufl_element())
 
         if any(not isinstance(bc.function_arg, ufl.classes.Zero) for bc in self._bcs_v):
-            bcs_v = homogenize(self._bcs_v)
             bcs_v_help = self._bcs_v
         else:
-            bcs_v = self._bcs_v
             bcs_v_help = None
-        bcs_zeta = bcs_v
+        bcs_zeta = bcs_v = homogenize(self._bcs_v)
 
         v_old = Function(self.space_v, name="v_old")
         zeta_old = Function(self.space_v, name="zeta_old")
@@ -1141,7 +1131,7 @@ class Stationary:
         D_v = self.construct_D_v(
             v_trial, v_test, v_old, non_linear_res=True)
         D_zeta = adjoint(D_v)
-        M_zeta = -(1.0 / self.beta) * self._M_zeta
+        M_zeta = -Constant(1.0 / self.beta) * self._M_zeta
 
         B = - inner(div(v_trial), p_test) * dx
         B_T = - inner(p_trial, div(v_test)) * dx
@@ -1156,7 +1146,7 @@ class Stationary:
         @garbage_cleanup(self.comm)
         def non_linear_res_eval():
             rhs_0, rhs_1 = self.non_linear_res_eval(
-                self.space_v, v_d, f, v_old, zeta_old,
+                v_d, f, v_old, zeta_old,
                 D_v, D_zeta, M_zeta, bcs_v, bcs_zeta)
 
             rhs_00 = assemble(rhs_0 - action(B_T, mu_old))
