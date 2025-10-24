@@ -1332,6 +1332,9 @@ class Instationary:
 
         self._flattened_space_v = tuple(space_v for _ in range(n_t))
         self._full_space_v = MixedFunctionSpace(self._flattened_space_v)
+        if not self._CN:
+            self._flattened_space_v_help = self._flattened_space_v[:-1]
+            self._flattened_space_v_help = MixedFunctionSpace(self._flattened_space_v_help)
         self._v = Function(self._full_space_v, name="v")
         self._zeta = Function(self._full_space_v, name="zeta")
         for i in range(n_t):
@@ -1374,14 +1377,14 @@ class Instationary:
         """
 
         if not self._CN:
-            flattened_space_p = tuple(space_p for _ in range(self._n_t))
+            self._flattened_space_p = tuple(space_p for _ in range(self._n_t))
         else:
-            flattened_space_p = tuple(space_p for _ in range(self._n_t - 1))
-        full_space_p = MixedFunctionSpace(flattened_space_p)
+            self._flattened_space_p = tuple(space_p for _ in range(self._n_t - 1))
+        self._full_space_p = MixedFunctionSpace(self._flattened_space_p)
 
         self._space_p = space_p
-        self._p = Function(full_space_p, name="p")
-        self._mu = Function(full_space_p, name="mu")
+        self._p = Function(self._full_space_p, name="p")
+        self._mu = Function(self._full_space_p, name="mu")
         (self._p_test, self._p_trial), self._M_p = _, self._M_mu = mass(self._space_p)
 
     def set_v(self, v_new):
@@ -2267,8 +2270,7 @@ class Instationary:
             b_0 = Cofunction(full_space_v.dual(), name="b_0")
             b_1 = Cofunction(full_space_v.dual(), name="b_1")
         else:
-            flattened_space_v_help = tuple(self.space_v for i in range(n_t - 1))
-            full_space_v_help = MixedFunctionSpace(flattened_space_v_help)
+            full_space_v_help = self._full_space_v_help
 
             b_0 = Cofunction(full_space_v_help.dual(), name="b_0")
             b_1 = Cofunction(full_space_v_help.dual(), name="b_1")
@@ -2628,8 +2630,7 @@ class Instationary:
         M_v = inner(v_trial, v_test) * dx
 
         if self._CN:
-            flattened_space_v_help = tuple(self.space_v for i in range(n_t - 1))
-            full_space_v_help = MixedFunctionSpace(flattened_space_v_help)
+            full_space_v_help = self._full_space_v_help
 
         # building the non-linear residual
         if self._CN:
@@ -2850,17 +2851,13 @@ class Instationary:
             full_flattened_space_v = flattened_space_v + flattened_space_v
             space_0 = MixedFunctionSpace(full_flattened_space_v)
         else:
-            flattened_space_v_help = tuple(
-                self.space_v for i in range(n_t - 1))
-            full_space_v_help = MixedFunctionSpace(flattened_space_v_help)
+            flattened_space_v_help = self._flattened_space_v_help
+            full_space_v_help = self._full_space_v_help
             space_0 = MixedFunctionSpace(
                 flattened_space_v_help + flattened_space_v_help)
 
-        if not self._CN:
-            flattened_space_p = tuple(space_p for i in range(n_t))
-        else:
-            flattened_space_p = tuple(space_p for i in range(n_t - 1))
-        full_space_p = MixedFunctionSpace(flattened_space_p)
+        flattened_space_p = self._flattened_space_p
+        full_space_p = self._full_space_p
 
         full_flattened_space_p = flattened_space_p + flattened_space_p
         space_1 = MixedFunctionSpace(full_flattened_space_p)
@@ -3853,15 +3850,9 @@ class Instationary:
         full_space_v = self._full_space_v
 
         if self._CN:
-            flattened_space_v_help = tuple(
-                self.space_v for i in range(n_t - 1))
-            full_space_v_help = MixedFunctionSpace(flattened_space_v_help)
+            full_space_v_help = self._full_space_v_help
 
-        if not self._CN:
-            flattened_space_p = tuple(space_p for i in range(n_t))
-        else:
-            flattened_space_p = tuple(space_p for i in range(n_t - 1))
-        full_space_p = MixedFunctionSpace(flattened_space_p)
+        full_space_p = self._full_space_p
 
         v_old = Function(full_space_v, name="v_old")
         zeta_old = Function(full_space_v, name="zeta_old")
