@@ -1332,9 +1332,9 @@ class Instationary:
 
         self._flattened_space_v = tuple(space_v for _ in range(n_t))
         self._full_space_v = MixedFunctionSpace(self._flattened_space_v)
-        if not self._CN:
+        if self._CN:
             self._flattened_space_v_help = self._flattened_space_v[:-1]
-            self._flattened_space_v_help = MixedFunctionSpace(self._flattened_space_v_help)
+            self._full_space_v_help = MixedFunctionSpace(self._flattened_space_v_help)
         self._v = Function(self._full_space_v, name="v")
         self._zeta = Function(self._full_space_v, name="zeta")
         for i in range(n_t):
