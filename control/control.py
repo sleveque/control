@@ -1330,10 +1330,10 @@ class Instationary:
         self._bcs_v = {i: bcs_v(space_v, Constant(time(time_interval, i, n_t)))
                        for i in range(n_t)}
 
-        flattened_space_v = tuple(space_v for _ in range(n_t))
-        full_space_v = MixedFunctionSpace(flattened_space_v)
-        self._v = Function(full_space_v, name="v")
-        self._zeta = Function(full_space_v, name="zeta")
+        self._flattened_space_v = tuple(space_v for _ in range(n_t))
+        self._full_space_v = MixedFunctionSpace(self._flattened_space_v)
+        self._v = Function(self._full_space_v, name="v")
+        self._zeta = Function(self._full_space_v, name="zeta")
         for i in range(n_t):
             apply_bcs(self._bcs_v[i], self._v.sub(i))
 
@@ -2149,8 +2149,7 @@ class Instationary:
             full_nullspace_v = full_nullspace_v + (nullspace_v, )
             full_nullspace_zeta = full_nullspace_zeta + (nullspace_zeta, )
 
-        flattened_space_v = tuple(self.space_v for i in range(n_t))
-        full_space_v = MixedFunctionSpace(flattened_space_v)
+        full_space_v = self._full_space_v
 
         # construction of initial condition
         if self._initial_condition is not None:
@@ -2606,8 +2605,7 @@ class Instationary:
         bcs_zeta = bcs_v
 
         # full space for time integration
-        flattened_space_v = tuple(self.space_v for i in range(n_t))
-        full_space_v = MixedFunctionSpace(flattened_space_v)
+        full_space_v = self._full_space_v
 
         v_old = Function(full_space_v, name="v_old")
         zeta_old = Function(full_space_v, name="zeta_old")
@@ -2852,8 +2850,8 @@ class Instationary:
         full_nullspace_1 = full_nullspace_p + full_nullspace_p
 
         # construction of full space for time integration
-        flattened_space_v = tuple(self.space_v for i in range(n_t))
-        full_space_v = MixedFunctionSpace(flattened_space_v)
+        flattened_space_v = self._flattened_space_v
+        full_space_v = self._full_space_v
         if not self._CN:
             full_flattened_space_v = flattened_space_v + flattened_space_v
             space_0 = MixedFunctionSpace(full_flattened_space_v)
@@ -3858,8 +3856,7 @@ class Instationary:
         bcs_zeta = bcs_v
 
         # construction of the full space for time integration
-        flattened_space_v = tuple(self.space_v for i in range(n_t))
-        full_space_v = MixedFunctionSpace(flattened_space_v)
+        full_space_v = self._full_space_v
 
         if self._CN:
             flattened_space_v_help = tuple(
