@@ -1337,8 +1337,7 @@ class Instationary:
         for i in range(n_t):
             apply_bcs(self._bcs_v[i], self._v.sub(i))
 
-        v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
-        self._M_v = self._M_zeta = inner(v_trial, v_test) * dx
+        (self._v_test, self._v_trial), self._M_v = _, self._M_zeta = mass(self._space_v)
 
         if space_p is not None:
             self.set_space_p(space_p)
@@ -1376,8 +1375,7 @@ class Instationary:
         self._space_p = space_p
         self._p = Function(full_space_p, name="p")
         self._mu = Function(full_space_p, name="mu")
-        p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
-        self._M_p = self._M_mu = inner(p_trial, p_test) * dx
+        (self._p_test, self._p_trial), self._M_p = _, self._M_mu = mass(self._space_p)
 
     def set_v(self, v_new):
         """
@@ -1907,7 +1905,7 @@ class Instationary:
             const_tau = Constant(0.5 * tau)
             const_tau_beta = Constant(0.5 * tau / self.beta)
 
-        v_test, v_trial = TestFunction(self.space_v), TrialFunction(self.space_v)
+        v_test, v_trial = self._v_test, self._v_trial
 
         rhs_0 = Cofunction(full_space_v.dual(), name="rhs_0")
         rhs_1 = Cofunction(full_space_v.dual(), name="rhs_1")
@@ -2107,7 +2105,7 @@ class Instationary:
                                        generated
         """
 
-        v_test, v_trial = TestFunction(self.space_v), TrialFunction(self.space_v)
+        v_test, v_trial = self._v_test, self._v_trial
 
         n_t = self._n_t
         t_0 = self._time_interval[0]
@@ -2587,7 +2585,7 @@ class Instationary:
                                           are generated
         """
 
-        v_test, v_trial = TestFunction(self.space_v), TrialFunction(self.space_v)
+        v_test, v_trial = self._v_test, self._v_trial
 
         n_t = self._n_t
         t_0 = self._time_interval[0]
@@ -2795,7 +2793,7 @@ class Instationary:
                                        are generated
         """
 
-        v_test, v_trial = TestFunction(self.space_v), TrialFunction(self.space_v)
+        v_test, v_trial = self._v_test, self._v_trial
 
         if space_p is None:
             if self._space_p is not None:
@@ -2804,7 +2802,7 @@ class Instationary:
                 raise ValueError("Undefined space_p")
         else:
             self.set_space_p(space_p)
-        p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
+        p_test, p_trial = self._p_test, self._p_trial
 
         n_t = self._n_t
         t_0 = self._time_interval[0]
@@ -3830,7 +3828,7 @@ class Instationary:
                                          are generated
         """
 
-        v_test, v_trial = TestFunction(self.space_v), TrialFunction(self.space_v)
+        v_test, v_trial = self._v_test, self._v_trial
         if space_p is None:
             if self._space_p is not None:
                 space_p = self._space_p
@@ -3838,7 +3836,7 @@ class Instationary:
                 raise ValueError("Undefined space_p")
         else:
             self.set_space_p(space_p)
-        p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
+        p_test, p_trial = self._p_test, self._p_trial
 
         n_t = self._n_t
         t_0 = self._time_interval[0]
