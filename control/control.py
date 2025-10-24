@@ -1345,6 +1345,13 @@ class Instationary:
             self._space_p = None
             self._M_p = self._M_mu = None
 
+        self._v_d = Cofunction(self._full_space_v.dual(), name="v_d")
+        self._true_v = Function(self._full_space_v, name="true_v")
+        for i in range(self._n_t):
+            v_d_i, true_v_i = self._desired_state(self._v_test, Constant(self.time(i)))
+            self._v_d.sub(i).assign(assemble(v_d_i))
+            self._true_v.sub(i).assign(true_v_i)
+
     @property
     def space_v(self):
         return self._space_v
@@ -1475,27 +1482,14 @@ class Instationary:
                 assemble(self._force_function(v_test, Constant(self.time(i)))))
         return f
 
-    def construct_v_d(self, full_space_v, v_test):
+    def construct_v_d(self):
         """Construction of the vector containing the desired state.
-
-        Input:
-            - full_space_v        full space for time integration
-
-            - v_test              test function
 
         Output:
             - v_d                 discretized desired state
         """
 
-        v_d = Cofunction(full_space_v.dual(), name="v_d")
-        true_v = Function(full_space_v, name="true_v")
-        for i in range(self._n_t):
-            v_d_i, true_v_i = self._desired_state(v_test, Constant(self.time(i)))
-            v_d.sub(i).assign(assemble(v_d_i))
-            true_v.sub(i).assign(true_v_i)
-
-        self._true_v = true_v
-        return v_d
+        return self._v_d
 
     def construct_pc(self, auxiliary_sp, full_space_v,
                      bcs_v, bcs_zeta, block_01, block_10, epsilon=None):
@@ -2167,7 +2161,7 @@ class Instationary:
         # construction of desired state
         if v_d is None:
             check_v_d = True
-            v_d = self.construct_v_d(full_space_v, v_test)
+            v_d = self.construct_v_d()
         else:
             check_v_d = False
 
@@ -2629,7 +2623,7 @@ class Instationary:
         f = self.construct_f(full_space_v, v_test)
 
         # construction of the desired state
-        v_d = self.construct_v_d(full_space_v, v_test)
+        v_d = self.construct_v_d()
 
         M_v = inner(v_trial, v_test) * dx
 
@@ -2899,7 +2893,7 @@ class Instationary:
         # construction of desired state
         if v_d is None:
             check_v_d = True
-            v_d = self.construct_v_d(full_space_v, v_test)
+            v_d = self.construct_v_d()
         else:
             check_v_d = False
 
@@ -3899,7 +3893,7 @@ class Instationary:
         f = self.construct_f(full_space_v, v_test)
 
         # construction of desired state
-        v_d = self.construct_v_d(full_space_v, v_test)
+        v_d = self.construct_v_d()
 
         M_v = inner(v_trial, v_test) * dx
 
