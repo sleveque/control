@@ -5,7 +5,7 @@ from firedrake import (
     cos, div, dot, ds, dx, exp, grad, inner, pi, sin, solve, sqrt
 )
 from firedrake.adjoint import (
-    Control as Control_ad, ReducedFunctional, compute_gradient,
+    Control as Control_ad, ReducedFunctional, compute_derivative,
     continue_annotation, get_working_tape, minimize, pause_annotation,
     set_working_tape
 )
@@ -265,7 +265,7 @@ def test_stationary_incompressible_linear_control():
 
         # desired state
         v_d = Function(space, name="v_d")
-        v_d.interpolate((0.0, 0.0))
+        v_d.interpolate(as_vector((0.0, 0.0)))
 
         # true v
         true_v = Function(space, name="true_v")
@@ -279,7 +279,7 @@ def test_stationary_incompressible_linear_control():
         # force function
         f = Function(space)
 
-        f.interpolate((0.0, 0.0))
+        f.interpolate(as_vector((0.0, 0.0)))
 
         return inner(f, test) * dx
 
@@ -729,15 +729,13 @@ def test_stationary_linear_control_with_reference_sol():
         pause_annotation()
 
         m = minimize(
-            ReducedFunctional(J, Control_ad(m0)),
+            ReducedFunctional(J, Control_ad(m0, riesz_map="l2")),
             method="L-BFGS-B",
             options={"ftol": 0.0,
-                     "gtol": 1.0e-8},
-            derivative_options={"riesz_representation": "l2"})
+                     "gtol": 1.0e-8})
 
-        dJ = compute_gradient(
-            J, Control_ad(m0),
-            options={"riesz_representation": "l2"}).riesz_representation("l2")
+        dJ = compute_derivative(
+            J, Control_ad(m0), apply_riesz=False)
         get_working_tape().clear_tape()
 
         dJ_dual = Function(space_0, name="dJ_dual")
@@ -883,15 +881,13 @@ def test_Picard_stationary_non_linear_control_with_reference_sol():
         pause_annotation()
 
         m = minimize(
-            ReducedFunctional(J, Control_ad(m0)),
+            ReducedFunctional(J, Control_ad(m0, riesz_map="l2")),
             method="L-BFGS-B",
             options={"ftol": 0.0,
-                     "gtol": 1.0e-8},
-            derivative_options={"riesz_representation": "l2"})
+                     "gtol": 1.0e-8})
 
-        dJ = compute_gradient(
-            J, Control_ad(m0),
-            options={"riesz_representation": "l2"}).riesz_representation("l2")
+        dJ = compute_derivative(
+            J, Control_ad(m0), apply_riesz=False)
         get_working_tape().clear_tape()
 
         dJ_dual = Function(space_0, name="dJ_dual")
@@ -1038,15 +1034,13 @@ def test_GN_stationary_non_linear_control_with_reference_sol():
         pause_annotation()
 
         m = minimize(
-            ReducedFunctional(J, Control_ad(m0)),
+            ReducedFunctional(J, Control_ad(m0, riesz_map="l2")),
             method="L-BFGS-B",
             options={"ftol": 0.0,
-                     "gtol": 1.0e-9},
-            derivative_options={"riesz_representation": "l2"})
+                     "gtol": 1.0e-9})
 
-        dJ = compute_gradient(
-            J, Control_ad(m0),
-            options={"riesz_representation": "l2"}).riesz_representation("l2")
+        dJ = compute_derivative(
+            J, Control_ad(m0), apply_riesz=False)
         get_working_tape().clear_tape()
 
         dJ_dual = Function(space_0, name="dJ_dual")

@@ -1,3 +1,9 @@
+"""A library for solving certain PDE-constrained optimization problems. Uses
+Firedrake to derive the finite element discretization of the problems
+considered, and the Python interface to PETSc for the derivation of the KKT
+conditions and the definition of the linear solvers.
+"""
+
 from firedrake import (
     CheckpointFile, Cofunction, Constant, Function, FunctionSpace,
     LinearSolver, MixedFunctionSpace, TestFunction, TrialFunction,
@@ -19,7 +25,7 @@ import petsc4py.PETSc as PETSc
 import ufl
 
 from collections.abc import Sequence
-from functools import cached_property
+from functools import cached_property, wraps
 
 
 __all__ = \
@@ -29,30 +35,30 @@ __all__ = \
     ]
 
 
-# definition of convergence for ksp linear solvers
+# Used to avoid convergence errors when max_it is reached
 def converged(ksp, it, rnorm):
     return it >= ksp.max_it
 
 
 def garbage_cleanup(comm):
     def wrapper(fn):
+        @wraps(fn)
         def wrapped_fn(*args, **kwargs):
             return_value = fn(*args, **kwargs)
             PETSc.garbage_cleanup(comm)
             return return_value
         return wrapped_fn
-
     return wrapper
 
 
 def garbage_cleanup_method(attr_name="comm"):
     def wrapper(fn):
+        @wraps(fn)
         def wrapped_fn(self, *args, **kwargs):
             return_value = fn(self, *args, **kwargs)
             PETSc.garbage_cleanup(getattr(self, attr_name))
             return return_value
         return wrapped_fn
-
     return wrapper
 
 
@@ -71,7 +77,6 @@ def output(data):
     for name, u in data.items():
         output = File(f"{name}.pvd")
         output.write(u)
-
         with CheckpointFile(f"{name}.h5", mode="w") as h:
             h.save_function(u)
 
@@ -87,15 +92,10 @@ def time(time_interval, i, n_t):
     return (t_0 * (n_t - 1 - i) + t_1 * i) / (n_t - 1)
 
 
-"""control is a library for solving certain PDE-constrained
-optimization problems. The software employs the Firedrake
-system to derive the finite element discretization of the problems
-considered, using the Python interface to PETSc for the derivation
-of the KKT conditions and the definition of the linear solvers.
-
-Control contains the class Stationary and the class Instationary,
-employed for the solution of the corresponding control problem.
-"""
+def mass(space):
+    test = TestFunction(space)
+    trial = TrialFunction(space)
+    return (test, trial), inner(trial, test) * dx
 
 
 class Stationary:
@@ -142,14 +142,13 @@ class Stationary:
 
         if desired_state is None:
             def desired_state(test_v):
-                return ZeroBaseForm((test_v,))
+                return ZeroBaseForm((test_v,)), Function(test_v.function_space())
         if force_function is None:
             def force_function(test_v):
                 return ZeroBaseForm((test_v,))
 
         self._space_v = space_v
         self._forward_form = forward_form
-        self._desired_state = desired_state
         self._force_function = force_function
         self._beta = beta
         self._Gauss_Newton = Gauss_Newton
@@ -158,15 +157,14 @@ class Stationary:
         self._v = Function(space_v, name="v")
         apply_bcs(self._bcs_v, self._v)
         self._zeta = Function(space_v, name="zeta")
+        (self._v_test, self._v_trial), self._M_v = _, self._M_zeta = mass(space_v)
 
-        v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
-        self._M_v = self._M_zeta = inner(v_trial, v_test) * dx
-
+        self._space_p = None
+        self._M_p = self._M_mu = None
         if space_p is not None:
             self.set_space_p(space_p)
-        else:
-            self._space_p = None
-            self._M_p = self._M_mu = None
+
+        self._v_d, self._true_v = desired_state(self._v_test)
 
     @property
     def space_v(self):
@@ -189,8 +187,7 @@ class Stationary:
         self._space_p = space_p
         self._p = Function(space_p, name="p")
         self._mu = Function(space_p, name="mu")
-        p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
-        self._M_p = self._M_mu = inner(p_trial, p_test) * dx
+        (self._p_test, self._p_trial), self._M_p = _, self._M_mu = mass(space_p)
 
     def set_v(self, v_new):
         """
@@ -255,45 +252,39 @@ class Stationary:
             - D_v                   discretized forward form
         """
 
-        if (not self._Gauss_Newton) or non_linear_res:
+        if not self._Gauss_Newton or non_linear_res:
             # if Gauss--Newton is not applied or we want to
             # evaluate the residual, we take the Picard linearization
             # of the forward form
-            D_v = self._forward_form(v_trial, v_test, v_old)
+            return self._forward_form(v_trial, v_test, v_old)
         else:
             # if we want to apply Gauss--Newton, we take the
             # derivative of the form in the direction of v_old
-            D_v = ufl.derivative(
+            return ufl.derivative(
                 self._forward_form(v_old, v_test, v_old),
                 v_old, v_trial)
 
-        return D_v
-
-    def construct_f(self, inhomogeneous_bcs_v, v_test,
-                    D_v, v_inhom, bcs_v):
+    def construct_f(self, v_test, D_v, bcs_v, *, v_inhom=None):
         """Construction of the vector containing the force function.
 
         Input:
-            - inhomogeneous_bcs_v        if True, inhomogeneous bcs have to
-                                         be imposed
-
             - v_test                     test function
 
             - D_v                        discretized forward form
+
+            - bcs_v                      homogenization of the bcs on the
+                                         state variable
 
             - v_inhom                    function that is zero in the
                                          interior of the domain and
                                          interpolates the state variable on
                                          the boundary
 
-            - bcs_v                      homogenization of the bcs on the
-                                         state variable
-
         Output:
             - f                          discretized force function
         """
 
-        if inhomogeneous_bcs_v:
+        if v_inhom is not None:
             f = assemble(self._force_function(v_test)
                          - action(D_v, v_inhom))
         else:
@@ -301,35 +292,27 @@ class Stationary:
         apply_bcs(bcs_v, f)
         return f
 
-    def construct_v_d(self, v_test, inhomogeneous_bcs_v, v_inhom, bcs_v):
+    def construct_v_d(self, bcs_v, *, v_inhom=None):
         """Construction of the vector containing the desired state.
 
         Input:
-            - v_test                     test function
-
-            - inhomogeneous_bcs_v        if True, inhomogeneous bcs have to
-                                         be imposed
+            - bcs_v                      homogenization of the bcs on the
+                                         state variable
 
             - v_inhom                    function that is zero in the
                                          interior of the domain and
                                          interpolates the state variable on
                                          the boundary
 
-            - bcs_v                      homogenization of the bcs on the
-                                         state variable
-
         Output:
             - v_d                        discretized desired state
         """
 
-        v_d, true_v = self._desired_state(v_test)
-        if inhomogeneous_bcs_v:
-            v_d = assemble(v_d - action(self._M_v, v_inhom))
+        if v_inhom is not None:
+            v_d = assemble(self._v_d - action(self._M_v, v_inhom))
         else:
-            v_d = assemble(v_d)
+            v_d = assemble(self._v_d)
         apply_bcs(bcs_v, v_d)
-
-        self._true_v = true_v
         return v_d
 
     def construct_pc(self, auxiliary_sp,
@@ -379,11 +362,11 @@ class Stationary:
             assemble(self._M_v, bcs=bcs_v),
             solver_parameters=sp_11block)
         solver_1 = LinearSolver(
-            assemble(D_v + (1.0 / self.beta**0.5) * self._M_v,
+            assemble(D_v + Constant(1.0 / self.beta**0.5) * self._M_v,
                      bcs=bcs_zeta),
             solver_parameters=sp_Schur)
         solver_2 = LinearSolver(
-            assemble(D_zeta + (1.0 / self.beta**0.5) * self._M_zeta,
+            assemble(D_zeta + Constant(1.0 / self.beta**0.5) * self._M_zeta,
                      bcs=bcs_zeta),
             solver_parameters=sp_Schur)
         solver_0.ksp.addConvergenceTest(converged, prepend=True)
@@ -412,13 +395,11 @@ class Stationary:
         return pc_linear
 
     @garbage_cleanup_method()
-    def non_linear_res_eval(self, space_v, v_d, f, v_old, zeta_old,
+    def non_linear_res_eval(self, v_d, f, v_old, zeta_old,
                             D_v, D_zeta, M_zeta, bcs_v, bcs_zeta):
         """Construction of the non-linear residual.
 
         Input:
-            - space_v      space of state and adjoint variables
-
             - v_d          desired state
 
             - f            force function
@@ -491,17 +472,13 @@ class Stationary:
                                        generated
         """
 
-        v_test, v_trial = TestFunction(self.space_v), TrialFunction(self.space_v)
-
-        inhomogeneous_bcs_v = any((not isinstance(bc.function_arg, ufl.classes.Zero)) for bc in self._bcs_v)
-        if inhomogeneous_bcs_v:
+        v_test, v_trial = self._v_test, self._v_trial
+        if any((not isinstance(bc.function_arg, ufl.classes.Zero)) for bc in self._bcs_v):
             v_inhom = Function(self.space_v)
             apply_bcs(self._bcs_v, v_inhom)
-            bcs_v = homogenize(self._bcs_v)
         else:
             v_inhom = None
-            bcs_v = self._bcs_v
-        bcs_zeta = bcs_v
+        bcs_zeta = bcs_v = homogenize(self._bcs_v)
 
         nullspace_v = DirichletBCNullspace(bcs_v)
         nullspace_zeta = DirichletBCNullspace(bcs_zeta)
@@ -511,9 +488,9 @@ class Stationary:
         D_zeta = adjoint(D_v)
 
         if f is None:
-            f = self.construct_f(inhomogeneous_bcs_v, v_test, D_v, v_inhom, bcs_v)
+            f = self.construct_f(v_test, D_v, bcs_v, v_inhom=v_inhom)
         if v_d is None:
-            v_d = self.construct_v_d(v_test, inhomogeneous_bcs_v, v_inhom, bcs_v)
+            v_d = self.construct_v_d(bcs_v, v_inhom=v_inhom)
         if solver_parameters is None:
             solver_parameters = {"linear_solver": "gmres",
                                  "gmres_restart": 10,
@@ -533,7 +510,7 @@ class Stationary:
         block_10 = {}
         block_10[(0, 0)] = D_v
         block_11 = {}
-        block_11[(0, 0)] = -(1.0 / self.beta) * self._M_zeta
+        block_11[(0, 0)] = -Constant(1.0 / self.beta) * self._M_zeta
         system = MultiBlockSystem(
             self.space_v, self.space_v,
             block_00=block_00, block_01=block_01,
@@ -546,7 +523,7 @@ class Stationary:
             v, zeta, v_d, f,
             solver_parameters=solver_parameters,
             pc_fn=pc_fn)
-        if inhomogeneous_bcs_v:
+        if v_inhom is not None:
             v += v_inhom
         self.set_v(v)
         self.set_zeta(zeta)
@@ -600,19 +577,12 @@ class Stationary:
                                           are generated
         """
 
-        v_test, v_trial = TestFunction(self.space_v), TrialFunction(self.space_v)
-
-        inhomogeneous_bcs_v = False
-        for bc in self._bcs_v:
-            if not isinstance(bc.function_arg, ufl.classes.Zero):
-                inhomogeneous_bcs_v = True
-
-        if inhomogeneous_bcs_v:
-            bcs_v = homogenize(self._bcs_v)
+        v_test, v_trial = self._v_test, self._v_trial
+        if any(not isinstance(bc.function_arg, ufl.classes.Zero) for bc in self._bcs_v):
             bcs_v_help = self._bcs_v
         else:
-            bcs_v = self._bcs_v
-        bcs_zeta = bcs_v
+            bcs_v_help = None
+        bcs_zeta = bcs_v = homogenize(self._bcs_v)
 
         v_old = Function(self.space_v, name="v_old")
         zeta_old = Function(self.space_v, name="zeta_old")
@@ -626,19 +596,17 @@ class Stationary:
         D_v = self.construct_D_v(
             v_trial, v_test, v_old, non_linear_res=True)
         D_zeta = adjoint(D_v)
-        M_zeta = -(1.0 / self.beta) * self._M_zeta
+        M_zeta = -Constant(1.0 / self.beta) * self._M_zeta
 
         # construction of the force function and the
         # desired state
         f = assemble(self._force_function(v_test))
 
-        v_d, true_v = self._desired_state(v_test)
-        v_d = assemble(v_d)
-        self._true_v = true_v
+        v_d = assemble(self._v_d)
 
         # construction of the non-linear residual
         rhs_0, rhs_1 = self.non_linear_res_eval(
-            self.space_v, v_d, f, v_old, zeta_old,
+            v_d, f, v_old, zeta_old,
             D_v, D_zeta, M_zeta, bcs_v, bcs_zeta)
 
         rhs = Cofunction((self.space_v * self.space_v).dual(), name="rhs")
@@ -667,7 +635,7 @@ class Stationary:
 
             # updating the state solution
             v_old += delta_v
-            if inhomogeneous_bcs_v:
+            if bcs_v_help is not None:
                 apply_bcs(bcs_v_help, v_old)
             self.set_v(v_old)
 
@@ -683,7 +651,7 @@ class Stationary:
 
             # construction of the non-linear residual
             rhs_0, rhs_1 = self.non_linear_res_eval(
-                self.space_v, v_d, f, v_old, zeta_old,
+                v_d, f, v_old, zeta_old,
                 D_v, D_zeta, M_zeta, bcs_v, bcs_zeta)
 
             rhs.sub(0).assign(rhs_0)
@@ -776,27 +744,21 @@ class Stationary:
                                        generated
         """
 
-        v_test, v_trial = TestFunction(self.space_v), TrialFunction(self.space_v)
+        v_test, v_trial = self._v_test, self._v_trial
         if space_p is None:
             if self._space_p is not None:
                 space_p = self._space_p
             else:
-                raise ValueError("Undefined space_p")
+                raise RuntimeError("Undefined space_p")
         else:
             self.set_space_p(space_p)
-        p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
+        p_test, p_trial = self._p_test, self._p_trial
 
-        inhomogeneous_bcs_v = False
-        for bc in self._bcs_v:
-            if not isinstance(bc.function_arg, ufl.classes.Zero):
-                inhomogeneous_bcs_v = True
-
-        if inhomogeneous_bcs_v:
-            bcs_v = homogenize(self._bcs_v)
+        if any(not isinstance(bc.function_arg, ufl.classes.Zero) for bc in self._bcs_v):
             bcs_v_help = self._bcs_v
         else:
-            bcs_v = self._bcs_v
-        bcs_zeta = bcs_v
+            bcs_v_help = None
+        bcs_zeta = bcs_v = homogenize(self._bcs_v)
 
         # construction of nullspaces
         nullspace_v = DirichletBCNullspace(bcs_v)
@@ -815,14 +777,14 @@ class Stationary:
         v_old.assign(self._v)
 
         # construction of discretized forward and adjoint operators
-        M_zeta = -(1.0 / self.beta) * self._M_zeta
+        M_zeta = -Constant(1.0 / self.beta) * self._M_zeta
         D_v = self.construct_D_v(v_trial, v_test, v_old)
         D_zeta = adjoint(D_v)
 
         B = - inner(div(v_trial), p_test) * dx
         B_T = - inner(p_trial, div(v_test)) * dx
 
-        if inhomogeneous_bcs_v:
+        if bcs_v_help is not None:
             v_inhom = Function(self.space_v)
             apply_bcs(bcs_v_help, v_inhom)
         else:
@@ -830,18 +792,16 @@ class Stationary:
 
         # construction of force function
         if f is None:
-            f = self.construct_f(inhomogeneous_bcs_v, v_test,
-                                 D_v, v_inhom, bcs_v)
+            f = self.construct_f(v_test, D_v, bcs_v, v_inhom=v_inhom)
 
         # construction of desired state
         if v_d is None:
-            v_d = self.construct_v_d(v_test, inhomogeneous_bcs_v,
-                                     v_inhom, bcs_v)
+            v_d = self.construct_v_d(bcs_v, v_inhom=v_inhom)
 
         # construction of right-hand side
         if div_v is None:
             div_v = Function(space_p)
-            if inhomogeneous_bcs_v:
+            if v_inhom is not None:
                 div_v = assemble(- action(B, v_inhom))
 
         if div_zeta is None:
@@ -941,9 +901,9 @@ class Stationary:
                 p_trial, p_test, v_old, non_linear_res=True)
             block_01_p = adjoint(block_10_p)
             if self._M_mu is not None:
-                block_11_p = - (1.0 / self.beta) * self._M_mu
+                block_11_p = -Constant(1.0 / self.beta) * self._M_mu
             else:
-                block_11_p = - (1.0 / self.beta) * inner(p_trial, p_test) * dx
+                block_11_p = -Constant(1.0 / self.beta) * inner(p_trial, p_test) * dx
 
             # construction of inner system (coupled velocities)
             self._inner_system = MultiBlockSystem(
@@ -1058,7 +1018,7 @@ class Stationary:
         zeta.assign(u_0_sol.sub(1))
 
         # applying boundary conditions on state variable
-        if inhomogeneous_bcs_v:
+        if v_inhom is not None:
             v += v_inhom
 
         p.assign(u_1_sol.sub(1))
@@ -1131,7 +1091,7 @@ class Stationary:
                                          are generated
         """
 
-        v_test, v_trial = TestFunction(self.space_v), TrialFunction(self.space_v)
+        v_test, v_trial = self._v_test, self._v_trial
         if space_p is None:
             if self._space_p is not None:
                 space_p = self._space_p
@@ -1139,7 +1099,7 @@ class Stationary:
                 raise ValueError("Undefined space_p")
         else:
             self.set_space_p(space_p)
-        p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
+        p_test, p_trial = self._p_test, self._p_trial
 
         # construction of auxiliary spaces
         space_0 = FunctionSpace(
@@ -1147,17 +1107,11 @@ class Stationary:
         space_1 = FunctionSpace(
             space_p.mesh(), space_p.ufl_element() * space_p.ufl_element())
 
-        inhomogeneous_bcs_v = False
-        for bc in self._bcs_v:
-            if not isinstance(bc.function_arg, ufl.classes.Zero):
-                inhomogeneous_bcs_v = True
-
-        if inhomogeneous_bcs_v:
-            bcs_v = homogenize(self._bcs_v)
+        if any(not isinstance(bc.function_arg, ufl.classes.Zero) for bc in self._bcs_v):
             bcs_v_help = self._bcs_v
         else:
-            bcs_v = self._bcs_v
-        bcs_zeta = bcs_v
+            bcs_v_help = None
+        bcs_zeta = bcs_v = homogenize(self._bcs_v)
 
         v_old = Function(self.space_v, name="v_old")
         zeta_old = Function(self.space_v, name="zeta_old")
@@ -1178,7 +1132,7 @@ class Stationary:
         D_v = self.construct_D_v(
             v_trial, v_test, v_old, non_linear_res=True)
         D_zeta = adjoint(D_v)
-        M_zeta = -(1.0 / self.beta) * self._M_zeta
+        M_zeta = -Constant(1.0 / self.beta) * self._M_zeta
 
         B = - inner(div(v_trial), p_test) * dx
         B_T = - inner(p_trial, div(v_test)) * dx
@@ -1186,16 +1140,14 @@ class Stationary:
         # construction of force function and desired state
         f = assemble(self._force_function(v_test))
 
-        v_d, true_v = self._desired_state(v_test)
-        v_d = assemble(v_d)
-        self._true_v = true_v
+        v_d = assemble(self._v_d)
 
         # function for the evaluation of the non-linear residual,
         # in case of incompressible control problems
         @garbage_cleanup(self.comm)
         def non_linear_res_eval():
             rhs_0, rhs_1 = self.non_linear_res_eval(
-                self.space_v, v_d, f, v_old, zeta_old,
+                v_d, f, v_old, zeta_old,
                 D_v, D_zeta, M_zeta, bcs_v, bcs_zeta)
 
             rhs_00 = assemble(rhs_0 - action(B_T, mu_old))
@@ -1241,7 +1193,7 @@ class Stationary:
 
             # updating the solutions
             v_old += delta_v
-            if inhomogeneous_bcs_v:
+            if bcs_v_help is not None:
                 apply_bcs(bcs_v_help, v_old)
             self.set_v(v_old)
 
@@ -1378,21 +1330,30 @@ class Instationary:
         self._bcs_v = {i: bcs_v(space_v, Constant(time(time_interval, i, n_t)))
                        for i in range(n_t)}
 
-        flattened_space_v = tuple(space_v for _ in range(n_t))
-        full_space_v = MixedFunctionSpace(flattened_space_v)
-        self._v = Function(full_space_v, name="v")
-        self._zeta = Function(full_space_v, name="zeta")
+        self._flattened_space_v = tuple(space_v for _ in range(n_t))
+        self._full_space_v = MixedFunctionSpace(self._flattened_space_v)
+        if self._CN:
+            self._flattened_space_v_help = self._flattened_space_v[:-1]
+            self._full_space_v_help = MixedFunctionSpace(self._flattened_space_v_help)
+        self._v = Function(self._full_space_v, name="v")
+        self._zeta = Function(self._full_space_v, name="zeta")
         for i in range(n_t):
             apply_bcs(self._bcs_v[i], self._v.sub(i))
 
-        v_test, v_trial = TestFunction(space_v), TrialFunction(space_v)
-        self._M_v = self._M_zeta = inner(v_trial, v_test) * dx
+        (self._v_test, self._v_trial), self._M_v = _, self._M_zeta = mass(self._space_v)
 
         if space_p is not None:
             self.set_space_p(space_p)
         else:
             self._space_p = None
             self._M_p = self._M_mu = None
+
+        self._v_d = Cofunction(self._full_space_v.dual(), name="v_d")
+        self._true_v = Function(self._full_space_v, name="true_v")
+        for i in range(self._n_t):
+            v_d_i, true_v_i = self._desired_state(self._v_test, Constant(self.time(i)))
+            self._v_d.sub(i).assign(assemble(v_d_i))
+            self._true_v.sub(i).assign(true_v_i)
 
     @property
     def space_v(self):
@@ -1416,16 +1377,15 @@ class Instationary:
         """
 
         if not self._CN:
-            flattened_space_p = tuple(space_p for _ in range(self._n_t))
+            self._flattened_space_p = tuple(space_p for _ in range(self._n_t))
         else:
-            flattened_space_p = tuple(space_p for _ in range(self._n_t - 1))
-        full_space_p = MixedFunctionSpace(flattened_space_p)
+            self._flattened_space_p = tuple(space_p for _ in range(self._n_t - 1))
+        self._full_space_p = MixedFunctionSpace(self._flattened_space_p)
 
         self._space_p = space_p
-        self._p = Function(full_space_p, name="p")
-        self._mu = Function(full_space_p, name="mu")
-        p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
-        self._M_p = self._M_mu = inner(p_trial, p_test) * dx
+        self._p = Function(self._full_space_p, name="p")
+        self._mu = Function(self._full_space_p, name="mu")
+        (self._p_test, self._p_trial), self._M_p = _, self._M_mu = mass(self._space_p)
 
     def set_v(self, v_new):
         """
@@ -1507,45 +1467,30 @@ class Instationary:
 
         return D_v_i
 
-    def construct_f(self, full_space_v, v_test):
+    def construct_f(self, v_test):
         """Construction of the vector containing the force function.
 
         Input:
-            - full_space_v        full space for time integration
-
             - v_test              test function
 
         Output:
             - f                   discretized force function
         """
 
-        f = Cofunction(full_space_v.dual(), name="f")
+        f = Cofunction(self._full_space_v.dual(), name="f")
         for i in range(self._n_t):
             f.sub(i).assign(
                 assemble(self._force_function(v_test, Constant(self.time(i)))))
         return f
 
-    def construct_v_d(self, full_space_v, v_test):
+    def construct_v_d(self):
         """Construction of the vector containing the desired state.
-
-        Input:
-            - full_space_v        full space for time integration
-
-            - v_test              test function
 
         Output:
             - v_d                 discretized desired state
         """
 
-        v_d = Cofunction(full_space_v.dual(), name="v_d")
-        true_v = Function(full_space_v, name="true_v")
-        for i in range(self._n_t):
-            v_d_i, true_v_i = self._desired_state(v_test, Constant(self.time(i)))
-            v_d.sub(i).assign(assemble(v_d_i))
-            true_v.sub(i).assign(true_v_i)
-
-        self._true_v = true_v
-        return v_d
+        return self._v_d
 
     def construct_pc(self, auxiliary_sp, full_space_v,
                      bcs_v, bcs_zeta, block_01, block_10, epsilon=None):
@@ -1955,7 +1900,7 @@ class Instationary:
             const_tau = Constant(0.5 * tau)
             const_tau_beta = Constant(0.5 * tau / self.beta)
 
-        v_test, v_trial = TestFunction(self.space_v), TrialFunction(self.space_v)
+        v_test, v_trial = self._v_test, self._v_trial
 
         rhs_0 = Cofunction(full_space_v.dual(), name="rhs_0")
         rhs_1 = Cofunction(full_space_v.dual(), name="rhs_1")
@@ -2155,7 +2100,7 @@ class Instationary:
                                        generated
         """
 
-        v_test, v_trial = TestFunction(self.space_v), TrialFunction(self.space_v)
+        v_test, v_trial = self._v_test, self._v_trial
 
         n_t = self._n_t
         t_0 = self._time_interval[0]
@@ -2199,8 +2144,7 @@ class Instationary:
             full_nullspace_v = full_nullspace_v + (nullspace_v, )
             full_nullspace_zeta = full_nullspace_zeta + (nullspace_zeta, )
 
-        flattened_space_v = tuple(self.space_v for i in range(n_t))
-        full_space_v = MixedFunctionSpace(flattened_space_v)
+        full_space_v = self._full_space_v
 
         # construction of initial condition
         if self._initial_condition is not None:
@@ -2211,14 +2155,14 @@ class Instationary:
         # construction of force function
         if f is None:
             check_f = True
-            f = self.construct_f(full_space_v, v_test)
+            f = self.construct_f(v_test)
         else:
             check_f = False
 
         # construction of desired state
         if v_d is None:
             check_v_d = True
-            v_d = self.construct_v_d(full_space_v, v_test)
+            v_d = self.construct_v_d()
         else:
             check_v_d = False
 
@@ -2324,8 +2268,7 @@ class Instationary:
             b_0 = Cofunction(full_space_v.dual(), name="b_0")
             b_1 = Cofunction(full_space_v.dual(), name="b_1")
         else:
-            flattened_space_v_help = tuple(self.space_v for i in range(n_t - 1))
-            full_space_v_help = MixedFunctionSpace(flattened_space_v_help)
+            full_space_v_help = self._full_space_v_help
 
             b_0 = Cofunction(full_space_v_help.dual(), name="b_0")
             b_1 = Cofunction(full_space_v_help.dual(), name="b_1")
@@ -2635,7 +2578,7 @@ class Instationary:
                                           are generated
         """
 
-        v_test, v_trial = TestFunction(self.space_v), TrialFunction(self.space_v)
+        v_test, v_trial = self._v_test, self._v_trial
 
         n_t = self._n_t
         t_0 = self._time_interval[0]
@@ -2656,8 +2599,7 @@ class Instationary:
         bcs_zeta = bcs_v
 
         # full space for time integration
-        flattened_space_v = tuple(self.space_v for i in range(n_t))
-        full_space_v = MixedFunctionSpace(flattened_space_v)
+        full_space_v = self._full_space_v
 
         v_old = Function(full_space_v, name="v_old")
         zeta_old = Function(full_space_v, name="zeta_old")
@@ -2678,16 +2620,15 @@ class Instationary:
         zeta_old.sub(n_t - 1).assign(Constant(0.0))
 
         # construction of the force function
-        f = self.construct_f(full_space_v, v_test)
+        f = self.construct_f(v_test)
 
         # construction of the desired state
-        v_d = self.construct_v_d(full_space_v, v_test)
+        v_d = self.construct_v_d()
 
         M_v = inner(v_trial, v_test) * dx
 
         if self._CN:
-            flattened_space_v_help = tuple(self.space_v for i in range(n_t - 1))
-            full_space_v_help = MixedFunctionSpace(flattened_space_v_help)
+            full_space_v_help = self._full_space_v_help
 
         # building the non-linear residual
         if self._CN:
@@ -2843,7 +2784,7 @@ class Instationary:
                                        are generated
         """
 
-        v_test, v_trial = TestFunction(self.space_v), TrialFunction(self.space_v)
+        v_test, v_trial = self._v_test, self._v_trial
 
         if space_p is None:
             if self._space_p is not None:
@@ -2852,7 +2793,7 @@ class Instationary:
                 raise ValueError("Undefined space_p")
         else:
             self.set_space_p(space_p)
-        p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
+        p_test, p_trial = self._p_test, self._p_trial
 
         n_t = self._n_t
         t_0 = self._time_interval[0]
@@ -2902,23 +2843,19 @@ class Instationary:
         full_nullspace_1 = full_nullspace_p + full_nullspace_p
 
         # construction of full space for time integration
-        flattened_space_v = tuple(self.space_v for i in range(n_t))
-        full_space_v = MixedFunctionSpace(flattened_space_v)
+        flattened_space_v = self._flattened_space_v
+        full_space_v = self._full_space_v
         if not self._CN:
             full_flattened_space_v = flattened_space_v + flattened_space_v
             space_0 = MixedFunctionSpace(full_flattened_space_v)
         else:
-            flattened_space_v_help = tuple(
-                self.space_v for i in range(n_t - 1))
-            full_space_v_help = MixedFunctionSpace(flattened_space_v_help)
+            flattened_space_v_help = self._flattened_space_v_help
+            full_space_v_help = self._full_space_v_help
             space_0 = MixedFunctionSpace(
                 flattened_space_v_help + flattened_space_v_help)
 
-        if not self._CN:
-            flattened_space_p = tuple(space_p for i in range(n_t))
-        else:
-            flattened_space_p = tuple(space_p for i in range(n_t - 1))
-        full_space_p = MixedFunctionSpace(flattened_space_p)
+        flattened_space_p = self._flattened_space_p
+        full_space_p = self._full_space_p
 
         full_flattened_space_p = flattened_space_p + flattened_space_p
         space_1 = MixedFunctionSpace(full_flattened_space_p)
@@ -2944,14 +2881,14 @@ class Instationary:
         # construction of force function
         if f is None:
             check_f = True
-            f = self.construct_f(full_space_v, v_test)
+            f = self.construct_f(v_test)
         else:
             check_f = False
 
         # construction of desired state
         if v_d is None:
             check_v_d = True
-            v_d = self.construct_v_d(full_space_v, v_test)
+            v_d = self.construct_v_d()
         else:
             check_v_d = False
 
@@ -3878,7 +3815,7 @@ class Instationary:
                                          are generated
         """
 
-        v_test, v_trial = TestFunction(self.space_v), TrialFunction(self.space_v)
+        v_test, v_trial = self._v_test, self._v_trial
         if space_p is None:
             if self._space_p is not None:
                 space_p = self._space_p
@@ -3886,7 +3823,7 @@ class Instationary:
                 raise ValueError("Undefined space_p")
         else:
             self.set_space_p(space_p)
-        p_test, p_trial = TestFunction(space_p), TrialFunction(space_p)
+        p_test, p_trial = self._p_test, self._p_trial
 
         n_t = self._n_t
         t_0 = self._time_interval[0]
@@ -3908,19 +3845,12 @@ class Instationary:
         bcs_zeta = bcs_v
 
         # construction of the full space for time integration
-        flattened_space_v = tuple(self.space_v for i in range(n_t))
-        full_space_v = MixedFunctionSpace(flattened_space_v)
+        full_space_v = self._full_space_v
 
         if self._CN:
-            flattened_space_v_help = tuple(
-                self.space_v for i in range(n_t - 1))
-            full_space_v_help = MixedFunctionSpace(flattened_space_v_help)
+            full_space_v_help = self._full_space_v_help
 
-        if not self._CN:
-            flattened_space_p = tuple(space_p for i in range(n_t))
-        else:
-            flattened_space_p = tuple(space_p for i in range(n_t - 1))
-        full_space_p = MixedFunctionSpace(flattened_space_p)
+        full_space_p = self._full_space_p
 
         v_old = Function(full_space_v, name="v_old")
         zeta_old = Function(full_space_v, name="zeta_old")
@@ -3949,10 +3879,10 @@ class Instationary:
         zeta_old.sub(n_t - 1).assign(Constant(0.0))
 
         # construction of force function
-        f = self.construct_f(full_space_v, v_test)
+        f = self.construct_f(v_test)
 
         # construction of desired state
-        v_d = self.construct_v_d(full_space_v, v_test)
+        v_d = self.construct_v_d()
 
         M_v = inner(v_trial, v_test) * dx
 

@@ -25,14 +25,24 @@ __all__ = \
     ]
 
 
+def l2_riesz(u):
+    if isinstance(u, Function):
+        cls = Cofunction
+    elif isinstance(u, Cofunction):
+        cls = Function
+    else:
+        raise TypeError(f"Unexpected type: {type(u)}")
+    return cls(u.function_space().dual(), val=u.dat)
+
+
 def apply_bcs(bcs, u):
     if not isinstance(bcs, Sequence):
         bcs = (bcs,)
     for bc in bcs:
         if isinstance(bc.function_arg, Cofunction):
-            bc = bc.reconstruct(g=bc.function_arg.riesz_representation("l2"))
+            bc = bc.reconstruct(g=l2_riesz(bc.function_arg))
         if isinstance(u, Cofunction) and isinstance(bc.function_arg, (ufl.classes.Zero, Function)):
-            bc.apply(u.riesz_representation("l2"))
+            bc.apply(l2_riesz(u))
         else:
             bc.apply(u)
 
@@ -305,8 +315,8 @@ class MultiBlockSystem:
             solver_parameters = {}
         if pc_fn is None:
             def pc_fn(u_0, u_1, b_0, b_1):
-                u_0.assign(b_0.riesz_representation("l2"))
-                u_1.assign(b_1.riesz_representation("l2"))
+                u_0.assign(l2_riesz(b_0))
+                u_1.assign(l2_riesz(b_1))
 
         class MultiBlockSystemMatrix:
             def __init__(self, n_blocks_00, n_blocks_11,
