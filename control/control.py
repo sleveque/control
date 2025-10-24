@@ -1467,19 +1467,17 @@ class Instationary:
 
         return D_v_i
 
-    def construct_f(self, full_space_v, v_test):
+    def construct_f(self, v_test):
         """Construction of the vector containing the force function.
 
         Input:
-            - full_space_v        full space for time integration
-
             - v_test              test function
 
         Output:
             - f                   discretized force function
         """
 
-        f = Cofunction(full_space_v.dual(), name="f")
+        f = Cofunction(self._full_space_v.dual(), name="f")
         for i in range(self._n_t):
             f.sub(i).assign(
                 assemble(self._force_function(v_test, Constant(self.time(i)))))
@@ -2157,7 +2155,7 @@ class Instationary:
         # construction of force function
         if f is None:
             check_f = True
-            f = self.construct_f(full_space_v, v_test)
+            f = self.construct_f(v_test)
         else:
             check_f = False
 
@@ -2622,7 +2620,7 @@ class Instationary:
         zeta_old.sub(n_t - 1).assign(Constant(0.0))
 
         # construction of the force function
-        f = self.construct_f(full_space_v, v_test)
+        f = self.construct_f(v_test)
 
         # construction of the desired state
         v_d = self.construct_v_d()
@@ -2883,7 +2881,7 @@ class Instationary:
         # construction of force function
         if f is None:
             check_f = True
-            f = self.construct_f(full_space_v, v_test)
+            f = self.construct_f(v_test)
         else:
             check_f = False
 
@@ -3881,7 +3879,7 @@ class Instationary:
         zeta_old.sub(n_t - 1).assign(Constant(0.0))
 
         # construction of force function
-        f = self.construct_f(full_space_v, v_test)
+        f = self.construct_f(v_test)
 
         # construction of desired state
         v_d = self.construct_v_d()
