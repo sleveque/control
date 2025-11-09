@@ -73,8 +73,8 @@ def plot(*u):
     plt.show()
 
 
-def output(data, *, t_n=None, CN=False):
-    if t_n == None:
+def output(data, *, n_t=None, CN=False):
+    if n_t == None:
         for name, u in data.items():
             output = File(f"{name}.pvd")
             output.write(u)
