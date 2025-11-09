@@ -73,12 +73,35 @@ def plot(*u):
     plt.show()
 
 
-def output(data):
-    for name, u in data.items():
-        output = File(f"{name}.pvd")
-        output.write(u)
-        with CheckpointFile(f"{name}.h5", mode="w") as h:
-            h.save_function(u)
+def output(data, *, t_n=None, CN=False):
+    if t_n == None:
+        for name, u in data.items():
+            output = File(f"{name}.pvd")
+            output.write(u)
+            with CheckpointFile(f"{name}.h5", mode="w") as h:
+                h.save_function(u)
+    else:
+        if not CN:
+            for name, u in data.items():
+                for i in range(n_t):
+                    output = File(f"{name}.pvd")
+                    output.write(u.sub(i))
+                    with CheckpointFile(f"{name}.h5", mode="w") as h:
+                        h.save_function(u.sub(i))
+        else:
+            for name, u in data.items():
+                if name == "p" or name == "mu":
+                    for i in range(n_t - 1):
+                        output = File(f"{name}.pvd")
+                        output.write(u.sub(i))
+                        with CheckpointFile(f"{name}.h5", mode="w") as h:
+                            h.save_function(u.sub(i))
+                else:
+                    for i in range(n_t):
+                        output = File(f"{name}.pvd")
+                        output.write(u.sub(i))
+                        with CheckpointFile(f"{name}.h5", mode="w") as h:
+                            h.save_function(u.sub(i))
 
 
 def vnorm(u):
@@ -2532,7 +2555,7 @@ class Instationary:
             self.print_error(tau)
 
         if create_output:
-            output({"v": v, "zeta": zeta})
+            output({"v": v, "zeta": zeta}, n_t=n_t, CN=self._CN)
 
         if plots:
             for i in range(n_t):
@@ -2722,7 +2745,7 @@ class Instationary:
             self.print_error(tau)
 
         if create_output:
-            output({"v": self._v, "zeta": self._zeta})
+            output({"v": self._v, "zeta": self._zeta}, n_t=n_t, CN=self._CN)
 
         if plots:
             for i in range(n_t):
@@ -3757,7 +3780,7 @@ class Instationary:
             self.print_error(tau)
 
         if create_output:
-            output({"v": v, "zeta": zeta, "p": p, "mu": mu})
+            output({"v": v, "zeta": zeta, "p": p, "mu": mu}, n_t=n_t, CN=self._CN)
 
         if plots:
             for i in range(n_t - 1):
@@ -4074,7 +4097,7 @@ class Instationary:
             self.print_error(tau)
 
         if create_output:
-            output({"v": self._v, "zeta": self._zeta, "p": self._p, "mu": self._mu})
+            output({"v": self._v, "zeta": self._zeta, "p": self._p, "mu": self._mu}, n_t=n_t, CN=self._CN)
 
         if plots:
             for i in range(n_t - 1):
