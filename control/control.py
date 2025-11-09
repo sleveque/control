@@ -74,7 +74,7 @@ def plot(*u):
 
 
 def output(data, *, n_t=None, CN=False):
-    if n_t == None:
+    if n_t is None:
         for name, u in data.items():
             output = File(f"{name}.pvd")
             output.write(u)
