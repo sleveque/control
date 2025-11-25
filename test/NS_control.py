@@ -7,6 +7,7 @@ mesh = RectangleMesh(10, 10, 2.0, 2.0)
 space_v = VectorFunctionSpace(mesh, "Lagrange", 2)
 space_p = FunctionSpace(mesh, "Lagrange", 1)
 
+
 def my_DirichletBC_t_v(space_v, t):
     if float(t) < 1.0:
         my_bcs = [DirichletBC(space_v, Constant((t, 0.0)), (4,)),
@@ -16,10 +17,12 @@ def my_DirichletBC_t_v(space_v, t):
                   DirichletBC(space_v, 0.0, (1, 2, 3))]
     return my_bcs
 
+
 def forw_diff_operator_v(trial, test, u, t):
     nu = 1.0 / 50.0
     return (nu * inner(grad(trial), grad(test)) * dx
         + inner(dot(u, grad(trial)), test) * dx)
+
 
 def desired_state_v(test, t):
     space_v = test.function_space()
@@ -44,6 +47,7 @@ def desired_state_v(test, t):
                 as_vector((0.0, 0.0)))),
     )
     return inner(v_d, test) * dx, v_d
+
 
 control_instationary = Instationary(
     space_v, forw_diff_operator_v, desired_state=desired_state_v,
