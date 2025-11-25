@@ -21,7 +21,7 @@ def my_DirichletBC_t_v(space_v, t):
 def forw_diff_operator_v(trial, test, u, t):
     nu = 1.0 / 50.0
     return (nu * inner(grad(trial), grad(test)) * dx
-        + inner(dot(u, grad(trial)), test) * dx)
+            + inner(dot(u, grad(trial)), test) * dx)
 
 
 def desired_state_v(test, t):
@@ -38,10 +38,12 @@ def desired_state_v(test, t):
     c_2 = 1.0 - sqrt(a * ((x + 0.5) ** 2) + b * (y ** 2))
     v_d = Function(space_v, name="v_d")
     v_d.interpolate(
-        ufl.conditional(c_1 >= 0.0,
+        ufl.conditional(
+            c_1 >= 0.0,
             c_1 * cos(pi * t / 2.0) * as_vector((b * y,
                                                  -a * (x - 0.5))),
-            ufl.conditional(c_2 >= 0.0,
+            ufl.conditional(
+                c_2 >= 0.0,
                 c_2 * cos(pi * t / 2.0) * as_vector((-b * y,
                                                      a * (x + 0.5))),
                 as_vector((0.0, 0.0)))),
