@@ -4,8 +4,10 @@ from control.control import *
 mesh = RectangleMesh(10, 10, 1.0, 1.0, originX=-1.0, originY=-1.0)
 space_0 = FunctionSpace(mesh, "Lagrange", 1)
 
+
 def forw_diff_operator(trial, test, v, t):
     return inner(grad(trial), grad(test)) * dx
+
 
 def desired_state(test, t):
     space = test.function_space()
@@ -17,6 +19,7 @@ def desired_state(test, t):
 
     return inner(v_d, test) * dx, v_d
 
+
 def force_f(test, t):
     space = test.function_space()
     mesh = space.mesh()
@@ -27,8 +30,9 @@ def force_f(test, t):
 
     return inner(f, test) * dx
 
+
 def bc_t(space_0, t):
-	return DirichletBC(space_0, 0.0, "on_boundary")
+    return DirichletBC(space_0, 0.0, "on_boundary")
 
 control_instationary = Instationary(
     space_0, forw_diff_operator, desired_state=desired_state,
