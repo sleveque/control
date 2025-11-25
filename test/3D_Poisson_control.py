@@ -4,8 +4,10 @@ from control.control import *
 mesh = BoxMesh(10, 10, 10, 2.0, 2.0, 2.0)
 space_0 = FunctionSpace(mesh, "Lagrange", 1)
 
+
 def forw_diff_operator(trial, test, v):
     return inner(grad(trial), grad(test)) * dx
+
 
 def desired_state(test):
     space = test.function_space()
@@ -20,6 +22,7 @@ def desired_state(test):
         cos(0.5 * pi * x) * cos(0.5 * pi * y) * cos(0.5 * pi * z) + 1.0)
 
     return inner(v_d, test) * dx, v_d
+
 
 bc = DirichletBC(space_0, 1.0, "on_boundary")
 
