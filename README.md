@@ -74,4 +74,12 @@ to the definition of the object. In the following section, we give details of th
 in our software.
 
 The code is based on the work "Automatic Differentiation for All-at-once Systems Arising in Certain PDE-Constrained
-Optimization Problems" by Santolo Leveque, James R. Maddison, and John W. Pearson.
+Optimization Problems" by Santolo Leveque, James R. Maddison, and John W. Pearson. The code in Figure 1 can be found in
+
+test/heat_control.py
+
+while the tests in Section 4.1 and Section 4.2 can be obtained by running
+
+test/2D_Poisson_control.py        (Figure 2)
+test/3D_Poisson_control.py
+test/NS_control.py
