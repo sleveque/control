@@ -81,5 +81,7 @@ test/heat_control.py
 while the tests in Section 4.1 and Section 4.2 can be obtained by running
 
 test/2D_Poisson_control.py        (Figure 2)
+
 test/3D_Poisson_control.py
+
 test/NS_control.py
