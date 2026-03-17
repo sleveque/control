@@ -1155,9 +1155,9 @@ def test_stationary_incompressible_non_linear_control():
     auxiliary_sp = {"sp_11block": sp_11block,
                     "sp_M_p": sp_M_p}
 
-        nl_sp = {"nl_max_it": 5,
-                 "nl_atol": 1.0e-8,
-                 "nl_rtol": 1.0e-5}
+    nl_sp = {"nl_max_it": 5,
+             "nl_atol": 1.0e-8,
+             "nl_rtol": 1.0e-5}
 
     my_control_stationary.incompressible_non_linear_solve(
         ConstantNullspace(), auxiliary_sp=auxiliary_sp,
