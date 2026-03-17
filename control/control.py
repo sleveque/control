@@ -615,17 +615,17 @@ class Stationary:
         print(f'Initial non-linear residual: {norm_0:.16e}')
 
         if "nl_max_it" in nl_sp:
-            nl_max_it=nl_sp["nl_max_it"]
+            nl_max_it = nl_sp["nl_max_it"]
         else:
-            nl_max_it=10
+            nl_max_it = 10
         if "nl_atol" in nl_sp:
-            nl_atol=nl_sp["nl_atol"]
+            nl_atol = nl_sp["nl_atol"]
         else:
-            nl_atol=1.0e-8
+            nl_atol = 1.0e-8
         if "nl_rtol" in nl_sp:
-            nl_rtol=nl_sp["nl_rtol"]
+            nl_rtol = nl_sp["nl_rtol"]
         else:
-            nl_rtol=1.0e-5
+            nl_rtol = 1.0e-5
 
         while (norm_k > nl_rtol * norm_0 and norm_k > nl_atol):
             # solving the linearization
@@ -1176,17 +1176,17 @@ class Stationary:
         print(f'Initial non-linear residual: {norm_0:.16e}')
 
         if "nl_max_it" in nl_sp:
-            nl_max_it=nl_sp["nl_max_it"]
+            nl_max_it = nl_sp["nl_max_it"]
         else:
-            nl_max_it=10
+            nl_max_it = 10
         if "nl_atol" in nl_sp:
-            nl_atol=nl_sp["nl_atol"]
+            nl_atol = nl_sp["nl_atol"]
         else:
-            nl_atol=1.0e-8
+            nl_atol = 1.0e-8
         if "nl_rtol" in nl_sp:
-            nl_rtol=nl_sp["nl_rtol"]
+            nl_rtol = nl_sp["nl_rtol"]
         else:
-            nl_rtol=1.0e-5
+            nl_rtol = 1.0e-5
 
         while (norm_k > nl_rtol * norm_0 and norm_k > nl_atol):
             # solving for the linearization
@@ -2665,17 +2665,17 @@ class Instationary:
         print(f'Initial non-linear residual: {norm_0:.16e}')
 
         if "nl_max_it" in nl_sp:
-            nl_max_it=nl_sp["nl_max_it"]
+            nl_max_it = nl_sp["nl_max_it"]
         else:
-            nl_max_it=10
+            nl_max_it = 10
         if "nl_atol" in nl_sp:
-            nl_atol=nl_sp["nl_atol"]
+            nl_atol = nl_sp["nl_atol"]
         else:
-            nl_atol=1.0e-8
+            nl_atol = 1.0e-8
         if "nl_rtol" in nl_sp:
-            nl_rtol=nl_sp["nl_rtol"]
+            nl_rtol = nl_sp["nl_rtol"]
         else:
-            nl_rtol=1.0e-5
+            nl_rtol = 1.0e-5
 
         while (norm_k > nl_rtol * norm_0 and norm_k > nl_atol):
             # solving for the linearized system
@@ -4003,17 +4003,17 @@ class Instationary:
         print(f'Initial non-linear residual: {norm_0:.16e}')
 
         if "nl_max_it" in nl_sp:
-            nl_max_it=nl_sp["nl_max_it"]
+            nl_max_it = nl_sp["nl_max_it"]
         else:
-            nl_max_it=10
+            nl_max_it = 10
         if "nl_atol" in nl_sp:
-            nl_atol=nl_sp["nl_atol"]
+            nl_atol = nl_sp["nl_atol"]
         else:
-            nl_atol=1.0e-8
+            nl_atol = 1.0e-8
         if "nl_rtol" in nl_sp:
-            nl_rtol=nl_sp["nl_rtol"]
+            nl_rtol = nl_sp["nl_rtol"]
         else:
-            nl_rtol=1.0e-5
+            nl_rtol = 1.0e-5
 
         while (norm_k > nl_rtol * norm_0 and norm_k > nl_atol):
             # solving for the linearization
