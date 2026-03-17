@@ -439,7 +439,7 @@ class Stationary:
     def linear_solve(self, *,
                      P=None, solver_parameters=None,
                      auxiliary_sp={}, v_d=None, f=None,
-                     print_error=True, create_output=True,
+                     print_error=True, outputs=True,
                      plots=False):
         """Module for the solution of linear control problems.
 
@@ -466,7 +466,7 @@ class Stationary:
                                        the desired state and the numerical
                                        solution is printed
 
-            - create_output            if True, output is generated
+            - outputs                  if True, output is generated
 
             - plots                    if True, plots of the solutions are
                                        generated
@@ -530,7 +530,7 @@ class Stationary:
 
         del system, pc_fn
 
-        if create_output:
+        if outputs:
             output({"v": v, "zeta": zeta})
         if plots:
             plot(v, zeta, self._true_v)
@@ -541,11 +541,9 @@ class Stationary:
     def non_linear_solve(self, *,
                          P=None, solver_parameters=None,
                          auxiliary_sp={},
-                         max_non_linear_iter=10,
-                         relative_non_linear_tol=1.0e-5,
-                         absolute_non_linear_tol=1.0e-8,
-                         print_error_non_linear=True,
-                         create_output=True,
+                         nl_sp=None,
+                         print_error=True,
+                         outputs=True,
                          plots=False):
         """Module for the solution of non-linear control problems.
 
@@ -560,18 +558,13 @@ class Stationary:
             - auxiliary_sp                auxiliary parameters for setting
                                           solvers of inner blocks
 
-            - max_non_linear_iter         maximum number of non-linear
-                                          iteration
+            - nl_sp                       parameters for the non-linear solver
 
-            - relative_non_linear_tol     relative non-linear tolerance
-
-            - absolute_non_linear_tol     absolute non-linear tolerance
-
-            - print_error_non_linear      if True, the L^2 discrepancy
+            - print_error                 if True, the L^2 discrepancy
                                           between the desired state and the
                                           numerical solution is printed
 
-            - create_output               if True, output is generated
+            - outputs                     if True, output is generated
 
             - plots                       if True, plots of the solutions
                                           are generated
@@ -621,13 +614,26 @@ class Stationary:
 
         print(f'Initial non-linear residual: {norm_0:.16e}')
 
-        while (norm_k > relative_non_linear_tol * norm_0 and norm_k > absolute_non_linear_tol):
+        if "nl_max_it" in nl_sp:
+            nl_max_it=nl_sp["nl_max_it"]
+        else:
+            nl_max_it=10
+        if "nl_atol" in nl_sp:
+            nl_atol=nl_sp["nl_atol"]
+        else:
+            nl_atol=1.0e-8
+        if "nl_rtol" in nl_sp:
+            nl_rtol=nl_sp["nl_rtol"]
+        else:
+            nl_rtol=1.0e-5
+
+        while (norm_k > nl_rtol * norm_0 and norm_k > nl_atol):
             # solving the linearization
             self.linear_solve(P=P, solver_parameters=solver_parameters,
                               auxiliary_sp=auxiliary_sp,
                               v_d=rhs_0, f=rhs_1,
                               print_error=False,
-                              create_output=False,
+                              outputs=False,
                               plots=False)
 
             delta_v.assign(self._v)
@@ -666,11 +672,11 @@ class Stationary:
                   f'iteration {k:d}, '
                   f'non-linear residual norm {norm_k:.16e}')
 
-            if k + 1 > max_non_linear_iter:
+            if k + 1 > nl_max_it:
                 break
 
-        if print_error_non_linear:
-            if norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol:
+        if print_error:
+            if norm_k < nl_rtol * norm_0 or norm_k < nl_atol:
                 if norm_0 > 0.:
                     print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')
                 print(f'Absolute non-linear residual: {norm_k:.16e}')
@@ -682,7 +688,7 @@ class Stationary:
                 print(f'Absolute non-linear residual: {norm_k:.16e}')
             self.print_error()
 
-        if create_output:
+        if outputs:
             output({"v": self._v, "zeta": self._zeta})
 
         if plots:
@@ -694,7 +700,7 @@ class Stationary:
                                     auxiliary_sp={},
                                     v_d=None, f=None,
                                     div_v=None, div_zeta=None,
-                                    print_error=True, create_output=True,
+                                    print_error=True, outputs=True,
                                     plots=False):
         """Module for the solution of linear incompressible control problems.
 
@@ -738,7 +744,7 @@ class Stationary:
                                        the desired state and the numerical
                                        solution is printed
 
-            - create_output            if True, output is generated
+            - outputs                  if True, output is generated
 
             - plots                    if True, plots of the solutions are
                                        generated
@@ -1035,7 +1041,7 @@ class Stationary:
         if P is None:
             del self._inner_system, self._inner_pc_fn
 
-        if create_output:
+        if outputs:
             output({"v": v, "zeta": zeta, "p": p, "mu": mu})
 
         if plots:
@@ -1048,11 +1054,9 @@ class Stationary:
     def incompressible_non_linear_solve(self, nullspace_p, *, space_p=None,
                                         P=None, solver_parameters=None,
                                         auxiliary_sp={},
-                                        max_non_linear_iter=10,
-                                        relative_non_linear_tol=1.0e-5,
-                                        absolute_non_linear_tol=1.0e-8,
-                                        print_error_non_linear=True,
-                                        create_output=True,
+                                        nl_sp=None,
+                                        print_error=True,
+                                        outputs=True,
                                         plots=False):
         """Module for the solution of non-linear incompressible control problems.
 
@@ -1074,18 +1078,13 @@ class Stationary:
             - auxiliary_sp               auxiliary parameters for setting
                                          solvers of inner blocks
 
-            - max_non_linear_iter        maximum number of non-linear
-                                         iteration
+            - nl_sp                      parameters for the non-linear solver
 
-            - relative_non_linear_tol    relative non-linear tolerance
-
-            - absolute_non_linear_tol    absolute non-linear tolerance
-
-            - print_error_non_linear     if True, the L^2 discrepancy
+            - print_error                if True, the L^2 discrepancy
                                          between the desired state and the
                                          numerical solution is printed
 
-            - create_output              if True, output is generated
+            - outputs                    if True, output is generated
 
             - plots                      if True, plots of the solutions
                                          are generated
@@ -1176,7 +1175,20 @@ class Stationary:
 
         print(f'Initial non-linear residual: {norm_0:.16e}')
 
-        while (norm_k > relative_non_linear_tol * norm_0 and norm_k > absolute_non_linear_tol):
+        if "nl_max_it" in nl_sp:
+            nl_max_it=nl_sp["nl_max_it"]
+        else:
+            nl_max_it=10
+        if "nl_atol" in nl_sp:
+            nl_atol=nl_sp["nl_atol"]
+        else:
+            nl_atol=1.0e-8
+        if "nl_rtol" in nl_sp:
+            nl_rtol=nl_sp["nl_rtol"]
+        else:
+            nl_rtol=1.0e-5
+
+        while (norm_k > nl_rtol * norm_0 and norm_k > nl_atol):
             # solving for the linearization
             self.incompressible_linear_solve(
                 nullspace_p, space_p=space_p, P=P,
@@ -1184,7 +1196,7 @@ class Stationary:
                 auxiliary_sp=auxiliary_sp,
                 v_d=rhs_00, f=rhs_01,
                 div_v=rhs_10, div_zeta=rhs_11,
-                print_error=False, create_output=False, plots=False)
+                print_error=False, outputs=False, plots=False)
 
             delta_v.assign(self._v)
             delta_zeta.assign(self._zeta)
@@ -1229,11 +1241,11 @@ class Stationary:
                   f'iteration {k:d}, '
                   f'non-linear residual norm {norm_k:.16e}')
 
-            if k + 1 > max_non_linear_iter:
+            if k + 1 > nl_max_it:
                 break
 
-        if print_error_non_linear:
-            if norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol:
+        if print_error:
+            if norm_k < nl_rtol * norm_0 or norm_k < nl_atol:
                 if norm_0 > 0.:
                     print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')
                 print(f'Absolute non-linear residual: {norm_k:.16e}')
@@ -1245,7 +1257,7 @@ class Stationary:
                 print(f'Absolute non-linear residual: {norm_k:.16e}')
             self.print_error()
 
-        if create_output:
+        if outputs:
             output({"v": self._v, "zeta": self._zeta, "p": self._p, "mu": self._mu})
 
         if plots:
@@ -2067,7 +2079,7 @@ class Instationary:
     def linear_solve(self, *,
                      P=None, solver_parameters=None,
                      auxiliary_sp={}, v_d=None, f=None,
-                     print_error=True, create_output=True,
+                     print_error=True, outputs=True,
                      plots=False):
         """Module for the solution of linear control problems.
 
@@ -2094,7 +2106,7 @@ class Instationary:
                                        the desired state and the numerical
                                        solution is printed
 
-            - create_output            if True, output is generated
+            - outputs                  if True, output is generated
 
             - plots                    if True, plots of the solutions are
                                        generated
@@ -2531,7 +2543,7 @@ class Instationary:
         if print_error:
             self.print_error(tau)
 
-        if create_output:
+        if outputs:
             output({"v": v, "zeta": zeta})
 
         if plots:
@@ -2542,11 +2554,9 @@ class Instationary:
     def non_linear_solve(self, *,
                          P=None, solver_parameters=None,
                          auxiliary_sp={},
-                         max_non_linear_iter=10,
-                         relative_non_linear_tol=1.0e-5,
-                         absolute_non_linear_tol=1.0e-8,
-                         print_error_non_linear=True,
-                         create_output=True,
+                         nl_sp=None,
+                         print_error=True,
+                         outputs=True,
                          plots=False):
         """Module for the solution of non-linear control problems.
 
@@ -2561,18 +2571,13 @@ class Instationary:
             - auxiliary_sp                auxiliary parameters for setting
                                           solvers of inner blocks
 
-            - max_non_linear_iter         maximum number of non-linear
-                                          iteration
+            - nl_sp                       parameters for the non-linear solver
 
-            - relative_non_linear_tol     relative non-linear tolerance
-
-            - absolute_non_linear_tol     absolute non-linear tolerance
-
-            - print_error_non_linear      if True, the L^2 discrepancy
+            - print_error                 if True, the L^2 discrepancy
                                           between the desired state and the
                                           numerical solution is printed
 
-            - create_output               if True, output is generated
+            - outputs                     if True, output is generated
 
             - plots                       if True, plots of the solutions
                                           are generated
@@ -2659,12 +2664,25 @@ class Instationary:
 
         print(f'Initial non-linear residual: {norm_0:.16e}')
 
-        while (norm_k > relative_non_linear_tol * norm_0 and norm_k > absolute_non_linear_tol):
+        if "nl_max_it" in nl_sp:
+            nl_max_it=nl_sp["nl_max_it"]
+        else:
+            nl_max_it=10
+        if "nl_atol" in nl_sp:
+            nl_atol=nl_sp["nl_atol"]
+        else:
+            nl_atol=1.0e-8
+        if "nl_rtol" in nl_sp:
+            nl_rtol=nl_sp["nl_rtol"]
+        else:
+            nl_rtol=1.0e-5
+
+        while (norm_k > nl_rtol * norm_0 and norm_k > nl_atol):
             # solving for the linearized system
             self.linear_solve(
                 P=P, solver_parameters=solver_parameters,
                 auxiliary_sp=auxiliary_sp, v_d=rhs_0, f=rhs_1,
-                print_error=False, create_output=False, plots=False)
+                print_error=False, outputs=False, plots=False)
 
             delta_v.assign(self._v)
             delta_zeta.assign(self._zeta)
@@ -2705,11 +2723,11 @@ class Instationary:
                   f'iteration {k:d}, '
                   f'non-linear residual norm {norm_k:.16e}')
 
-            if k + 1 > max_non_linear_iter:
+            if k + 1 > nl_max_it:
                 break
 
-        if print_error_non_linear:
-            if (norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol):
+        if print_error:
+            if (norm_k < nl_rtol * norm_0 or norm_k < nl_atol):
                 if norm_0 > 0.:
                     print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')
                 print(f'Absolute non-linear residual: {norm_k:.16e}')
@@ -2721,7 +2739,7 @@ class Instationary:
                 print(f'Absolute non-linear residual: {norm_k:.16e}')
             self.print_error(tau)
 
-        if create_output:
+        if outputs:
             output({"v": self._v, "zeta": self._zeta})
 
         if plots:
@@ -2735,7 +2753,7 @@ class Instationary:
                                     v_d=None, f=None,
                                     div_v=None, div_zeta=None,
                                     print_error=True,
-                                    create_output=True, plots=False):
+                                    outputs=True, plots=False):
         """Module for the solution of linear incompressible control problems.
 
         Input:
@@ -2778,7 +2796,7 @@ class Instationary:
                                        the desired state and the numerical
                                        solution is printed
 
-            - create_output            if True, output is generated
+            - outputs                  if True, output is generated
 
             - plots                    if True, plots of the solutions
                                        are generated
@@ -3756,7 +3774,7 @@ class Instationary:
         if print_error:
             self.print_error(tau)
 
-        if create_output:
+        if outputs:
             output({"v": v, "zeta": zeta, "p": p, "mu": mu})
 
         if plots:
@@ -3772,11 +3790,9 @@ class Instationary:
                                         space_p=None, P=None,
                                         solver_parameters=None,
                                         auxiliary_sp={},
-                                        max_non_linear_iter=10,
-                                        relative_non_linear_tol=1.0e-5,
-                                        absolute_non_linear_tol=1.0e-8,
-                                        print_error_non_linear=True,
-                                        create_output=True,
+                                        nl_sp=None,
+                                        print_error=True,
+                                        outputs=True,
                                         plots=False):
         """Module for the solution of non-linear incompressible control problems.
 
@@ -3798,18 +3814,13 @@ class Instationary:
             - auxiliary_sp               auxiliary parameters for setting
                                          solvers of inner blocks
 
-            - max_non_linear_iter        maximum number of non-linear
-                                         iteration
+            - nl_sp                      parameters for the non-linear solver
 
-            - relative_non_linear_tol    relative non-linear tolerance
-
-            - absolute_non_linear_tol    absolute non-linear tolerance
-
-            - print_error_non_linear     if True, the L^2 discrepancy
+            - print_error                if True, the L^2 discrepancy
                                          between the desired state and the
                                          numerical solution is printed
 
-            - create_output              if True, output is generated
+            - outputs                    if True, output is generated
 
             - plots                      if True, plots of the solutions
                                          are generated
@@ -3991,7 +4002,20 @@ class Instationary:
 
         print(f'Initial non-linear residual: {norm_0:.16e}')
 
-        while (norm_k > relative_non_linear_tol * norm_0 and norm_k > absolute_non_linear_tol):
+        if "nl_max_it" in nl_sp:
+            nl_max_it=nl_sp["nl_max_it"]
+        else:
+            nl_max_it=10
+        if "nl_atol" in nl_sp:
+            nl_atol=nl_sp["nl_atol"]
+        else:
+            nl_atol=1.0e-8
+        if "nl_rtol" in nl_sp:
+            nl_rtol=nl_sp["nl_rtol"]
+        else:
+            nl_rtol=1.0e-5
+
+        while (norm_k > nl_rtol * norm_0 and norm_k > nl_atol):
             # solving for the linearization
             self.incompressible_linear_solve(
                 nullspace_p, space_p=space_p,
@@ -3999,7 +4023,7 @@ class Instationary:
                 auxiliary_sp=auxiliary_sp,
                 v_d=rhs_00, f=rhs_01,
                 div_v=rhs_10, div_zeta=rhs_11,
-                print_error=False, create_output=False, plots=False)
+                print_error=False, outputs=False, plots=False)
 
             delta_v.assign(self._v)
             delta_zeta.assign(self._zeta)
@@ -4057,11 +4081,11 @@ class Instationary:
                   f'iteration {k:d}, '
                   f'non-linear residual norm {norm_k:.16e}')
 
-            if k + 1 > max_non_linear_iter:
+            if k + 1 > nl_max_it:
                 break
 
-        if print_error_non_linear:
-            if (norm_k < relative_non_linear_tol * norm_0 or norm_k < absolute_non_linear_tol):
+        if print_error:
+            if (norm_k < nl_rtol * norm_0 or norm_k < nl_atol):
                 if norm_0 > 0.:
                     print(f'Relative non-linear residual: {norm_k / norm_0:.16e}')
                 print(f'Absolute non-linear residual: {norm_k:.16e}')
@@ -4073,7 +4097,7 @@ class Instationary:
                 print(f'Absolute non-linear residual: {norm_k:.16e}')
             self.print_error(tau)
 
-        if create_output:
+        if outputs:
             output({"v": self._v, "zeta": self._zeta, "p": self._p, "mu": self._mu})
 
         if plots:

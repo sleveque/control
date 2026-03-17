@@ -120,7 +120,7 @@ def test_stationary_linear_control():
         solver_parameters=solver_parameters,
         auxiliary_sp=auxiliary_sp,
         v_d=b_0, f=b_1, print_error=False,
-        create_output=False, plots=False)
+        outputs=False, plots=False)
 
     v_0.assign(my_control_stationary._v)
     zeta_0.assign(my_control_stationary._zeta)
@@ -207,7 +207,7 @@ def test_MMS_stationary_linear_Poisson_control():
 
             my_control_stationary.linear_solve(
                 solver_parameters=solver_parameters,
-                print_error=False, create_output=False, plots=False)
+                print_error=False, outputs=False, plots=False)
 
             my_v = Function(space_0, name="my_v")
             my_zeta = Function(space_0, name="my_zeta")
@@ -362,7 +362,7 @@ def test_stationary_incompressible_linear_control():
         ConstantNullspace(), solver_parameters=solver_parameters,
         auxiliary_sp=auxiliary_sp,
         v_d=b_0, f=b_1, div_v=b_2, div_zeta=b_3,
-        print_error=False, create_output=False,
+        print_error=False, outputs=False,
         plots=False)
 
     v_0.assign(my_control_stationary._v)
@@ -545,7 +545,7 @@ def test_MMS_stationary_Stokes_control():
             my_control_stationary.incompressible_linear_solve(
                 ConstantNullspace(), solver_parameters=solver_parameters,
                 auxiliary_sp=auxiliary_sp,
-                print_error=False, create_output=False, plots=False)
+                print_error=False, outputs=False, plots=False)
 
             my_v = Function(space_0, name="my_v")
             my_zeta = Function(space_0, name="my_zeta")
@@ -680,7 +680,7 @@ def test_stationary_linear_control_with_reference_sol():
 
         my_control_stationary.linear_solve(
             solver_parameters=solver_parameters,
-            create_output=False,
+            outputs=False,
             plots=False)
 
         my_v = Function(space_0)
@@ -829,11 +829,12 @@ def test_Picard_stationary_non_linear_control_with_reference_sol():
                              "absolute_tolerance": 1.0e-14,
                              "monitor_convergence": False}
 
+        nl_sp = {"nl_max_it": 100,
+                 "nl_rtol": 1.0e-10}
+
         my_control_stationary.non_linear_solve(
             solver_parameters=solver_parameters,
-            max_non_linear_iter=100, relative_non_linear_tol=1.0e-10,
-            create_output=False,
-            plots=False)
+            nl_sp=nl_sp, outputs=False, plots=False)
 
         my_v = Function(space_0)
         my_zeta = Function(space_0)
@@ -982,11 +983,12 @@ def test_GN_stationary_non_linear_control_with_reference_sol():
                              "absolute_tolerance": 1.0e-14,
                              "monitor_convergence": False}
 
+        nl_sp = {"nl_max_it": 100,
+                 "nl_rtol": 1.0e-9}
+
         my_control_stationary.non_linear_solve(
             solver_parameters=solver_parameters,
-            max_non_linear_iter=100, relative_non_linear_tol=1.0e-9,
-            create_output=False,
-            plots=False)
+            nl_sp=nl_sp, outputs=False, plots=False)
 
         my_v = Function(space_0)
         my_zeta = Function(space_0)
@@ -1153,12 +1155,14 @@ def test_stationary_incompressible_non_linear_control():
     auxiliary_sp = {"sp_11block": sp_11block,
                     "sp_M_p": sp_M_p}
 
+        nl_sp = {"nl_max_it": 5,
+                 "nl_atol": 1.0e-8,
+                 "nl_rtol": 1.0e-5}
+
     my_control_stationary.incompressible_non_linear_solve(
         ConstantNullspace(), auxiliary_sp=auxiliary_sp,
-        max_non_linear_iter=5,
-        relative_non_linear_tol=1.0e-5, absolute_non_linear_tol=1.0e-8,
-        print_error_non_linear=False,
-        create_output=False, plots=False)
+        nl_sp=nl_sp, print_error=False,
+        outputs=False, plots=False)
 
     my_v = Function(space_v)
     my_zeta = Function(space_v)
@@ -1289,13 +1293,15 @@ def test_MMS_stationary_Navier_Stokes_control():
             auxiliary_sp = {"sp_11block": sp_11block,
                             "sp_M_p": sp_M_p}
 
+            nl_sp = {"nl_max_it": 10,
+                     "nl_atol": 1.0e-9,
+                     "nl_rtol": 1.0e-9}
+
             my_control_stationary.incompressible_non_linear_solve(
                 ConstantNullspace(), solver_parameters=solver_parameters,
                 auxiliary_sp=auxiliary_sp,
-                max_non_linear_iter=10, relative_non_linear_tol=1.0e-9,
-                absolute_non_linear_tol=1.0e-9,
-                print_error_non_linear=False,
-                create_output=False, plots=False)
+                nl_sp=nl_sp, print_error=False,
+                outputs=False, plots=False)
 
             my_v = Function(space_0, name="my_v")
             my_zeta = Function(space_0, name="my_zeta")
@@ -1540,7 +1546,7 @@ def test_instationary_linear_control_BE():
         solver_parameters=solver_parameters,
         auxiliary_sp=auxiliary_sp,
         v_d=b_0, f=b_1,
-        print_error=False, create_output=False,
+        print_error=False, outputs=False,
         plots=False)
 
     v_0.assign(my_control_instationary._v)
@@ -1764,7 +1770,7 @@ def test_instationary_linear_control_CN():
         solver_parameters=solver_parameters,
         auxiliary_sp=auxiliary_sp,
         v_d=b_0, f=b_1,
-        print_error=False, create_output=False,
+        print_error=False, outputs=False,
         plots=False)
 
     v_0.assign(my_control_instationary._v)
@@ -1907,7 +1913,7 @@ def test_MMS_instationary_heat_control_BE_convergence_FE():
 
             my_control_instationary.linear_solve(
                 solver_parameters=solver_parameters,
-                print_error=False, create_output=False, plots=False)
+                print_error=False, outputs=False, plots=False)
 
             flattened_space_v = tuple(space_0 for i in range(n_t))
             full_space_v = MixedFunctionSpace(flattened_space_v)
@@ -2061,7 +2067,7 @@ def test_MMS_instationary_heat_control_BE_convergence_time():
 
             my_control_instationary.linear_solve(
                 solver_parameters=solver_parameters,
-                print_error=False, create_output=False, plots=False)
+                print_error=False, outputs=False, plots=False)
 
             flattened_space_v = tuple(space_0 for i in range(n_t))
             full_space_v = MixedFunctionSpace(flattened_space_v)
@@ -2218,7 +2224,7 @@ def test_MMS_instationary_heat_control_CN_convergence_FE():
 
             my_control_instationary.linear_solve(
                 solver_parameters=solver_parameters,
-                print_error=False, create_output=False, plots=False)
+                print_error=False, outputs=False, plots=False)
 
             flattened_space_v = tuple(space_0 for i in range(n_t))
             full_space_v = MixedFunctionSpace(flattened_space_v)
@@ -2375,7 +2381,7 @@ def test_MMS_instationary_heat_control_CN_convergence_time():
 
             my_control_instationary.linear_solve(
                 solver_parameters=solver_parameters,
-                print_error=False, create_output=False, plots=False)
+                print_error=False, outputs=False, plots=False)
 
             flattened_space_v = tuple(space_0 for i in range(n_t))
             full_space_v = MixedFunctionSpace(flattened_space_v)
@@ -2572,7 +2578,7 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_FE():
 
             my_control_instationary.linear_solve(
                 solver_parameters=solver_parameters,
-                print_error=False, create_output=False, plots=False)
+                print_error=False, outputs=False, plots=False)
 
             flattened_space_v = tuple(space_0 for i in range(n_t))
             full_space_v = MixedFunctionSpace(flattened_space_v)
@@ -2753,7 +2759,7 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_time():
 
             my_control_instationary.linear_solve(
                 solver_parameters=solver_parameters,
-                print_error=False, create_output=False, plots=False)
+                print_error=False, outputs=False, plots=False)
 
             flattened_space_v = tuple(space_0 for i in range(n_t))
             full_space_v = MixedFunctionSpace(flattened_space_v)
@@ -2938,7 +2944,7 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_FE():
 
             my_control_instationary.linear_solve(
                 solver_parameters=solver_parameters,
-                print_error=False, create_output=False, plots=False)
+                print_error=False, outputs=False, plots=False)
 
             flattened_space_v = tuple(space_0 for i in range(n_t))
             full_space_v = MixedFunctionSpace(flattened_space_v)
@@ -3123,7 +3129,7 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_time():
 
             my_control_instationary.linear_solve(
                 solver_parameters=solver_parameters,
-                print_error=False, create_output=False, plots=False)
+                print_error=False, outputs=False, plots=False)
 
             flattened_space_v = tuple(space_0 for i in range(n_t))
             full_space_v = MixedFunctionSpace(flattened_space_v)
@@ -3322,7 +3328,7 @@ def test_instationary_Stokes_control_BE_with_exact_sol():
 
     my_control_instationary.incompressible_linear_solve(
         ConstantNullspace(), space_p=space_p, auxiliary_sp=auxiliary_sp,
-        print_error=False, create_output=False)
+        print_error=False, outputs=False)
 
     del my_control_instationary
     PETSc.garbage_cleanup(space_v.mesh().comm)
@@ -3481,7 +3487,7 @@ def test_instationary_Stokes_control_CN_with_exact_sol():
 
     my_control_instationary.incompressible_linear_solve(
         ConstantNullspace(), space_p=space_p, auxiliary_sp=auxiliary_sp,
-        print_error=False, create_output=False)
+        print_error=False, outputs=False)
 
     del my_control_instationary
     PETSc.garbage_cleanup(space_v.mesh().comm)
@@ -3700,7 +3706,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
                 ConstantNullspace(), space_p=space_p,
                 solver_parameters=solver_parameters,
                 auxiliary_sp=auxiliary_sp,
-                print_error=False, create_output=False)
+                print_error=False, outputs=False)
 
             flattened_space_v = tuple(space_v for i in range(n_t))
             full_space_v = MixedFunctionSpace(flattened_space_v)
@@ -3936,7 +3942,7 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
             ConstantNullspace(), space_p=space_p,
             solver_parameters=solver_parameters,
             auxiliary_sp=auxiliary_sp,
-            print_error=False, create_output=False)
+            print_error=False, outputs=False)
 
         flattened_space_v = tuple(space_v for i in range(n_t))
         full_space_v = MixedFunctionSpace(flattened_space_v)
@@ -4171,7 +4177,7 @@ def test_MMS_instationary_Stokes_control_CN_convergence_FE():
                 ConstantNullspace(), space_p=space_p,
                 solver_parameters=solver_parameters,
                 auxiliary_sp=auxiliary_sp,
-                print_error=False, create_output=False)
+                print_error=False, outputs=False)
 
             flattened_space_v = tuple(space_v for i in range(n_t))
             full_space_v = MixedFunctionSpace(flattened_space_v)
@@ -4405,7 +4411,7 @@ def test_MMS_instationary_Stokes_control_CN_convergence_time():
             ConstantNullspace(), space_p=space_p,
             solver_parameters=solver_parameters,
             auxiliary_sp=auxiliary_sp,
-            print_error=False, create_output=False)
+            print_error=False, outputs=False)
 
         flattened_space_v = tuple(space_v for i in range(n_t))
         full_space_v = MixedFunctionSpace(flattened_space_v)
@@ -4577,12 +4583,14 @@ def test_instationary_Navier_Stokes_BE():
                          "absolute_tolerance": 1.0e-5,
                          "monitor_convergence": False}
 
+    nl_sp = {"nl_max_it": 10,
+             "nl_rtol": 1.0e-3}
+
     my_control_instationary.incompressible_non_linear_solve(
         ConstantNullspace(), space_p=space_p,
         solver_parameters=solver_parameters,
         auxiliary_sp=auxiliary_sp,
-        relative_non_linear_tol=1.0e-3, max_non_linear_iter=10,
-        create_output=False)
+        nl_sp=nl_sp, outputs=False)
 
     del my_control_instationary
     PETSc.garbage_cleanup(space_v.mesh().comm)
@@ -4707,12 +4715,14 @@ def test_instationary_Navier_Stokes_CN():
                          "absolute_tolerance": 1.0e-5,
                          "monitor_convergence": False}
 
+    nl_sp = {"nl_max_it": 10,
+             "nl_rtol": 1.0e-3}
+
     my_control_instationary.incompressible_non_linear_solve(
         ConstantNullspace(), space_p=space_p,
         solver_parameters=solver_parameters,
         auxiliary_sp=auxiliary_sp,
-        relative_non_linear_tol=1.0e-3, max_non_linear_iter=10,
-        create_output=False)
+        nl_sp=nl_sp, outputs=False)
 
     del my_control_instationary
     PETSc.garbage_cleanup(space_v.mesh().comm)
@@ -4875,14 +4885,16 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
                              "absolute_tolerance": 1.0e-5,
                              "monitor_convergence": False}
 
+        nl_sp = {"nl_max_it": 10,
+                 "nl_atol": 1.0e-4,
+                 "nl_rtol": 1.0e-4}
+
         my_control_instationary.incompressible_non_linear_solve(
             ConstantNullspace(), space_p=space_p,
             solver_parameters=solver_parameters,
             auxiliary_sp=auxiliary_sp,
-            max_non_linear_iter=10, relative_non_linear_tol=1.0e-4,
-            absolute_non_linear_tol=1.0e-4,
-            print_error_non_linear=False,
-            create_output=False, plots=False)
+            nl_sp=nl_sp, print_error=False,
+            outputs=False, plots=False)
 
         flattened_space_v = tuple(space_v for i in range(n_t))
         full_space_v = MixedFunctionSpace(flattened_space_v)
@@ -5088,14 +5100,16 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
                              "absolute_tolerance": 1.0e-5,
                              "monitor_convergence": False}
 
+        nl_sp = {"nl_max_it": 6,
+                 "nl_atol": 1.0e-4,
+                 "nl_rtol": 1.0e-4}
+
         my_control_instationary.incompressible_non_linear_solve(
             ConstantNullspace(), space_p=space_p,
             solver_parameters=solver_parameters,
             auxiliary_sp=auxiliary_sp,
-            max_non_linear_iter=6, relative_non_linear_tol=1.0e-4,
-            absolute_non_linear_tol=1.0e-4,
-            print_error_non_linear=False,
-            create_output=False, plots=False)
+            nl_sp=nl_sp, print_error=False,
+            outputs=False, plots=False)
 
         flattened_space_v = tuple(space_v for i in range(n_t))
         full_space_v = MixedFunctionSpace(flattened_space_v)
@@ -5300,14 +5314,16 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE():
                                  "absolute_tolerance": 1.0e-6,
                                  "monitor_convergence": False}
 
+            nl_sp = {"nl_max_it": 10,
+                     "nl_atol": 1.0e-4,
+                     "nl_rtol": 1.0e-4}
+
             my_control_instationary.incompressible_non_linear_solve(
                 ConstantNullspace(), space_p=space_p,
                 solver_parameters=solver_parameters,
                 auxiliary_sp=auxiliary_sp,
-                max_non_linear_iter=10, relative_non_linear_tol=1.0e-4,
-                absolute_non_linear_tol=1.0e-4,
-                print_error_non_linear=False,
-                create_output=False, plots=False)
+                nl_sp=nl_sp, print_error=False,
+                outputs=False, plots=False)
 
             flattened_space_v = tuple(space_v for i in range(n_t))
             full_space_v = MixedFunctionSpace(flattened_space_v)
@@ -5512,14 +5528,16 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
                              "absolute_tolerance": 1.0e-5,
                              "monitor_convergence": False}
 
+        nl_sp = {"nl_max_it": 10,
+                 "nl_atol": 1.0e-4,
+                 "nl_rtol": 1.0e-4}
+
         my_control_instationary.incompressible_non_linear_solve(
             ConstantNullspace(), space_p=space_p,
             solver_parameters=solver_parameters,
             auxiliary_sp=auxiliary_sp,
-            max_non_linear_iter=10, relative_non_linear_tol=1.0e-4,
-            absolute_non_linear_tol=1.0e-4,
-            print_error_non_linear=False,
-            create_output=False, plots=False)
+            nl_sp=nl_sp, print_error=False,
+            outputs=False, plots=False)
 
         flattened_space_v = tuple(space_v for i in range(n_t))
         full_space_v = MixedFunctionSpace(flattened_space_v)
