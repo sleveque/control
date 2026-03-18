@@ -136,8 +136,8 @@ def test_stationary_linear_control():
     assert zeta_error_norm < 1.0e-13
 
 
-def test_MMS_stationary_linear_Poisson_control():
-    degree_range = (1, 2)
+@pytest.mark.parametrize("degree", tuple(range(1, 2)))
+def test_MMS_stationary_linear_Poisson_control(degree):
     p_range = (3, 5)
     beta = 1.0e-3
 
@@ -183,67 +183,66 @@ def test_MMS_stationary_linear_Poisson_control():
 
         return inner(f, test) * dx
 
-    for degree in range(*degree_range):
-        v_error_norms = []
-        zeta_error_norms = []
-        for p in range(*p_range):
-            N = 2 ** p
-            mesh = UnitSquareMesh(N, N)
-            X = SpatialCoordinate(mesh)
+    v_error_norms = []
+    zeta_error_norms = []
+    for p in range(*p_range):
+        N = 2 ** p
+        mesh = UnitSquareMesh(N, N)
+        X = SpatialCoordinate(mesh)
 
-            space_0 = FunctionSpace(mesh, "Lagrange", degree)
-            bc = DirichletBC(space_0, 0.0, "on_boundary")
+        space_0 = FunctionSpace(mesh, "Lagrange", degree)
+        bc = DirichletBC(space_0, 0.0, "on_boundary")
 
-            my_control_stationary = Stationary(
-                space_0, forw_diff_operator, desired_state=desired_state,
-                force_function=force_f, beta=beta, bcs_v=bc)
+        my_control_stationary = Stationary(
+            space_0, forw_diff_operator, desired_state=desired_state,
+            force_function=force_f, beta=beta, bcs_v=bc)
 
-            solver_parameters = {"linear_solver": "fgmres",
-                                 "fgmres_restart": 10,
-                                 "maximum_iterations": 500,
-                                 "relative_tolerance": 1.0e-6,
-                                 "absolute_tolerance": 1.0e-6,
-                                 "monitor_convergence": False}
+        solver_parameters = {"linear_solver": "fgmres",
+                             "fgmres_restart": 10,
+                             "maximum_iterations": 500,
+                             "relative_tolerance": 1.0e-6,
+                             "absolute_tolerance": 1.0e-6,
+                             "monitor_convergence": False}
 
-            my_control_stationary.linear_solve(
-                solver_parameters=solver_parameters,
-                print_error=False, outputs=False, plots=False)
+        my_control_stationary.linear_solve(
+            solver_parameters=solver_parameters,
+            print_error=False, outputs=False, plots=False)
 
-            my_v = Function(space_0, name="my_v")
-            my_zeta = Function(space_0, name="my_zeta")
+        my_v = Function(space_0, name="my_v")
+        my_zeta = Function(space_0, name="my_zeta")
 
-            my_v.assign(my_control_stationary._v)
-            my_zeta.assign(my_control_stationary._zeta)
+        my_v.assign(my_control_stationary._v)
+        my_zeta.assign(my_control_stationary._zeta)
 
-            del my_control_stationary
-            PETSc.garbage_cleanup(space_0.mesh().comm)
+        del my_control_stationary
+        PETSc.garbage_cleanup(space_0.mesh().comm)
 
-            v_ref = Function(FunctionSpace(mesh, "Lagrange", degree + 2),
-                             name="v_ref")
-            v_ref.interpolate(ref_sol_v(*X))
+        v_ref = Function(FunctionSpace(mesh, "Lagrange", degree + 2),
+                         name="v_ref")
+        v_ref.interpolate(ref_sol_v(*X))
 
-            v_error_norm = np.sqrt(abs(assemble(inner(my_v - v_ref,
-                                                      my_v - v_ref) * dx)))
-            print(f"{degree=} {p=} {N=} {v_error_norm=}")
-            v_error_norms.append(v_error_norm)
+        v_error_norm = np.sqrt(abs(assemble(inner(my_v - v_ref,
+                                                  my_v - v_ref) * dx)))
+        print(f"{degree=} {p=} {N=} {v_error_norm=}")
+        v_error_norms.append(v_error_norm)
 
-            zeta_ref = Function(FunctionSpace(mesh, "Lagrange", degree + 2),
-                                name="zeta_ref")
-            zeta_ref.interpolate(ref_sol_zeta(*X))
+        zeta_ref = Function(FunctionSpace(mesh, "Lagrange", degree + 2),
+                            name="zeta_ref")
+        zeta_ref.interpolate(ref_sol_zeta(*X))
 
-            zeta_error_norm = np.sqrt(abs(assemble(
-                inner(my_zeta - zeta_ref,
-                      my_zeta - zeta_ref) * dx)))
-            print(f"{degree=} {p=} {N=} {zeta_error_norm=}")
-            zeta_error_norms.append(zeta_error_norm)
+        zeta_error_norm = np.sqrt(abs(assemble(
+            inner(my_zeta - zeta_ref,
+                  my_zeta - zeta_ref) * dx)))
+        print(f"{degree=} {p=} {N=} {zeta_error_norm=}")
+        zeta_error_norms.append(zeta_error_norm)
 
-        v_error_norms = np.array(v_error_norms)
-        v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {v_orders=}")
+    v_error_norms = np.array(v_error_norms)
+    v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {v_orders=}")
 
-        zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {zeta_orders=}")
+    zeta_error_norms = np.array(zeta_error_norms)
+    zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {zeta_orders=}")
 
 
 def test_stationary_incompressible_linear_control():
@@ -402,8 +401,8 @@ def test_stationary_incompressible_linear_control():
     assert mu_error_norm < 1.0e-10
 
 
-def test_MMS_stationary_Stokes_control():
-    degree_range = (2, 3)
+@pytest.mark.parametrize("degree", tuple(range(2, 3)))
+def test_MMS_stationary_Stokes_control(degree):
     p_range = (2, 4)
     beta = 1.0e-3
 
@@ -479,146 +478,146 @@ def test_MMS_stationary_Stokes_control():
 
         return inner(f, test) * dx
 
-    for degree in range(*degree_range):
-        v_error_norms = []
-        zeta_error_norms = []
-        p_error_norms = []
-        mu_error_norms = []
-        for p in range(*p_range):
-            N = 2 ** p
-            mesh = RectangleMesh(N, N, 2.0, 2.0)
-            X = SpatialCoordinate(mesh)
-            X_1 = X[0] - 1.0
-            X_2 = X[1] - 1.0
+    v_error_norms = []
+    zeta_error_norms = []
+    p_error_norms = []
+    mu_error_norms = []
+    for p in range(*p_range):
+        N = 2 ** p
+        mesh = RectangleMesh(N, N, 2.0, 2.0)
+        X = SpatialCoordinate(mesh)
+        X_1 = X[0] - 1.0
+        X_2 = X[1] - 1.0
 
-            space_0 = VectorFunctionSpace(mesh, "Lagrange", degree)
-            space_1 = FunctionSpace(mesh, "Lagrange", degree - 1)
-            bc = DirichletBC(
-                space_0,
-                as_vector([
-                    X_1 * (X_2 ** 3),
-                    (1. / 4.) * (X_1 ** 4 - X_2 ** 4)]),
-                "on_boundary")
+        space_0 = VectorFunctionSpace(mesh, "Lagrange", degree)
+        space_1 = FunctionSpace(mesh, "Lagrange", degree - 1)
+        bc = DirichletBC(
+            space_0,
+            as_vector([
+                X_1 * (X_2 ** 3),
+                (1. / 4.) * (X_1 ** 4 - X_2 ** 4)]),
+            "on_boundary")
 
-            my_control_stationary = Stationary(
-                space_0, forw_diff_operator, desired_state=desired_state,
-                force_function=force_f, beta=beta, space_p=space_1, bcs_v=bc)
+        my_control_stationary = Stationary(
+            space_0, forw_diff_operator, desired_state=desired_state,
+            force_function=force_f, beta=beta, space_p=space_1, bcs_v=bc)
 
-            solver_parameters = {"linear_solver": "fgmres",
-                                 "fgmres_restart": 10,
-                                 "maximum_iterations": 200,
-                                 "relative_tolerance": 1.0e-10,
-                                 "absolute_tolerance": 1.0e-10,
-                                 "monitor_convergence": False}
+        solver_parameters = {"linear_solver": "fgmres",
+                             "fgmres_restart": 10,
+                             "maximum_iterations": 200,
+                             "relative_tolerance": 1.0e-10,
+                             "absolute_tolerance": 1.0e-10,
+                             "monitor_convergence": False}
 
-            # employing Chebyshev for the (1,1)-block
-            e_min_v = 0.3924
-            e_max_v = 2.0598
-            sp_11block = {
-                "ksp_type": "chebyshev",
-                "pc_type": "jacobi",
-                "ksp_chebyshev_eigenvalues": f"{e_min_v:.16e}, {e_max_v:.16e}",
-                "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
-                "ksp_chebyshev_esteig_steps": 0,
-                "ksp_chebyshev_esteig_noisy": False,
-                "ksp_max_it": 20,
-                "ksp_atol": 0.0,
-                "ksp_rtol": 0.0}
+        # employing Chebyshev for the (1,1)-block
+        e_min_v = 0.3924
+        e_max_v = 2.0598
+        sp_11block = {
+            "ksp_type": "chebyshev",
+            "pc_type": "jacobi",
+            "ksp_chebyshev_eigenvalues": f"{e_min_v:.16e}, {e_max_v:.16e}",
+            "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
+            "ksp_chebyshev_esteig_steps": 0,
+            "ksp_chebyshev_esteig_noisy": False,
+            "ksp_max_it": 20,
+            "ksp_atol": 0.0,
+            "ksp_rtol": 0.0}
 
-            # employing Chebyshev for the pressure-mass matrix
-            e_min_p = 0.5
-            e_max_p = 2.0
-            sp_M_p = {
-                "ksp_type": "chebyshev",
-                "pc_type": "jacobi",
-                "ksp_chebyshev_eigenvalues": f"{e_min_p:.16e}, {e_max_p:.16e}",
-                "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
-                "ksp_chebyshev_esteig_steps": 0,
-                "ksp_chebyshev_esteig_noisy": False,
-                "ksp_max_it": 20,
-                "ksp_atol": 0.0,
-                "ksp_rtol": 0.0}
+        # employing Chebyshev for the pressure-mass matrix
+        e_min_p = 0.5
+        e_max_p = 2.0
+        sp_M_p = {
+            "ksp_type": "chebyshev",
+            "pc_type": "jacobi",
+            "ksp_chebyshev_eigenvalues": f"{e_min_p:.16e}, {e_max_p:.16e}",
+            "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
+            "ksp_chebyshev_esteig_steps": 0,
+            "ksp_chebyshev_esteig_noisy": False,
+            "ksp_max_it": 20,
+            "ksp_atol": 0.0,
+            "ksp_rtol": 0.0}
 
-            auxiliary_sp = {"sp_11block": sp_11block,
-                            "sp_M_p": sp_M_p}
+        auxiliary_sp = {"sp_11block": sp_11block,
+                        "sp_M_p": sp_M_p}
 
-            my_control_stationary.incompressible_linear_solve(
-                ConstantNullspace(), solver_parameters=solver_parameters,
-                auxiliary_sp=auxiliary_sp,
-                print_error=False, outputs=False, plots=False)
+        my_control_stationary.incompressible_linear_solve(
+            ConstantNullspace(), solver_parameters=solver_parameters,
+            auxiliary_sp=auxiliary_sp,
+            print_error=False, outputs=False, plots=False)
 
-            my_v = Function(space_0, name="my_v")
-            my_zeta = Function(space_0, name="my_zeta")
+        my_v = Function(space_0, name="my_v")
+        my_zeta = Function(space_0, name="my_zeta")
 
-            my_p = Function(space_1, name="my_p")
-            my_mu = Function(space_1, name="my_mu")
+        my_p = Function(space_1, name="my_p")
+        my_mu = Function(space_1, name="my_mu")
 
-            my_v.assign(my_control_stationary._v)
-            my_zeta.assign(my_control_stationary._zeta)
+        my_v.assign(my_control_stationary._v)
+        my_zeta.assign(my_control_stationary._zeta)
 
-            my_p.assign(my_control_stationary._p)
-            my_mu.assign(my_control_stationary._mu)
+        my_p.assign(my_control_stationary._p)
+        my_mu.assign(my_control_stationary._mu)
 
-            del my_control_stationary
-            PETSc.garbage_cleanup(space_0.mesh().comm)
+        del my_control_stationary
+        PETSc.garbage_cleanup(space_0.mesh().comm)
 
-            v_ref = Function(
-                VectorFunctionSpace(mesh, "Lagrange", degree + 2),
-                name="v_ref")
-            v_ref.interpolate(ref_sol_v(*X))
+        v_ref = Function(
+            VectorFunctionSpace(mesh, "Lagrange", degree + 2),
+            name="v_ref")
+        v_ref.interpolate(ref_sol_v(*X))
 
-            v_error_norm = np.sqrt(abs(assemble(inner(my_v - v_ref,
-                                                      my_v - v_ref) * dx)))
-            print(f"{degree=} {p=} {N=} {v_error_norm=}")
-            v_error_norms.append(v_error_norm)
+        v_error_norm = np.sqrt(abs(assemble(inner(my_v - v_ref,
+                                                  my_v - v_ref) * dx)))
+        print(f"{degree=} {p=} {N=} {v_error_norm=}")
+        v_error_norms.append(v_error_norm)
 
-            p_ref = Function(FunctionSpace(mesh, "Lagrange", degree + 1),
-                             name="p_ref")
-            p_ref.interpolate(ref_sol_p(*X))
+        p_ref = Function(FunctionSpace(mesh, "Lagrange", degree + 1),
+                         name="p_ref")
+        p_ref.interpolate(ref_sol_p(*X))
 
-            p_error_norm = np.sqrt(abs(assemble(inner(my_p - p_ref,
-                                                      my_p - p_ref) * dx)))
-            print(f"{degree=} {p=} {N=} {p_error_norm=}")
-            p_error_norms.append(p_error_norm)
+        p_error_norm = np.sqrt(abs(assemble(inner(my_p - p_ref,
+                                                  my_p - p_ref) * dx)))
+        print(f"{degree=} {p=} {N=} {p_error_norm=}")
+        p_error_norms.append(p_error_norm)
 
-            zeta_ref = Function(
-                VectorFunctionSpace(mesh, "Lagrange", degree + 2),
-                name="zeta_ref")
-            zeta_ref.interpolate(ref_sol_zeta(*X))
+        zeta_ref = Function(
+            VectorFunctionSpace(mesh, "Lagrange", degree + 2),
+            name="zeta_ref")
+        zeta_ref.interpolate(ref_sol_zeta(*X))
 
-            zeta_error_norm = np.sqrt(abs(assemble(
-                inner(my_zeta - zeta_ref,
-                      my_zeta - zeta_ref) * dx)))
-            print(f"{degree=} {p=} {N=} {zeta_error_norm=}")
-            zeta_error_norms.append(zeta_error_norm)
+        zeta_error_norm = np.sqrt(abs(assemble(
+            inner(my_zeta - zeta_ref,
+                  my_zeta - zeta_ref) * dx)))
+        print(f"{degree=} {p=} {N=} {zeta_error_norm=}")
+        zeta_error_norms.append(zeta_error_norm)
 
-            mu_ref = Function(FunctionSpace(mesh, "Lagrange", degree + 1),
-                              name="mu_ref")
-            mu_ref.interpolate(ref_sol_mu(*X))
+        mu_ref = Function(FunctionSpace(mesh, "Lagrange", degree + 1),
+                          name="mu_ref")
+        mu_ref.interpolate(ref_sol_mu(*X))
 
-            mu_error_norm = np.sqrt(abs(assemble(inner(my_mu - mu_ref,
-                                                       my_mu - mu_ref) * dx)))
-            print(f"{degree=} {p=} {N=} {mu_error_norm=}")
-            mu_error_norms.append(mu_error_norm)
+        mu_error_norm = np.sqrt(abs(assemble(inner(my_mu - mu_ref,
+                                                   my_mu - mu_ref) * dx)))
+        print(f"{degree=} {p=} {N=} {mu_error_norm=}")
+        mu_error_norms.append(mu_error_norm)
 
-        v_error_norms = np.array(v_error_norms)
-        v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {v_orders=}")
+    v_error_norms = np.array(v_error_norms)
+    v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {v_orders=}")
 
-        zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {zeta_orders=}")
+    zeta_error_norms = np.array(zeta_error_norms)
+    zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {zeta_orders=}")
 
-        p_error_norms = np.array(p_error_norms)
-        p_orders = np.log(p_error_norms[:-1] / p_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {p_orders=}")
+    p_error_norms = np.array(p_error_norms)
+    p_orders = np.log(p_error_norms[:-1] / p_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {p_orders=}")
 
-        mu_error_norms = np.array(mu_error_norms)
-        mu_orders = np.log(mu_error_norms[:-1] / mu_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {mu_orders=}")
+    mu_error_norms = np.array(mu_error_norms)
+    mu_orders = np.log(mu_error_norms[:-1] / mu_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {mu_orders=}")
 
 
-def test_stationary_linear_control_with_reference_sol():
+@pytest.mark.parametrize("degree", tuple(range(1, 4)))
+def test_stationary_linear_control_with_reference_sol(degree):
     mesh_size = 3
     mesh = UnitSquareMesh(2 ** mesh_size, 2 ** mesh_size)
     X = SpatialCoordinate(mesh)
@@ -660,97 +659,52 @@ def test_stationary_linear_control_with_reference_sol():
     def reference(X):
         return sin(pi * X[0]) * sin(pi * X[1]) * exp(X[0] + X[1])
 
-    for degree in range(1, 4):
-        space_0 = FunctionSpace(mesh, "Lagrange", degree)
-        test_0, trial_0 = TestFunction(space_0), TrialFunction(space_0)
-        bc = DirichletBC(space_0, 0.0, "on_boundary")
+    space_0 = FunctionSpace(mesh, "Lagrange", degree)
+    test_0, trial_0 = TestFunction(space_0), TrialFunction(space_0)
+    bc = DirichletBC(space_0, 0.0, "on_boundary")
 
-        my_beta = 1.0
+    my_beta = 1.0
 
-        my_control_stationary = Stationary(
-            space_0, forw_diff_operator, desired_state=desired_state,
-            force_function=force_f, beta=my_beta, bcs_v=bc)
+    my_control_stationary = Stationary(
+        space_0, forw_diff_operator, desired_state=desired_state,
+        force_function=force_f, beta=my_beta, bcs_v=bc)
 
-        solver_parameters = {"linear_solver": "fgmres",
-                             "fgmres_restart": 10,
-                             "maximum_iterations": 500,
-                             "relative_tolerance": 1.0e-14,
-                             "absolute_tolerance": 1.0e-14,
-                             "monitor_convergence": False}
+    solver_parameters = {"linear_solver": "fgmres",
+                         "fgmres_restart": 10,
+                         "maximum_iterations": 500,
+                         "relative_tolerance": 1.0e-14,
+                         "absolute_tolerance": 1.0e-14,
+                         "monitor_convergence": False}
 
-        my_control_stationary.linear_solve(
-            solver_parameters=solver_parameters,
-            outputs=False,
-            plots=False)
+    my_control_stationary.linear_solve(
+        solver_parameters=solver_parameters,
+        outputs=False,
+        plots=False)
 
-        my_v = Function(space_0)
-        my_zeta = Function(space_0)
-        my_control = Function(space_0)
+    my_v = Function(space_0)
+    my_zeta = Function(space_0)
+    my_control = Function(space_0)
 
-        my_v.assign(my_control_stationary._v)
-        my_zeta.assign(my_control_stationary._zeta)
-        my_control.assign((1.0 / my_beta) * my_zeta)
+    my_v.assign(my_control_stationary._v)
+    my_zeta.assign(my_control_stationary._zeta)
+    my_control.assign((1.0 / my_beta) * my_zeta)
 
-        del my_control_stationary
-        PETSc.garbage_cleanup(space_0.mesh().comm)
+    del my_control_stationary
+    PETSc.garbage_cleanup(space_0.mesh().comm)
 
-        beta = 1.0
+    beta = 1.0
 
-        def forward(u_ref, m):
-            m_1 = Function(space_0, name="m_1")
-            DirichletBC(space_0, m, "on_boundary").apply(m_1)
-            m_0 = Function(space_0, name="m_0")
-            m_0.assign(m - m_1)
+    def forward(u_ref, m):
+        m_1 = Function(space_0, name="m_1")
+        DirichletBC(space_0, m, "on_boundary").apply(m_1)
+        m_0 = Function(space_0, name="m_0")
+        m_0.assign(m - m_1)
 
-            u = Function(space_0, name="u")
-            solve(alpha_linear(u) * inner(u, test_0) * dx
-                  + inner(grad(u), grad(test_0)) * dx
-                  - inner(m_0, test_0) * dx == 0,
-                  u, bc,
-                  solver_parameters={"snes_type": "newtonls",
-                                     "snes_rtol": 1.0e-12,
-                                     "snes_atol": 1.0e-15,
-                                     "snes_stol": 0.0,
-                                     "ksp_type": "preonly",
-                                     "pc_type": "cholesky"})
-
-            return assemble(inner(u - u_ref, u - u_ref) * dx
-                            + beta * beta * inner(m_0, m_0) * dx
-                            + inner(m_1, m_1) * ds)
-
-        u_ref = Function(space_0, name="u_ref")
-        u_ref.interpolate(reference(X))
-        m0 = Function(space_0, name="m0")
-
-        forward_J = partial(forward, u_ref)
-
-        continue_annotation()
-        J = forward_J(m0)
-        pause_annotation()
-
-        m = minimize(
-            ReducedFunctional(J, Control_ad(m0, riesz_map="l2")),
-            method="L-BFGS-B",
-            options={"ftol": 0.0,
-                     "gtol": 1.0e-8})
-
-        dJ = compute_derivative(
-            J, Control_ad(m0), apply_riesz=False)
-        get_working_tape().clear_tape()
-
-        dJ_dual = Function(space_0, name="dJ_dual")
-        M_solver = LinearSolver(assemble(inner(trial_0, test_0) * dx),
-                                solver_parameters={"ksp_type": "preonly",
-                                                   "pc_type": "cholesky"})
-        M_solver.solve(dJ_dual, dJ.copy(deepcopy=True))
-        dJ_norm = np.sqrt(abs(assemble(inner(dJ_dual, dJ_dual) * dx)))
-        print(f"Gradient M^{-1} norm = {dJ_norm}")
-
-        v_sol = Function(space_0, name="v_sol")
-        solve(alpha_linear(v_sol) * inner(v_sol, test_0) * dx
-              + inner(grad(v_sol), grad(test_0)) * dx
-              - inner(m, test_0) * dx == 0,
-              v_sol, bc,
+        u = Function(space_0, name="u")
+        solve(alpha_linear(u) * inner(u, test_0) * dx
+              + inner(grad(u), grad(test_0)) * dx
+              - inner(m_0, test_0) * dx == 0,
+              u, bc,
               solver_parameters={"snes_type": "newtonls",
                                  "snes_rtol": 1.0e-12,
                                  "snes_atol": 1.0e-15,
@@ -758,18 +712,63 @@ def test_stationary_linear_control_with_reference_sol():
                                  "ksp_type": "preonly",
                                  "pc_type": "cholesky"})
 
-        v_error_norm = np.sqrt(abs(assemble(inner(my_v - v_sol,
-                                                  my_v - v_sol) * dx)))
-        print(f"Error on the state: {v_error_norm}")
-        assert v_error_norm < 1.0e-8
+        return assemble(inner(u - u_ref, u - u_ref) * dx
+                        + beta * beta * inner(m_0, m_0) * dx
+                        + inner(m_1, m_1) * ds)
 
-        control_error_norm = np.sqrt(abs(assemble(inner(my_control - m,
-                                                        my_control - m) * dx)))
-        print(f"Error on the control: {control_error_norm}")
-        assert control_error_norm < 1.0e-6
+    u_ref = Function(space_0, name="u_ref")
+    u_ref.interpolate(reference(X))
+    m0 = Function(space_0, name="m0")
+
+    forward_J = partial(forward, u_ref)
+
+    continue_annotation()
+    J = forward_J(m0)
+    pause_annotation()
+
+    m = minimize(
+        ReducedFunctional(J, Control_ad(m0, riesz_map="l2")),
+        method="L-BFGS-B",
+        options={"ftol": 0.0,
+                 "gtol": 1.0e-8})
+
+    dJ = compute_derivative(
+        J, Control_ad(m0), apply_riesz=False)
+    get_working_tape().clear_tape()
+
+    dJ_dual = Function(space_0, name="dJ_dual")
+    M_solver = LinearSolver(assemble(inner(trial_0, test_0) * dx),
+                            solver_parameters={"ksp_type": "preonly",
+                                               "pc_type": "cholesky"})
+    M_solver.solve(dJ_dual, dJ.copy(deepcopy=True))
+    dJ_norm = np.sqrt(abs(assemble(inner(dJ_dual, dJ_dual) * dx)))
+    print(f"Gradient M^{-1} norm = {dJ_norm}")
+
+    v_sol = Function(space_0, name="v_sol")
+    solve(alpha_linear(v_sol) * inner(v_sol, test_0) * dx
+          + inner(grad(v_sol), grad(test_0)) * dx
+          - inner(m, test_0) * dx == 0,
+          v_sol, bc,
+          solver_parameters={"snes_type": "newtonls",
+                             "snes_rtol": 1.0e-12,
+                             "snes_atol": 1.0e-15,
+                             "snes_stol": 0.0,
+                             "ksp_type": "preonly",
+                             "pc_type": "cholesky"})
+
+    v_error_norm = np.sqrt(abs(assemble(inner(my_v - v_sol,
+                                              my_v - v_sol) * dx)))
+    print(f"Error on the state: {v_error_norm}")
+    assert v_error_norm < 1.0e-8
+
+    control_error_norm = np.sqrt(abs(assemble(inner(my_control - m,
+                                                    my_control - m) * dx)))
+    print(f"Error on the control: {control_error_norm}")
+    assert control_error_norm < 1.0e-6
 
 
-def test_Picard_stationary_non_linear_control_with_reference_sol():
+@pytest.mark.parametrize("degree", tuple(range(1, 4)))
+def test_Picard_stationary_non_linear_control_with_reference_sol(degree):
     mesh_size = 3
     mesh = UnitSquareMesh(2 ** mesh_size, 2 ** mesh_size)
     X = SpatialCoordinate(mesh)
@@ -811,99 +810,54 @@ def test_Picard_stationary_non_linear_control_with_reference_sol():
     def reference(X):
         return sin(pi * X[0]) * sin(pi * X[1]) * exp(X[0] + X[1])
 
-    for degree in range(1, 4):
-        space_0 = FunctionSpace(mesh, "Lagrange", degree)
-        test_0, trial_0 = TestFunction(space_0), TrialFunction(space_0)
-        bc = DirichletBC(space_0, 0.0, "on_boundary")
+    space_0 = FunctionSpace(mesh, "Lagrange", degree)
+    test_0, trial_0 = TestFunction(space_0), TrialFunction(space_0)
+    bc = DirichletBC(space_0, 0.0, "on_boundary")
 
-        my_beta = 1.0
+    my_beta = 1.0
 
-        my_control_stationary = Stationary(
-            space_0, forw_diff_operator, desired_state=desired_state,
-            force_function=force_f, beta=my_beta, bcs_v=bc)
+    my_control_stationary = Stationary(
+        space_0, forw_diff_operator, desired_state=desired_state,
+        force_function=force_f, beta=my_beta, bcs_v=bc)
 
-        solver_parameters = {"linear_solver": "fgmres",
-                             "fgmres_restart": 10,
-                             "maximum_iterations": 500,
-                             "relative_tolerance": 1.0e-14,
-                             "absolute_tolerance": 1.0e-14,
-                             "monitor_convergence": False}
+    solver_parameters = {"linear_solver": "fgmres",
+                         "fgmres_restart": 10,
+                         "maximum_iterations": 500,
+                         "relative_tolerance": 1.0e-14,
+                         "absolute_tolerance": 1.0e-14,
+                         "monitor_convergence": False}
 
-        nl_sp = {"nl_max_it": 100,
-                 "nl_rtol": 1.0e-10}
+    nl_sp = {"nl_max_it": 100,
+             "nl_rtol": 1.0e-10}
 
-        my_control_stationary.non_linear_solve(
-            solver_parameters=solver_parameters,
-            nl_sp=nl_sp, outputs=False, plots=False)
+    my_control_stationary.non_linear_solve(
+        solver_parameters=solver_parameters,
+        nl_sp=nl_sp, outputs=False, plots=False)
 
-        my_v = Function(space_0)
-        my_zeta = Function(space_0)
-        my_control = Function(space_0)
+    my_v = Function(space_0)
+    my_zeta = Function(space_0)
+    my_control = Function(space_0)
 
-        my_v.assign(my_control_stationary._v)
-        my_zeta.assign(my_control_stationary._zeta)
-        my_control.assign((1.0 / my_beta) * my_zeta)
+    my_v.assign(my_control_stationary._v)
+    my_zeta.assign(my_control_stationary._zeta)
+    my_control.assign((1.0 / my_beta) * my_zeta)
 
-        del my_control_stationary
-        PETSc.garbage_cleanup(space_0.mesh().comm)
+    del my_control_stationary
+    PETSc.garbage_cleanup(space_0.mesh().comm)
 
-        beta = 1.0
+    beta = 1.0
 
-        def forward(u_ref, m):
-            m_1 = Function(space_0, name="m_1")
-            DirichletBC(space_0, m, "on_boundary").apply(m_1)
-            m_0 = Function(space_0, name="m_0")
-            m_0.assign(m - m_1)
+    def forward(u_ref, m):
+        m_1 = Function(space_0, name="m_1")
+        DirichletBC(space_0, m, "on_boundary").apply(m_1)
+        m_0 = Function(space_0, name="m_0")
+        m_0.assign(m - m_1)
 
-            u = Function(space_0, name="u")
-            solve(alpha_non_linear(u) * inner(u, test_0) * dx
-                  + inner(grad(u), grad(test_0)) * dx
-                  - inner(m_0, test_0) * dx == 0,
-                  u, bc,
-                  solver_parameters={"snes_type": "newtonls",
-                                     "snes_rtol": 1.0e-12,
-                                     "snes_atol": 1.0e-15,
-                                     "snes_stol": 0.0,
-                                     "ksp_type": "preonly",
-                                     "pc_type": "cholesky"})
-
-            return assemble(inner(u - u_ref, u - u_ref) * dx
-                            + beta * beta * inner(m_0, m_0) * dx
-                            + inner(m_1, m_1) * ds)
-
-        u_ref = Function(space_0, name="u_ref")
-        u_ref.interpolate(reference(X))
-        m0 = Function(space_0, name="m0")
-
-        forward_J = partial(forward, u_ref)
-
-        continue_annotation()
-        J = forward_J(m0)
-        pause_annotation()
-
-        m = minimize(
-            ReducedFunctional(J, Control_ad(m0, riesz_map="l2")),
-            method="L-BFGS-B",
-            options={"ftol": 0.0,
-                     "gtol": 1.0e-8})
-
-        dJ = compute_derivative(
-            J, Control_ad(m0), apply_riesz=False)
-        get_working_tape().clear_tape()
-
-        dJ_dual = Function(space_0, name="dJ_dual")
-        M_solver = LinearSolver(assemble(inner(trial_0, test_0) * dx),
-                                solver_parameters={"ksp_type": "preonly",
-                                                   "pc_type": "cholesky"})
-        M_solver.solve(dJ_dual, dJ.copy(deepcopy=True))
-        dJ_norm = np.sqrt(abs(assemble(inner(dJ_dual, dJ_dual) * dx)))
-        print(f"Gradient M^{-1} norm = {dJ_norm}")
-
-        v_sol = Function(space_0, name="v_sol")
-        solve(alpha_non_linear(v_sol) * inner(v_sol, test_0) * dx
-              + inner(grad(v_sol), grad(test_0)) * dx
-              - inner(m, test_0) * dx == 0,
-              v_sol, bc,
+        u = Function(space_0, name="u")
+        solve(alpha_non_linear(u) * inner(u, test_0) * dx
+              + inner(grad(u), grad(test_0)) * dx
+              - inner(m_0, test_0) * dx == 0,
+              u, bc,
               solver_parameters={"snes_type": "newtonls",
                                  "snes_rtol": 1.0e-12,
                                  "snes_atol": 1.0e-15,
@@ -911,18 +865,63 @@ def test_Picard_stationary_non_linear_control_with_reference_sol():
                                  "ksp_type": "preonly",
                                  "pc_type": "cholesky"})
 
-        v_error_norm = np.sqrt(abs(assemble(inner(my_v - v_sol,
-                                                  my_v - v_sol) * dx)))
-        print(f"Error on the state: {v_error_norm}")
-        assert v_error_norm < 1.0e-7
+        return assemble(inner(u - u_ref, u - u_ref) * dx
+                        + beta * beta * inner(m_0, m_0) * dx
+                        + inner(m_1, m_1) * ds)
 
-        control_error_norm = np.sqrt(abs(assemble(inner(my_control - m,
-                                                        my_control - m) * dx)))
-        print(f"Error on the control: {control_error_norm}")
-        assert control_error_norm < 1.0e-6
+    u_ref = Function(space_0, name="u_ref")
+    u_ref.interpolate(reference(X))
+    m0 = Function(space_0, name="m0")
+
+    forward_J = partial(forward, u_ref)
+
+    continue_annotation()
+    J = forward_J(m0)
+    pause_annotation()
+
+    m = minimize(
+        ReducedFunctional(J, Control_ad(m0, riesz_map="l2")),
+        method="L-BFGS-B",
+        options={"ftol": 0.0,
+                 "gtol": 1.0e-8})
+
+    dJ = compute_derivative(
+        J, Control_ad(m0), apply_riesz=False)
+    get_working_tape().clear_tape()
+
+    dJ_dual = Function(space_0, name="dJ_dual")
+    M_solver = LinearSolver(assemble(inner(trial_0, test_0) * dx),
+                            solver_parameters={"ksp_type": "preonly",
+                                               "pc_type": "cholesky"})
+    M_solver.solve(dJ_dual, dJ.copy(deepcopy=True))
+    dJ_norm = np.sqrt(abs(assemble(inner(dJ_dual, dJ_dual) * dx)))
+    print(f"Gradient M^{-1} norm = {dJ_norm}")
+
+    v_sol = Function(space_0, name="v_sol")
+    solve(alpha_non_linear(v_sol) * inner(v_sol, test_0) * dx
+          + inner(grad(v_sol), grad(test_0)) * dx
+          - inner(m, test_0) * dx == 0,
+          v_sol, bc,
+          solver_parameters={"snes_type": "newtonls",
+                             "snes_rtol": 1.0e-12,
+                             "snes_atol": 1.0e-15,
+                             "snes_stol": 0.0,
+                             "ksp_type": "preonly",
+                             "pc_type": "cholesky"})
+
+    v_error_norm = np.sqrt(abs(assemble(inner(my_v - v_sol,
+                                              my_v - v_sol) * dx)))
+    print(f"Error on the state: {v_error_norm}")
+    assert v_error_norm < 1.0e-7
+
+    control_error_norm = np.sqrt(abs(assemble(inner(my_control - m,
+                                                    my_control - m) * dx)))
+    print(f"Error on the control: {control_error_norm}")
+    assert control_error_norm < 1.0e-6
 
 
-def test_GN_stationary_non_linear_control_with_reference_sol():
+@pytest.mark.parametrize("degree", tuple(range(1, 4)))
+def test_GN_stationary_non_linear_control_with_reference_sol(degree):
     mesh_size = 3
     mesh = UnitSquareMesh(2 ** mesh_size, 2 ** mesh_size)
     X = SpatialCoordinate(mesh)
@@ -964,100 +963,55 @@ def test_GN_stationary_non_linear_control_with_reference_sol():
     def reference(X):
         return sin(pi * X[0]) * sin(pi * X[1]) * exp(X[0] + X[1])
 
-    for degree in range(1, 4):
-        space_0 = FunctionSpace(mesh, "Lagrange", degree)
-        test_0, trial_0 = TestFunction(space_0), TrialFunction(space_0)
-        bc = DirichletBC(space_0, 0.0, "on_boundary")
+    space_0 = FunctionSpace(mesh, "Lagrange", degree)
+    test_0, trial_0 = TestFunction(space_0), TrialFunction(space_0)
+    bc = DirichletBC(space_0, 0.0, "on_boundary")
 
-        my_beta = 1.0
+    my_beta = 1.0
 
-        my_control_stationary = Stationary(
-            space_0, forw_diff_operator, desired_state=desired_state,
-            force_function=force_f, beta=my_beta, bcs_v=bc,
-            Gauss_Newton=True)
+    my_control_stationary = Stationary(
+        space_0, forw_diff_operator, desired_state=desired_state,
+        force_function=force_f, beta=my_beta, bcs_v=bc,
+        Gauss_Newton=True)
 
-        solver_parameters = {"linear_solver": "fgmres",
-                             "fgmres_restart": 10,
-                             "maximum_iterations": 500,
-                             "relative_tolerance": 1.0e-14,
-                             "absolute_tolerance": 1.0e-14,
-                             "monitor_convergence": False}
+    solver_parameters = {"linear_solver": "fgmres",
+                         "fgmres_restart": 10,
+                         "maximum_iterations": 500,
+                         "relative_tolerance": 1.0e-14,
+                         "absolute_tolerance": 1.0e-14,
+                         "monitor_convergence": False}
 
-        nl_sp = {"nl_max_it": 100,
-                 "nl_rtol": 1.0e-9}
+    nl_sp = {"nl_max_it": 100,
+             "nl_rtol": 1.0e-9}
 
-        my_control_stationary.non_linear_solve(
-            solver_parameters=solver_parameters,
-            nl_sp=nl_sp, outputs=False, plots=False)
+    my_control_stationary.non_linear_solve(
+        solver_parameters=solver_parameters,
+        nl_sp=nl_sp, outputs=False, plots=False)
 
-        my_v = Function(space_0)
-        my_zeta = Function(space_0)
-        my_control = Function(space_0)
+    my_v = Function(space_0)
+    my_zeta = Function(space_0)
+    my_control = Function(space_0)
 
-        my_v.assign(my_control_stationary._v)
-        my_zeta.assign(my_control_stationary._zeta)
-        my_control.assign((1.0 / my_beta) * my_zeta)
+    my_v.assign(my_control_stationary._v)
+    my_zeta.assign(my_control_stationary._zeta)
+    my_control.assign((1.0 / my_beta) * my_zeta)
 
-        del my_control_stationary
-        PETSc.garbage_cleanup(space_0.mesh().comm)
+    del my_control_stationary
+    PETSc.garbage_cleanup(space_0.mesh().comm)
 
-        beta = 1.0
+    beta = 1.0
 
-        def forward(u_ref, m):
-            m_1 = Function(space_0, name="m_1")
-            DirichletBC(space_0, m, "on_boundary").apply(m_1)
-            m_0 = Function(space_0, name="m_0")
-            m_0.assign(m - m_1)
+    def forward(u_ref, m):
+        m_1 = Function(space_0, name="m_1")
+        DirichletBC(space_0, m, "on_boundary").apply(m_1)
+        m_0 = Function(space_0, name="m_0")
+        m_0.assign(m - m_1)
 
-            u = Function(space_0, name="u")
-            solve(alpha_non_linear(u) * inner(u, test_0) * dx
-                  + inner(grad(u), grad(test_0)) * dx
-                  - inner(m_0, test_0) * dx == 0,
-                  u, bc,
-                  solver_parameters={"snes_type": "newtonls",
-                                     "snes_rtol": 1.0e-12,
-                                     "snes_atol": 1.0e-15,
-                                     "snes_stol": 0.0,
-                                     "ksp_type": "preonly",
-                                     "pc_type": "cholesky"})
-
-            return assemble(inner(u - u_ref, u - u_ref) * dx
-                            + beta * beta * inner(m_0, m_0) * dx
-                            + inner(m_1, m_1) * ds)
-
-        u_ref = Function(space_0, name="u_ref")
-        u_ref.interpolate(reference(X))
-        m0 = Function(space_0, name="m0")
-
-        forward_J = partial(forward, u_ref)
-
-        continue_annotation()
-        J = forward_J(m0)
-        pause_annotation()
-
-        m = minimize(
-            ReducedFunctional(J, Control_ad(m0, riesz_map="l2")),
-            method="L-BFGS-B",
-            options={"ftol": 0.0,
-                     "gtol": 1.0e-9})
-
-        dJ = compute_derivative(
-            J, Control_ad(m0), apply_riesz=False)
-        get_working_tape().clear_tape()
-
-        dJ_dual = Function(space_0, name="dJ_dual")
-        M_solver = LinearSolver(assemble(inner(trial_0, test_0) * dx),
-                                solver_parameters={"ksp_type": "preonly",
-                                                   "pc_type": "cholesky"})
-        M_solver.solve(dJ_dual, dJ.copy(deepcopy=True))
-        dJ_norm = np.sqrt(abs(assemble(inner(dJ_dual, dJ_dual) * dx)))
-        print(f"Gradient M^{-1} norm = {dJ_norm}")
-
-        v_sol = Function(space_0, name="v_sol")
-        solve(alpha_non_linear(v_sol) * inner(v_sol, test_0) * dx
-              + inner(grad(v_sol), grad(test_0)) * dx
-              - inner(m, test_0) * dx == 0,
-              v_sol, bc,
+        u = Function(space_0, name="u")
+        solve(alpha_non_linear(u) * inner(u, test_0) * dx
+              + inner(grad(u), grad(test_0)) * dx
+              - inner(m_0, test_0) * dx == 0,
+              u, bc,
               solver_parameters={"snes_type": "newtonls",
                                  "snes_rtol": 1.0e-12,
                                  "snes_atol": 1.0e-15,
@@ -1065,15 +1019,59 @@ def test_GN_stationary_non_linear_control_with_reference_sol():
                                  "ksp_type": "preonly",
                                  "pc_type": "cholesky"})
 
-        v_error_norm = np.sqrt(abs(assemble(inner(my_v - v_sol,
-                                                  my_v - v_sol) * dx)))
-        print(f"Error on the state: {v_error_norm}")
-        assert v_error_norm < 1.0e-8
+        return assemble(inner(u - u_ref, u - u_ref) * dx
+                        + beta * beta * inner(m_0, m_0) * dx
+                        + inner(m_1, m_1) * ds)
 
-        control_error_norm = np.sqrt(abs(assemble(inner(my_control - m,
-                                                        my_control - m) * dx)))
-        print(f"Error on the control: {control_error_norm}")
-        assert control_error_norm < 1.0e-6
+    u_ref = Function(space_0, name="u_ref")
+    u_ref.interpolate(reference(X))
+    m0 = Function(space_0, name="m0")
+
+    forward_J = partial(forward, u_ref)
+
+    continue_annotation()
+    J = forward_J(m0)
+    pause_annotation()
+
+    m = minimize(
+        ReducedFunctional(J, Control_ad(m0, riesz_map="l2")),
+        method="L-BFGS-B",
+        options={"ftol": 0.0,
+                 "gtol": 1.0e-9})
+
+    dJ = compute_derivative(
+        J, Control_ad(m0), apply_riesz=False)
+    get_working_tape().clear_tape()
+
+    dJ_dual = Function(space_0, name="dJ_dual")
+    M_solver = LinearSolver(assemble(inner(trial_0, test_0) * dx),
+                            solver_parameters={"ksp_type": "preonly",
+                                               "pc_type": "cholesky"})
+    M_solver.solve(dJ_dual, dJ.copy(deepcopy=True))
+    dJ_norm = np.sqrt(abs(assemble(inner(dJ_dual, dJ_dual) * dx)))
+    print(f"Gradient M^{-1} norm = {dJ_norm}")
+
+    v_sol = Function(space_0, name="v_sol")
+    solve(alpha_non_linear(v_sol) * inner(v_sol, test_0) * dx
+          + inner(grad(v_sol), grad(test_0)) * dx
+          - inner(m, test_0) * dx == 0,
+          v_sol, bc,
+          solver_parameters={"snes_type": "newtonls",
+                             "snes_rtol": 1.0e-12,
+                             "snes_atol": 1.0e-15,
+                             "snes_stol": 0.0,
+                             "ksp_type": "preonly",
+                             "pc_type": "cholesky"})
+
+    v_error_norm = np.sqrt(abs(assemble(inner(my_v - v_sol,
+                                              my_v - v_sol) * dx)))
+    print(f"Error on the state: {v_error_norm}")
+    assert v_error_norm < 1.0e-8
+
+    control_error_norm = np.sqrt(abs(assemble(inner(my_control - m,
+                                                    my_control - m) * dx)))
+    print(f"Error on the control: {control_error_norm}")
+    assert control_error_norm < 1.0e-6
 
 
 def test_stationary_incompressible_non_linear_control():
@@ -1174,8 +1172,8 @@ def test_stationary_incompressible_non_linear_control():
     PETSc.garbage_cleanup(space_v.mesh().comm)
 
 
-def test_MMS_stationary_Navier_Stokes_control():
-    degree_range = (2, 3)
+@pytest.mark.parametrize("degree", tuple(range(2, 3)))
+def test_MMS_stationary_Navier_Stokes_control(degree):
     p_range = (2, 4)
     beta = 1.0e-3
     nu = 1.0 / 100.0
@@ -1231,120 +1229,119 @@ def test_MMS_stationary_Navier_Stokes_control():
 
         return inner(f, test) * dx
 
-    for degree in range(*degree_range):
-        v_error_norms = []
-        zeta_error_norms = []
+    v_error_norms = []
+    zeta_error_norms = []
 
-        for p in range(*p_range):
-            N = 2 ** p
-            mesh = RectangleMesh(N, N, 2.0, 2.0)
-            X = SpatialCoordinate(mesh)
-            X_1 = X[0] - 1.0
-            X_2 = X[1] - 1.0
+    for p in range(*p_range):
+        N = 2 ** p
+        mesh = RectangleMesh(N, N, 2.0, 2.0)
+        X = SpatialCoordinate(mesh)
+        X_1 = X[0] - 1.0
+        X_2 = X[1] - 1.0
 
-            space_0 = VectorFunctionSpace(mesh, "Lagrange", degree)
-            space_1 = FunctionSpace(mesh, "Lagrange", degree - 1)
-            bc = DirichletBC(
-                space_0,
-                as_vector([
-                    X_1 * (X_2 ** 3),
-                    (1. / 4.) * (X_1 ** 4 - X_2 ** 4)]),
-                "on_boundary")
+        space_0 = VectorFunctionSpace(mesh, "Lagrange", degree)
+        space_1 = FunctionSpace(mesh, "Lagrange", degree - 1)
+        bc = DirichletBC(
+            space_0,
+            as_vector([
+                X_1 * (X_2 ** 3),
+                (1. / 4.) * (X_1 ** 4 - X_2 ** 4)]),
+            "on_boundary")
 
-            my_control_stationary = Stationary(
-                space_0, forw_diff_operator, desired_state=desired_state,
-                force_function=force_f, beta=beta, space_p=space_1, bcs_v=bc)
+        my_control_stationary = Stationary(
+            space_0, forw_diff_operator, desired_state=desired_state,
+            force_function=force_f, beta=beta, space_p=space_1, bcs_v=bc)
 
-            solver_parameters = {"linear_solver": "fgmres",
-                                 "fgmres_restart": 10,
-                                 "maximum_iterations": 500,
-                                 "relative_tolerance": 1.0e-10,
-                                 "absolute_tolerance": 1.0e-10,
-                                 "monitor_convergence": False}
+        solver_parameters = {"linear_solver": "fgmres",
+                             "fgmres_restart": 10,
+                             "maximum_iterations": 500,
+                             "relative_tolerance": 1.0e-10,
+                             "absolute_tolerance": 1.0e-10,
+                             "monitor_convergence": False}
 
-            # employing Chebyshev for the (1,1)-block
-            e_min_v = 0.3924
-            e_max_v = 2.0598
-            sp_11block = {
-                "ksp_type": "chebyshev",
-                "pc_type": "jacobi",
-                "ksp_chebyshev_eigenvalues": f"{e_min_v:.16e}, {e_max_v:.16e}",
-                "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
-                "ksp_chebyshev_esteig_steps": 0,
-                "ksp_chebyshev_esteig_noisy": False,
-                "ksp_max_it": 20,
-                "ksp_atol": 0.0,
-                "ksp_rtol": 0.0}
+        # employing Chebyshev for the (1,1)-block
+        e_min_v = 0.3924
+        e_max_v = 2.0598
+        sp_11block = {
+            "ksp_type": "chebyshev",
+            "pc_type": "jacobi",
+            "ksp_chebyshev_eigenvalues": f"{e_min_v:.16e}, {e_max_v:.16e}",
+            "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
+            "ksp_chebyshev_esteig_steps": 0,
+            "ksp_chebyshev_esteig_noisy": False,
+            "ksp_max_it": 20,
+            "ksp_atol": 0.0,
+            "ksp_rtol": 0.0}
 
-            # employing Chebyshev for the pressure-mass matrix
-            e_min_p = 0.5
-            e_max_p = 2.0
-            sp_M_p = {
-                "ksp_type": "chebyshev",
-                "pc_type": "jacobi",
-                "ksp_chebyshev_eigenvalues": f"{e_min_p:.16e}, {e_max_p:.16e}",
-                "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
-                "ksp_chebyshev_esteig_steps": 0,
-                "ksp_chebyshev_esteig_noisy": False,
-                "ksp_max_it": 20,
-                "ksp_atol": 0.0,
-                "ksp_rtol": 0.0}
+        # employing Chebyshev for the pressure-mass matrix
+        e_min_p = 0.5
+        e_max_p = 2.0
+        sp_M_p = {
+            "ksp_type": "chebyshev",
+            "pc_type": "jacobi",
+            "ksp_chebyshev_eigenvalues": f"{e_min_p:.16e}, {e_max_p:.16e}",
+            "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
+            "ksp_chebyshev_esteig_steps": 0,
+            "ksp_chebyshev_esteig_noisy": False,
+            "ksp_max_it": 20,
+            "ksp_atol": 0.0,
+            "ksp_rtol": 0.0}
 
-            auxiliary_sp = {"sp_11block": sp_11block,
-                            "sp_M_p": sp_M_p}
+        auxiliary_sp = {"sp_11block": sp_11block,
+                        "sp_M_p": sp_M_p}
 
-            nl_sp = {"nl_max_it": 10,
-                     "nl_atol": 1.0e-9,
-                     "nl_rtol": 1.0e-9}
+        nl_sp = {"nl_max_it": 10,
+                 "nl_atol": 1.0e-9,
+                 "nl_rtol": 1.0e-9}
 
-            my_control_stationary.incompressible_non_linear_solve(
-                ConstantNullspace(), solver_parameters=solver_parameters,
-                auxiliary_sp=auxiliary_sp,
-                nl_sp=nl_sp, print_error=False,
-                outputs=False, plots=False)
+        my_control_stationary.incompressible_non_linear_solve(
+            ConstantNullspace(), solver_parameters=solver_parameters,
+            auxiliary_sp=auxiliary_sp,
+            nl_sp=nl_sp, print_error=False,
+            outputs=False, plots=False)
 
-            my_v = Function(space_0, name="my_v")
-            my_zeta = Function(space_0, name="my_zeta")
+        my_v = Function(space_0, name="my_v")
+        my_zeta = Function(space_0, name="my_zeta")
 
-            my_p = Function(space_1, name="my_p")
-            my_mu = Function(space_1, name="my_mu")
+        my_p = Function(space_1, name="my_p")
+        my_mu = Function(space_1, name="my_mu")
 
-            my_v.assign(my_control_stationary._v)
-            my_zeta.assign(my_control_stationary._zeta)
+        my_v.assign(my_control_stationary._v)
+        my_zeta.assign(my_control_stationary._zeta)
 
-            my_p.assign(my_control_stationary._p)
-            my_mu.assign(my_control_stationary._mu)
+        my_p.assign(my_control_stationary._p)
+        my_mu.assign(my_control_stationary._mu)
 
-            del my_control_stationary
-            PETSc.garbage_cleanup(space_0.mesh().comm)
+        del my_control_stationary
+        PETSc.garbage_cleanup(space_0.mesh().comm)
 
-            v_ref = Function(VectorFunctionSpace(mesh, "Lagrange", degree + 2),
-                             name="v_ref")
-            v_ref.interpolate(ref_sol_v(*X))
+        v_ref = Function(VectorFunctionSpace(mesh, "Lagrange", degree + 2),
+                         name="v_ref")
+        v_ref.interpolate(ref_sol_v(*X))
 
-            v_error_norm = np.sqrt(abs(assemble(inner(my_v - v_ref,
-                                                      my_v - v_ref) * dx)))
-            print(f"{degree=} {p=} {N=} {v_error_norm=}")
-            v_error_norms.append(v_error_norm)
+        v_error_norm = np.sqrt(abs(assemble(inner(my_v - v_ref,
+                                                  my_v - v_ref) * dx)))
+        print(f"{degree=} {p=} {N=} {v_error_norm=}")
+        v_error_norms.append(v_error_norm)
 
-            zeta_ref = Function(
-                VectorFunctionSpace(mesh, "Lagrange", degree + 2),
-                name="zeta_ref")
-            zeta_ref.interpolate(ref_sol_zeta(*X))
+        zeta_ref = Function(
+            VectorFunctionSpace(mesh, "Lagrange", degree + 2),
+            name="zeta_ref")
+        zeta_ref.interpolate(ref_sol_zeta(*X))
 
-            zeta_error_norm = np.sqrt(abs(assemble(
-                inner(my_zeta - zeta_ref,
-                      my_zeta - zeta_ref) * dx)))
-            print(f"{degree=} {p=} {N=} {zeta_error_norm=}")
-            zeta_error_norms.append(zeta_error_norm)
+        zeta_error_norm = np.sqrt(abs(assemble(
+            inner(my_zeta - zeta_ref,
+                  my_zeta - zeta_ref) * dx)))
+        print(f"{degree=} {p=} {N=} {zeta_error_norm=}")
+        zeta_error_norms.append(zeta_error_norm)
 
-        v_error_norms = np.array(v_error_norms)
-        v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {v_orders=}")
+    v_error_norms = np.array(v_error_norms)
+    v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {v_orders=}")
 
-        zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {zeta_orders=}")
+    zeta_error_norms = np.array(zeta_error_norms)
+    zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {zeta_orders=}")
 
 
 def test_instationary_linear_control_BE():
@@ -1788,8 +1785,8 @@ def test_instationary_linear_control_CN():
     assert zeta_error_norm < 1.0e-13
 
 
-def test_MMS_instationary_heat_control_BE_convergence_FE():
-    degree_range = (1, 2)
+@pytest.mark.parametrize("degree", tuple(range(1, 2)))
+def test_MMS_instationary_heat_control_BE_convergence_FE(degree):
     p_range = (2, 4)
     beta = 1.0
     t_f = 2.0
@@ -1887,80 +1884,79 @@ def test_MMS_instationary_heat_control_BE_convergence_FE():
         my_DirichletBC = DirichletBC(space_0, 1.0, "on_boundary")
         return my_DirichletBC
 
-    for degree in range(*degree_range):
-        v_error_norms = []
-        zeta_error_norms = []
-        for p in range(*p_range):
-            N = 2 ** p
-            n_t = 10
-            mesh = RectangleMesh(N, N, 2.0, 2.0)
-            X = SpatialCoordinate(mesh)
-            space_0 = FunctionSpace(mesh, "Lagrange", degree)
-            space_0_ref = FunctionSpace(mesh, "Lagrange", degree + 2)
+    v_error_norms = []
+    zeta_error_norms = []
+    for p in range(*p_range):
+        N = 2 ** p
+        n_t = 10
+        mesh = RectangleMesh(N, N, 2.0, 2.0)
+        X = SpatialCoordinate(mesh)
+        space_0 = FunctionSpace(mesh, "Lagrange", degree)
+        space_0_ref = FunctionSpace(mesh, "Lagrange", degree + 2)
 
-            my_control_instationary = Instationary(
-                space_0, forw_diff_operator, desired_state=desired_state,
-                force_function=force_f, beta=beta, CN=False, n_t=n_t,
-                initial_condition=initial_condition,
-                time_interval=(0.0, t_f), bcs_v=my_DirichletBC_t)
+        my_control_instationary = Instationary(
+            space_0, forw_diff_operator, desired_state=desired_state,
+            force_function=force_f, beta=beta, CN=False, n_t=n_t,
+            initial_condition=initial_condition,
+            time_interval=(0.0, t_f), bcs_v=my_DirichletBC_t)
 
-            solver_parameters = {"linear_solver": "fgmres",
-                                 "fgmres_restart": 10,
-                                 "maximum_iterations": 200,
-                                 "relative_tolerance": 1.0e-05,
-                                 "absolute_tolerance": 1.0e-05,
-                                 "monitor_convergence": False}
+        solver_parameters = {"linear_solver": "fgmres",
+                             "fgmres_restart": 10,
+                             "maximum_iterations": 200,
+                             "relative_tolerance": 1.0e-05,
+                             "absolute_tolerance": 1.0e-05,
+                             "monitor_convergence": False}
 
-            my_control_instationary.linear_solve(
-                solver_parameters=solver_parameters,
-                print_error=False, outputs=False, plots=False)
+        my_control_instationary.linear_solve(
+            solver_parameters=solver_parameters,
+            print_error=False, outputs=False, plots=False)
 
-            flattened_space_v = tuple(space_0 for i in range(n_t))
-            full_space_v = MixedFunctionSpace(flattened_space_v)
+        flattened_space_v = tuple(space_0 for i in range(n_t))
+        full_space_v = MixedFunctionSpace(flattened_space_v)
 
-            flattened_space_v_ref = tuple(space_0_ref for i in range(n_t))
-            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
+        flattened_space_v_ref = tuple(space_0_ref for i in range(n_t))
+        full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
-            my_v = Function(full_space_v)
-            my_zeta = Function(full_space_v)
-            v_ref = Function(full_space_v_ref)
-            zeta_ref = Function(full_space_v_ref)
+        my_v = Function(full_space_v)
+        my_zeta = Function(full_space_v)
+        v_ref = Function(full_space_v_ref)
+        zeta_ref = Function(full_space_v_ref)
 
-            my_v.assign(my_control_instationary._v)
-            my_zeta.assign(my_control_instationary._zeta)
+        my_v.assign(my_control_instationary._v)
+        my_zeta.assign(my_control_instationary._zeta)
 
-            del my_control_instationary
-            PETSc.garbage_cleanup(space_0.mesh().comm)
+        del my_control_instationary
+        PETSc.garbage_cleanup(space_0.mesh().comm)
 
-            tau = t_f / (n_t - 1.0)
+        tau = t_f / (n_t - 1.0)
 
-            for i in range(n_t):
-                t = i * tau
+        for i in range(n_t):
+            t = i * tau
 
-                v_ref.sub(i).interpolate(ref_sol_v(*X, Constant(t)))
-                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
+            v_ref.sub(i).interpolate(ref_sol_v(*X, Constant(t)))
+            zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
 
-            v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
-                inner(my_v - v_ref, my_v - v_ref) * dx)))
-            print(f"{degree=} {p=} {N=} {v_error_norm=}")
-            v_error_norms.append(v_error_norm)
+        v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
+            inner(my_v - v_ref, my_v - v_ref) * dx)))
+        print(f"{degree=} {p=} {N=} {v_error_norm=}")
+        v_error_norms.append(v_error_norm)
 
-            zeta_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
-                inner(my_zeta - zeta_ref, my_zeta - zeta_ref) * dx)))
-            print(f"{degree=} {p=} {N=} {zeta_error_norm=}")
-            zeta_error_norms.append(zeta_error_norm)
+        zeta_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
+            inner(my_zeta - zeta_ref, my_zeta - zeta_ref) * dx)))
+        print(f"{degree=} {p=} {N=} {zeta_error_norm=}")
+        zeta_error_norms.append(zeta_error_norm)
 
-        v_error_norms = np.array(v_error_norms)
-        v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {v_orders=}")
+    v_error_norms = np.array(v_error_norms)
+    v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {v_orders=}")
 
-        zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {zeta_orders=}")
+    zeta_error_norms = np.array(zeta_error_norms)
+    zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {zeta_orders=}")
 
 
-def test_MMS_instationary_heat_control_BE_convergence_time():
-    degree_range = (1, 2)
+@pytest.mark.parametrize("degree", tuple(range(1, 2)))
+def test_MMS_instationary_heat_control_BE_convergence_time(degree):
     p_range = (2, 4)
     beta = 1.0
     t_f = 2.0
@@ -2041,80 +2037,79 @@ def test_MMS_instationary_heat_control_BE_convergence_time():
         my_DirichletBC = DirichletBC(space_0, 1.0, "on_boundary")
         return my_DirichletBC
 
-    for degree in range(*degree_range):
-        v_error_norms = []
-        zeta_error_norms = []
-        for p in range(*p_range):
-            N = 50
-            n_t = 2 ** p
-            mesh = RectangleMesh(N, N, 2.0, 2.0)
-            X = SpatialCoordinate(mesh)
-            space_0 = FunctionSpace(mesh, "Lagrange", degree)
-            space_0_ref = FunctionSpace(mesh, "Lagrange", degree + 2)
+    v_error_norms = []
+    zeta_error_norms = []
+    for p in range(*p_range):
+        N = 50
+        n_t = 2 ** p
+        mesh = RectangleMesh(N, N, 2.0, 2.0)
+        X = SpatialCoordinate(mesh)
+        space_0 = FunctionSpace(mesh, "Lagrange", degree)
+        space_0_ref = FunctionSpace(mesh, "Lagrange", degree + 2)
 
-            my_control_instationary = Instationary(
-                space_0, forw_diff_operator, desired_state=desired_state,
-                force_function=force_f, beta=beta, CN=False, n_t=n_t,
-                initial_condition=initial_condition,
-                time_interval=(0.0, t_f), bcs_v=my_DirichletBC_t)
+        my_control_instationary = Instationary(
+            space_0, forw_diff_operator, desired_state=desired_state,
+            force_function=force_f, beta=beta, CN=False, n_t=n_t,
+            initial_condition=initial_condition,
+            time_interval=(0.0, t_f), bcs_v=my_DirichletBC_t)
 
-            solver_parameters = {"linear_solver": "fgmres",
-                                 "fgmres_restart": 10,
-                                 "maximum_iterations": 200,
-                                 "relative_tolerance": 1.0e-05,
-                                 "absolute_tolerance": 1.0e-05,
-                                 "monitor_convergence": False}
+        solver_parameters = {"linear_solver": "fgmres",
+                             "fgmres_restart": 10,
+                             "maximum_iterations": 200,
+                             "relative_tolerance": 1.0e-05,
+                             "absolute_tolerance": 1.0e-05,
+                             "monitor_convergence": False}
 
-            my_control_instationary.linear_solve(
-                solver_parameters=solver_parameters,
-                print_error=False, outputs=False, plots=False)
+        my_control_instationary.linear_solve(
+            solver_parameters=solver_parameters,
+            print_error=False, outputs=False, plots=False)
 
-            flattened_space_v = tuple(space_0 for i in range(n_t))
-            full_space_v = MixedFunctionSpace(flattened_space_v)
+        flattened_space_v = tuple(space_0 for i in range(n_t))
+        full_space_v = MixedFunctionSpace(flattened_space_v)
 
-            flattened_space_v_ref = tuple(space_0_ref for i in range(n_t))
-            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
+        flattened_space_v_ref = tuple(space_0_ref for i in range(n_t))
+        full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
-            my_v = Function(full_space_v)
-            my_zeta = Function(full_space_v)
-            v_ref = Function(full_space_v_ref)
-            zeta_ref = Function(full_space_v_ref)
+        my_v = Function(full_space_v)
+        my_zeta = Function(full_space_v)
+        v_ref = Function(full_space_v_ref)
+        zeta_ref = Function(full_space_v_ref)
 
-            my_v.assign(my_control_instationary._v)
-            my_zeta.assign(my_control_instationary._zeta)
+        my_v.assign(my_control_instationary._v)
+        my_zeta.assign(my_control_instationary._zeta)
 
-            del my_control_instationary
-            PETSc.garbage_cleanup(space_0.mesh().comm)
+        del my_control_instationary
+        PETSc.garbage_cleanup(space_0.mesh().comm)
 
-            tau = t_f / (n_t - 1.0)
+        tau = t_f / (n_t - 1.0)
 
-            for i in range(n_t):
-                t = i * tau
+        for i in range(n_t):
+            t = i * tau
 
-                v_ref.sub(i).interpolate(ref_sol_v(*X, Constant(t)))
-                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
+            v_ref.sub(i).interpolate(ref_sol_v(*X, Constant(t)))
+            zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
 
-            v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
-                inner(my_v - v_ref, my_v - v_ref) * dx)))
-            print(f"{degree=} {p=} {n_t=} {v_error_norm=}")
-            v_error_norms.append(v_error_norm)
+        v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
+            inner(my_v - v_ref, my_v - v_ref) * dx)))
+        print(f"{degree=} {p=} {n_t=} {v_error_norm=}")
+        v_error_norms.append(v_error_norm)
 
-            zeta_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
-                inner(my_zeta - zeta_ref, my_zeta - zeta_ref) * dx)))
-            print(f"{degree=} {p=} {n_t=} {zeta_error_norm=}")
-            zeta_error_norms.append(zeta_error_norm)
+        zeta_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
+            inner(my_zeta - zeta_ref, my_zeta - zeta_ref) * dx)))
+        print(f"{degree=} {p=} {n_t=} {zeta_error_norm=}")
+        zeta_error_norms.append(zeta_error_norm)
 
-        v_error_norms = np.array(v_error_norms)
-        v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {v_orders=}")
+    v_error_norms = np.array(v_error_norms)
+    v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {v_orders=}")
 
-        zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {zeta_orders=}")
+    zeta_error_norms = np.array(zeta_error_norms)
+    zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {zeta_orders=}")
 
 
-def test_MMS_instationary_heat_control_CN_convergence_FE():
-    degree_range = (1, 2)
+@pytest.mark.parametrize("degree", tuple(range(1, 2)))
+def test_MMS_instationary_heat_control_CN_convergence_FE(degree):
     p_range = (2, 4)
     beta = 1.0
     t_f = 2.0
@@ -2198,80 +2193,79 @@ def test_MMS_instationary_heat_control_CN_convergence_FE():
         my_DirichletBC = DirichletBC(space_0, 1.0, "on_boundary")
         return my_DirichletBC
 
-    for degree in range(*degree_range):
-        v_error_norms = []
-        zeta_error_norms = []
-        for p in range(*p_range):
-            N = 2 ** p
-            n_t = 10
-            mesh = RectangleMesh(N, N, 2.0, 2.0)
-            X = SpatialCoordinate(mesh)
-            space_0 = FunctionSpace(mesh, "Lagrange", degree)
-            space_0_ref = FunctionSpace(mesh, "Lagrange", degree + 2)
+    v_error_norms = []
+    zeta_error_norms = []
+    for p in range(*p_range):
+        N = 2 ** p
+        n_t = 10
+        mesh = RectangleMesh(N, N, 2.0, 2.0)
+        X = SpatialCoordinate(mesh)
+        space_0 = FunctionSpace(mesh, "Lagrange", degree)
+        space_0_ref = FunctionSpace(mesh, "Lagrange", degree + 2)
 
-            my_control_instationary = Instationary(
-                space_0, forw_diff_operator, desired_state=desired_state,
-                force_function=force_f, beta=beta, n_t=n_t,
-                initial_condition=initial_condition,
-                time_interval=(0.0, t_f), bcs_v=my_DirichletBC_t)
+        my_control_instationary = Instationary(
+            space_0, forw_diff_operator, desired_state=desired_state,
+            force_function=force_f, beta=beta, n_t=n_t,
+            initial_condition=initial_condition,
+            time_interval=(0.0, t_f), bcs_v=my_DirichletBC_t)
 
-            solver_parameters = {"linear_solver": "fgmres",
-                                 "fgmres_restart": 10,
-                                 "maximum_iterations": 200,
-                                 "relative_tolerance": 1.0e-05,
-                                 "absolute_tolerance": 1.0e-05,
-                                 "monitor_convergence": False}
+        solver_parameters = {"linear_solver": "fgmres",
+                             "fgmres_restart": 10,
+                             "maximum_iterations": 200,
+                             "relative_tolerance": 1.0e-05,
+                             "absolute_tolerance": 1.0e-05,
+                             "monitor_convergence": False}
 
-            my_control_instationary.linear_solve(
-                solver_parameters=solver_parameters,
-                print_error=False, outputs=False, plots=False)
+        my_control_instationary.linear_solve(
+            solver_parameters=solver_parameters,
+            print_error=False, outputs=False, plots=False)
 
-            flattened_space_v = tuple(space_0 for i in range(n_t))
-            full_space_v = MixedFunctionSpace(flattened_space_v)
+        flattened_space_v = tuple(space_0 for i in range(n_t))
+        full_space_v = MixedFunctionSpace(flattened_space_v)
 
-            flattened_space_v_ref = tuple(space_0_ref for i in range(n_t))
-            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
+        flattened_space_v_ref = tuple(space_0_ref for i in range(n_t))
+        full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
-            my_v = Function(full_space_v)
-            my_zeta = Function(full_space_v)
-            v_ref = Function(full_space_v_ref)
-            zeta_ref = Function(full_space_v_ref)
+        my_v = Function(full_space_v)
+        my_zeta = Function(full_space_v)
+        v_ref = Function(full_space_v_ref)
+        zeta_ref = Function(full_space_v_ref)
 
-            my_v.assign(my_control_instationary._v)
-            my_zeta.assign(my_control_instationary._zeta)
+        my_v.assign(my_control_instationary._v)
+        my_zeta.assign(my_control_instationary._zeta)
 
-            del my_control_instationary
-            PETSc.garbage_cleanup(space_0.mesh().comm)
+        del my_control_instationary
+        PETSc.garbage_cleanup(space_0.mesh().comm)
 
-            tau = t_f / (n_t - 1.0)
+        tau = t_f / (n_t - 1.0)
 
-            for i in range(n_t):
-                t = i * tau
+        for i in range(n_t):
+            t = i * tau
 
-                v_ref.sub(i).interpolate(ref_sol_v(*X, Constant(t)))
-                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
+            v_ref.sub(i).interpolate(ref_sol_v(*X, Constant(t)))
+            zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
 
-            v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
-                inner(my_v - v_ref, my_v - v_ref) * dx)))
-            print(f"{degree=} {p=} {N=} {v_error_norm=}")
-            v_error_norms.append(v_error_norm)
+        v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
+            inner(my_v - v_ref, my_v - v_ref) * dx)))
+        print(f"{degree=} {p=} {N=} {v_error_norm=}")
+        v_error_norms.append(v_error_norm)
 
-            zeta_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
-                inner(my_zeta - zeta_ref, my_zeta - zeta_ref) * dx)))
-            print(f"{degree=} {p=} {N=} {zeta_error_norm=}")
-            zeta_error_norms.append(zeta_error_norm)
+        zeta_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
+            inner(my_zeta - zeta_ref, my_zeta - zeta_ref) * dx)))
+        print(f"{degree=} {p=} {N=} {zeta_error_norm=}")
+        zeta_error_norms.append(zeta_error_norm)
 
-        v_error_norms = np.array(v_error_norms)
-        v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {v_orders=}")
+    v_error_norms = np.array(v_error_norms)
+    v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {v_orders=}")
 
-        zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {zeta_orders=}")
+    zeta_error_norms = np.array(zeta_error_norms)
+    zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {zeta_orders=}")
 
 
-def test_MMS_instationary_heat_control_CN_convergence_time():
-    degree_range = (1, 2)
+@pytest.mark.parametrize("degree", tuple(range(1, 2)))
+def test_MMS_instationary_heat_control_CN_convergence_time(degree):
     p_range = (2, 4)
     beta = 1.0
     t_f = 2.0
@@ -2355,80 +2349,79 @@ def test_MMS_instationary_heat_control_CN_convergence_time():
         my_DirichletBC = DirichletBC(space_0, 1.0, "on_boundary")
         return my_DirichletBC
 
-    for degree in range(*degree_range):
-        v_error_norms = []
-        zeta_error_norms = []
-        for p in range(*p_range):
-            N = 100
-            n_t = 2 ** p
-            mesh = RectangleMesh(N, N, 2.0, 2.0)
-            X = SpatialCoordinate(mesh)
-            space_0 = FunctionSpace(mesh, "Lagrange", degree)
-            space_0_ref = FunctionSpace(mesh, "Lagrange", degree + 2)
+    v_error_norms = []
+    zeta_error_norms = []
+    for p in range(*p_range):
+        N = 100
+        n_t = 2 ** p
+        mesh = RectangleMesh(N, N, 2.0, 2.0)
+        X = SpatialCoordinate(mesh)
+        space_0 = FunctionSpace(mesh, "Lagrange", degree)
+        space_0_ref = FunctionSpace(mesh, "Lagrange", degree + 2)
 
-            my_control_instationary = Instationary(
-                space_0, forw_diff_operator, desired_state=desired_state,
-                force_function=force_f, beta=beta, n_t=n_t,
-                initial_condition=initial_condition,
-                time_interval=(0.0, t_f), bcs_v=my_DirichletBC_t)
+        my_control_instationary = Instationary(
+            space_0, forw_diff_operator, desired_state=desired_state,
+            force_function=force_f, beta=beta, n_t=n_t,
+            initial_condition=initial_condition,
+            time_interval=(0.0, t_f), bcs_v=my_DirichletBC_t)
 
-            solver_parameters = {"linear_solver": "fgmres",
-                                 "fgmres_restart": 10,
-                                 "maximum_iterations": 200,
-                                 "relative_tolerance": 1.0e-06,
-                                 "absolute_tolerance": 1.0e-06,
-                                 "monitor_convergence": False}
+        solver_parameters = {"linear_solver": "fgmres",
+                             "fgmres_restart": 10,
+                             "maximum_iterations": 200,
+                             "relative_tolerance": 1.0e-06,
+                             "absolute_tolerance": 1.0e-06,
+                             "monitor_convergence": False}
 
-            my_control_instationary.linear_solve(
-                solver_parameters=solver_parameters,
-                print_error=False, outputs=False, plots=False)
+        my_control_instationary.linear_solve(
+            solver_parameters=solver_parameters,
+            print_error=False, outputs=False, plots=False)
 
-            flattened_space_v = tuple(space_0 for i in range(n_t))
-            full_space_v = MixedFunctionSpace(flattened_space_v)
+        flattened_space_v = tuple(space_0 for i in range(n_t))
+        full_space_v = MixedFunctionSpace(flattened_space_v)
 
-            flattened_space_v_ref = tuple(space_0_ref for i in range(n_t))
-            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
+        flattened_space_v_ref = tuple(space_0_ref for i in range(n_t))
+        full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
-            my_v = Function(full_space_v)
-            my_zeta = Function(full_space_v)
-            v_ref = Function(full_space_v_ref)
-            zeta_ref = Function(full_space_v_ref)
+        my_v = Function(full_space_v)
+        my_zeta = Function(full_space_v)
+        v_ref = Function(full_space_v_ref)
+        zeta_ref = Function(full_space_v_ref)
 
-            my_v.assign(my_control_instationary._v)
-            my_zeta.assign(my_control_instationary._zeta)
+        my_v.assign(my_control_instationary._v)
+        my_zeta.assign(my_control_instationary._zeta)
 
-            del my_control_instationary
-            PETSc.garbage_cleanup(space_0.mesh().comm)
+        del my_control_instationary
+        PETSc.garbage_cleanup(space_0.mesh().comm)
 
-            tau = t_f / (n_t - 1.0)
+        tau = t_f / (n_t - 1.0)
 
-            for i in range(n_t):
-                t = i * tau
+        for i in range(n_t):
+            t = i * tau
 
-                v_ref.sub(i).interpolate(ref_sol_v(*X, Constant(t)))
-                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
+            v_ref.sub(i).interpolate(ref_sol_v(*X, Constant(t)))
+            zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
 
-            v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
-                inner(my_v - v_ref, my_v - v_ref) * dx)))
-            print(f"{degree=} {p=} {n_t=} {v_error_norm=}")
-            v_error_norms.append(v_error_norm)
+        v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
+            inner(my_v - v_ref, my_v - v_ref) * dx)))
+        print(f"{degree=} {p=} {n_t=} {v_error_norm=}")
+        v_error_norms.append(v_error_norm)
 
-            zeta_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
-                inner(my_zeta - zeta_ref, my_zeta - zeta_ref) * dx)))
-            print(f"{degree=} {p=} {n_t=} {zeta_error_norm=}")
-            zeta_error_norms.append(zeta_error_norm)
+        zeta_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
+            inner(my_zeta - zeta_ref, my_zeta - zeta_ref) * dx)))
+        print(f"{degree=} {p=} {n_t=} {zeta_error_norm=}")
+        zeta_error_norms.append(zeta_error_norm)
 
-        v_error_norms = np.array(v_error_norms)
-        v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {v_orders=}")
+    v_error_norms = np.array(v_error_norms)
+    v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {v_orders=}")
 
-        zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {zeta_orders=}")
+    zeta_error_norms = np.array(zeta_error_norms)
+    zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {zeta_orders=}")
 
 
-def test_MMS_instationary_convection_diffusion_control_BE_convergence_FE():
-    degree_range = (1, 2)
+@pytest.mark.parametrize("degree", tuple(range(1, 2)))
+def test_MMS_instationary_convection_diffusion_control_BE_convergence_FE(degree):
     p_range = (2, 4)
     beta = 1.0
     t_f = 2.0
@@ -2552,80 +2545,79 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_FE():
         my_DirichletBC = DirichletBC(space_0, 1.0, "on_boundary")
         return my_DirichletBC
 
-    for degree in range(*degree_range):
-        v_error_norms = []
-        zeta_error_norms = []
-        for p in range(*p_range):
-            N = 2 ** p
-            n_t = 10
-            mesh = RectangleMesh(N, N, 2.0, 2.0)
-            X = SpatialCoordinate(mesh)
-            space_0 = FunctionSpace(mesh, "Lagrange", degree)
-            space_0_ref = FunctionSpace(mesh, "Lagrange", degree + 2)
+    v_error_norms = []
+    zeta_error_norms = []
+    for p in range(*p_range):
+        N = 2 ** p
+        n_t = 10
+        mesh = RectangleMesh(N, N, 2.0, 2.0)
+        X = SpatialCoordinate(mesh)
+        space_0 = FunctionSpace(mesh, "Lagrange", degree)
+        space_0_ref = FunctionSpace(mesh, "Lagrange", degree + 2)
 
-            my_control_instationary = Instationary(
-                space_0, forw_diff_operator, desired_state=desired_state,
-                force_function=force_f, beta=beta, CN=False, n_t=n_t,
-                initial_condition=initial_condition,
-                time_interval=(0.0, t_f), bcs_v=my_DirichletBC_t)
+        my_control_instationary = Instationary(
+            space_0, forw_diff_operator, desired_state=desired_state,
+            force_function=force_f, beta=beta, CN=False, n_t=n_t,
+            initial_condition=initial_condition,
+            time_interval=(0.0, t_f), bcs_v=my_DirichletBC_t)
 
-            solver_parameters = {"linear_solver": "fgmres",
-                                 "fgmres_restart": 10,
-                                 "maximum_iterations": 200,
-                                 "relative_tolerance": 1.0e-05,
-                                 "absolute_tolerance": 1.0e-05,
-                                 "monitor_convergence": False}
+        solver_parameters = {"linear_solver": "fgmres",
+                             "fgmres_restart": 10,
+                             "maximum_iterations": 200,
+                             "relative_tolerance": 1.0e-05,
+                             "absolute_tolerance": 1.0e-05,
+                             "monitor_convergence": False}
 
-            my_control_instationary.linear_solve(
-                solver_parameters=solver_parameters,
-                print_error=False, outputs=False, plots=False)
+        my_control_instationary.linear_solve(
+            solver_parameters=solver_parameters,
+            print_error=False, outputs=False, plots=False)
 
-            flattened_space_v = tuple(space_0 for i in range(n_t))
-            full_space_v = MixedFunctionSpace(flattened_space_v)
+        flattened_space_v = tuple(space_0 for i in range(n_t))
+        full_space_v = MixedFunctionSpace(flattened_space_v)
 
-            flattened_space_v_ref = tuple(space_0_ref for i in range(n_t))
-            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
+        flattened_space_v_ref = tuple(space_0_ref for i in range(n_t))
+        full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
-            my_v = Function(full_space_v)
-            my_zeta = Function(full_space_v)
-            v_ref = Function(full_space_v_ref)
-            zeta_ref = Function(full_space_v_ref)
+        my_v = Function(full_space_v)
+        my_zeta = Function(full_space_v)
+        v_ref = Function(full_space_v_ref)
+        zeta_ref = Function(full_space_v_ref)
 
-            my_v.assign(my_control_instationary._v)
-            my_zeta.assign(my_control_instationary._zeta)
+        my_v.assign(my_control_instationary._v)
+        my_zeta.assign(my_control_instationary._zeta)
 
-            del my_control_instationary
-            PETSc.garbage_cleanup(space_0.mesh().comm)
+        del my_control_instationary
+        PETSc.garbage_cleanup(space_0.mesh().comm)
 
-            tau = t_f / (n_t - 1.0)
+        tau = t_f / (n_t - 1.0)
 
-            for i in range(n_t):
-                t = i * tau
+        for i in range(n_t):
+            t = i * tau
 
-                v_ref.sub(i).interpolate(ref_sol_v(*X, Constant(t)))
-                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
+            v_ref.sub(i).interpolate(ref_sol_v(*X, Constant(t)))
+            zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
 
-            v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
-                inner(my_v - v_ref, my_v - v_ref) * dx)))
-            print(f"{degree=} {p=} {N=} {v_error_norm=}")
-            v_error_norms.append(v_error_norm)
+        v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
+            inner(my_v - v_ref, my_v - v_ref) * dx)))
+        print(f"{degree=} {p=} {N=} {v_error_norm=}")
+        v_error_norms.append(v_error_norm)
 
-            zeta_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
-                inner(my_zeta - zeta_ref, my_zeta - zeta_ref) * dx)))
-            print(f"{degree=} {p=} {N=} {zeta_error_norm=}")
-            zeta_error_norms.append(zeta_error_norm)
+        zeta_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
+            inner(my_zeta - zeta_ref, my_zeta - zeta_ref) * dx)))
+        print(f"{degree=} {p=} {N=} {zeta_error_norm=}")
+        zeta_error_norms.append(zeta_error_norm)
 
-        v_error_norms = np.array(v_error_norms)
-        v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {v_orders=}")
+    v_error_norms = np.array(v_error_norms)
+    v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {v_orders=}")
 
-        zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {zeta_orders=}")
+    zeta_error_norms = np.array(zeta_error_norms)
+    zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {zeta_orders=}")
 
 
-def test_MMS_instationary_convection_diffusion_control_BE_convergence_time():
-    degree_range = (1, 2)
+@pytest.mark.parametrize("degree", tuple(range(1, 2)))
+def test_MMS_instationary_convection_diffusion_control_BE_convergence_time(degree):
     p_range = (2, 4)
     beta = 1.0
     t_f = 2.0
@@ -2733,80 +2725,79 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_time():
         my_DirichletBC = DirichletBC(space_0, 1.0, "on_boundary")
         return my_DirichletBC
 
-    for degree in range(*degree_range):
-        v_error_norms = []
-        zeta_error_norms = []
-        for p in range(*p_range):
-            N = 50
-            n_t = 2 ** p
-            mesh = RectangleMesh(N, N, 2.0, 2.0)
-            X = SpatialCoordinate(mesh)
-            space_0 = FunctionSpace(mesh, "Lagrange", degree)
-            space_0_ref = FunctionSpace(mesh, "Lagrange", degree + 2)
+    v_error_norms = []
+    zeta_error_norms = []
+    for p in range(*p_range):
+        N = 50
+        n_t = 2 ** p
+        mesh = RectangleMesh(N, N, 2.0, 2.0)
+        X = SpatialCoordinate(mesh)
+        space_0 = FunctionSpace(mesh, "Lagrange", degree)
+        space_0_ref = FunctionSpace(mesh, "Lagrange", degree + 2)
 
-            my_control_instationary = Instationary(
-                space_0, forw_diff_operator, desired_state=desired_state,
-                force_function=force_f, beta=beta, CN=False, n_t=n_t,
-                initial_condition=initial_condition,
-                time_interval=(0.0, t_f), bcs_v=my_DirichletBC_t)
+        my_control_instationary = Instationary(
+            space_0, forw_diff_operator, desired_state=desired_state,
+            force_function=force_f, beta=beta, CN=False, n_t=n_t,
+            initial_condition=initial_condition,
+            time_interval=(0.0, t_f), bcs_v=my_DirichletBC_t)
 
-            solver_parameters = {"linear_solver": "fgmres",
-                                 "fgmres_restart": 10,
-                                 "maximum_iterations": 200,
-                                 "relative_tolerance": 1.0e-05,
-                                 "absolute_tolerance": 1.0e-05,
-                                 "monitor_convergence": False}
+        solver_parameters = {"linear_solver": "fgmres",
+                             "fgmres_restart": 10,
+                             "maximum_iterations": 200,
+                             "relative_tolerance": 1.0e-05,
+                             "absolute_tolerance": 1.0e-05,
+                             "monitor_convergence": False}
 
-            my_control_instationary.linear_solve(
-                solver_parameters=solver_parameters,
-                print_error=False, outputs=False, plots=False)
+        my_control_instationary.linear_solve(
+            solver_parameters=solver_parameters,
+            print_error=False, outputs=False, plots=False)
 
-            flattened_space_v = tuple(space_0 for i in range(n_t))
-            full_space_v = MixedFunctionSpace(flattened_space_v)
+        flattened_space_v = tuple(space_0 for i in range(n_t))
+        full_space_v = MixedFunctionSpace(flattened_space_v)
 
-            flattened_space_v_ref = tuple(space_0_ref for i in range(n_t))
-            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
+        flattened_space_v_ref = tuple(space_0_ref for i in range(n_t))
+        full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
-            my_v = Function(full_space_v)
-            my_zeta = Function(full_space_v)
-            v_ref = Function(full_space_v_ref)
-            zeta_ref = Function(full_space_v_ref)
+        my_v = Function(full_space_v)
+        my_zeta = Function(full_space_v)
+        v_ref = Function(full_space_v_ref)
+        zeta_ref = Function(full_space_v_ref)
 
-            my_v.assign(my_control_instationary._v)
-            my_zeta.assign(my_control_instationary._zeta)
+        my_v.assign(my_control_instationary._v)
+        my_zeta.assign(my_control_instationary._zeta)
 
-            del my_control_instationary
-            PETSc.garbage_cleanup(space_0.mesh().comm)
+        del my_control_instationary
+        PETSc.garbage_cleanup(space_0.mesh().comm)
 
-            tau = t_f / (n_t - 1.0)
+        tau = t_f / (n_t - 1.0)
 
-            for i in range(n_t):
-                t = i * tau
+        for i in range(n_t):
+            t = i * tau
 
-                v_ref.sub(i).interpolate(ref_sol_v(*X, Constant(t)))
-                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
+            v_ref.sub(i).interpolate(ref_sol_v(*X, Constant(t)))
+            zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
 
-            v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
-                inner(my_v - v_ref, my_v - v_ref) * dx)))
-            print(f"{degree=} {p=} {n_t=} {v_error_norm=}")
-            v_error_norms.append(v_error_norm)
+        v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
+            inner(my_v - v_ref, my_v - v_ref) * dx)))
+        print(f"{degree=} {p=} {n_t=} {v_error_norm=}")
+        v_error_norms.append(v_error_norm)
 
-            zeta_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
-                inner(my_zeta - zeta_ref, my_zeta - zeta_ref) * dx)))
-            print(f"{degree=} {p=} {n_t=} {zeta_error_norm=}")
-            zeta_error_norms.append(zeta_error_norm)
+        zeta_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
+            inner(my_zeta - zeta_ref, my_zeta - zeta_ref) * dx)))
+        print(f"{degree=} {p=} {n_t=} {zeta_error_norm=}")
+        zeta_error_norms.append(zeta_error_norm)
 
-        v_error_norms = np.array(v_error_norms)
-        v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {v_orders=}")
+    v_error_norms = np.array(v_error_norms)
+    v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {v_orders=}")
 
-        zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {zeta_orders=}")
+    zeta_error_norms = np.array(zeta_error_norms)
+    zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {zeta_orders=}")
 
 
-def test_MMS_instationary_convection_diffusion_control_CN_convergence_FE():
-    degree_range = (1, 2)
+@pytest.mark.parametrize("degree", tuple(range(1, 2)))
+def test_MMS_instationary_convection_diffusion_control_CN_convergence_FE(degree):
     p_range = (2, 4)
     beta = 1.0
     t_f = 2.0
@@ -2918,80 +2909,79 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_FE():
         my_DirichletBC = DirichletBC(space_0, 1.0, "on_boundary")
         return my_DirichletBC
 
-    for degree in range(*degree_range):
-        v_error_norms = []
-        zeta_error_norms = []
-        for p in range(*p_range):
-            N = 2 ** p
-            n_t = 10
-            mesh = RectangleMesh(N, N, 2.0, 2.0)
-            X = SpatialCoordinate(mesh)
-            space_0 = FunctionSpace(mesh, "Lagrange", degree)
-            space_0_ref = FunctionSpace(mesh, "Lagrange", degree + 2)
+    v_error_norms = []
+    zeta_error_norms = []
+    for p in range(*p_range):
+        N = 2 ** p
+        n_t = 10
+        mesh = RectangleMesh(N, N, 2.0, 2.0)
+        X = SpatialCoordinate(mesh)
+        space_0 = FunctionSpace(mesh, "Lagrange", degree)
+        space_0_ref = FunctionSpace(mesh, "Lagrange", degree + 2)
 
-            my_control_instationary = Instationary(
-                space_0, forw_diff_operator, desired_state=desired_state,
-                force_function=force_f, beta=beta, n_t=n_t,
-                initial_condition=initial_condition,
-                time_interval=(0.0, t_f), bcs_v=my_DirichletBC_t)
+        my_control_instationary = Instationary(
+            space_0, forw_diff_operator, desired_state=desired_state,
+            force_function=force_f, beta=beta, n_t=n_t,
+            initial_condition=initial_condition,
+            time_interval=(0.0, t_f), bcs_v=my_DirichletBC_t)
 
-            solver_parameters = {"linear_solver": "fgmres",
-                                 "fgmres_restart": 10,
-                                 "maximum_iterations": 200,
-                                 "relative_tolerance": 1.0e-05,
-                                 "absolute_tolerance": 1.0e-05,
-                                 "monitor_convergence": False}
+        solver_parameters = {"linear_solver": "fgmres",
+                             "fgmres_restart": 10,
+                             "maximum_iterations": 200,
+                             "relative_tolerance": 1.0e-05,
+                             "absolute_tolerance": 1.0e-05,
+                             "monitor_convergence": False}
 
-            my_control_instationary.linear_solve(
-                solver_parameters=solver_parameters,
-                print_error=False, outputs=False, plots=False)
+        my_control_instationary.linear_solve(
+            solver_parameters=solver_parameters,
+            print_error=False, outputs=False, plots=False)
 
-            flattened_space_v = tuple(space_0 for i in range(n_t))
-            full_space_v = MixedFunctionSpace(flattened_space_v)
+        flattened_space_v = tuple(space_0 for i in range(n_t))
+        full_space_v = MixedFunctionSpace(flattened_space_v)
 
-            flattened_space_v_ref = tuple(space_0_ref for i in range(n_t))
-            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
+        flattened_space_v_ref = tuple(space_0_ref for i in range(n_t))
+        full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
-            my_v = Function(full_space_v)
-            my_zeta = Function(full_space_v)
-            v_ref = Function(full_space_v_ref)
-            zeta_ref = Function(full_space_v_ref)
+        my_v = Function(full_space_v)
+        my_zeta = Function(full_space_v)
+        v_ref = Function(full_space_v_ref)
+        zeta_ref = Function(full_space_v_ref)
 
-            my_v.assign(my_control_instationary._v)
-            my_zeta.assign(my_control_instationary._zeta)
+        my_v.assign(my_control_instationary._v)
+        my_zeta.assign(my_control_instationary._zeta)
 
-            del my_control_instationary
-            PETSc.garbage_cleanup(space_0.mesh().comm)
+        del my_control_instationary
+        PETSc.garbage_cleanup(space_0.mesh().comm)
 
-            tau = t_f / (n_t - 1.0)
+        tau = t_f / (n_t - 1.0)
 
-            for i in range(n_t):
-                t = i * tau
+        for i in range(n_t):
+            t = i * tau
 
-                v_ref.sub(i).interpolate(ref_sol_v(*X, Constant(t)))
-                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
+            v_ref.sub(i).interpolate(ref_sol_v(*X, Constant(t)))
+            zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
 
-            v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
-                inner(my_v - v_ref, my_v - v_ref) * dx)))
-            print(f"{degree=} {p=} {N=} {v_error_norm=}")
-            v_error_norms.append(v_error_norm)
+        v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
+            inner(my_v - v_ref, my_v - v_ref) * dx)))
+        print(f"{degree=} {p=} {N=} {v_error_norm=}")
+        v_error_norms.append(v_error_norm)
 
-            zeta_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
-                inner(my_zeta - zeta_ref, my_zeta - zeta_ref) * dx)))
-            print(f"{degree=} {p=} {N=} {zeta_error_norm=}")
-            zeta_error_norms.append(zeta_error_norm)
+        zeta_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
+            inner(my_zeta - zeta_ref, my_zeta - zeta_ref) * dx)))
+        print(f"{degree=} {p=} {N=} {zeta_error_norm=}")
+        zeta_error_norms.append(zeta_error_norm)
 
-        v_error_norms = np.array(v_error_norms)
-        v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {v_orders=}")
+    v_error_norms = np.array(v_error_norms)
+    v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {v_orders=}")
 
-        zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {zeta_orders=}")
+    zeta_error_norms = np.array(zeta_error_norms)
+    zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {zeta_orders=}")
 
 
-def test_MMS_instationary_convection_diffusion_control_CN_convergence_time():
-    degree_range = (1, 2)
+@pytest.mark.parametrize("degree", tuple(range(1, 2)))
+def test_MMS_instationary_convection_diffusion_control_CN_convergence_time(degree):
     p_range = (2, 4)
     beta = 1.0
     t_f = 2.0
@@ -3103,76 +3093,75 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_time():
         my_DirichletBC = DirichletBC(space_0, 1.0, "on_boundary")
         return my_DirichletBC
 
-    for degree in range(*degree_range):
-        v_error_norms = []
-        zeta_error_norms = []
-        for p in range(*p_range):
-            N = 100
-            n_t = 2 ** p
-            mesh = RectangleMesh(N, N, 2.0, 2.0)
-            X = SpatialCoordinate(mesh)
-            space_0 = FunctionSpace(mesh, "Lagrange", degree)
-            space_0_ref = FunctionSpace(mesh, "Lagrange", degree + 2)
+    v_error_norms = []
+    zeta_error_norms = []
+    for p in range(*p_range):
+        N = 100
+        n_t = 2 ** p
+        mesh = RectangleMesh(N, N, 2.0, 2.0)
+        X = SpatialCoordinate(mesh)
+        space_0 = FunctionSpace(mesh, "Lagrange", degree)
+        space_0_ref = FunctionSpace(mesh, "Lagrange", degree + 2)
 
-            my_control_instationary = Instationary(
-                space_0, forw_diff_operator, desired_state=desired_state,
-                force_function=force_f, beta=beta, n_t=n_t,
-                initial_condition=initial_condition,
-                time_interval=(0.0, t_f), bcs_v=my_DirichletBC_t)
+        my_control_instationary = Instationary(
+            space_0, forw_diff_operator, desired_state=desired_state,
+            force_function=force_f, beta=beta, n_t=n_t,
+            initial_condition=initial_condition,
+            time_interval=(0.0, t_f), bcs_v=my_DirichletBC_t)
 
-            solver_parameters = {"linear_solver": "fgmres",
-                                 "fgmres_restart": 10,
-                                 "maximum_iterations": 200,
-                                 "relative_tolerance": 1.0e-06,
-                                 "absolute_tolerance": 1.0e-06,
-                                 "monitor_convergence": False}
+        solver_parameters = {"linear_solver": "fgmres",
+                             "fgmres_restart": 10,
+                             "maximum_iterations": 200,
+                             "relative_tolerance": 1.0e-06,
+                             "absolute_tolerance": 1.0e-06,
+                             "monitor_convergence": False}
 
-            my_control_instationary.linear_solve(
-                solver_parameters=solver_parameters,
-                print_error=False, outputs=False, plots=False)
+        my_control_instationary.linear_solve(
+            solver_parameters=solver_parameters,
+            print_error=False, outputs=False, plots=False)
 
-            flattened_space_v = tuple(space_0 for i in range(n_t))
-            full_space_v = MixedFunctionSpace(flattened_space_v)
+        flattened_space_v = tuple(space_0 for i in range(n_t))
+        full_space_v = MixedFunctionSpace(flattened_space_v)
 
-            flattened_space_v_ref = tuple(space_0_ref for i in range(n_t))
-            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
+        flattened_space_v_ref = tuple(space_0_ref for i in range(n_t))
+        full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
-            my_v = Function(full_space_v)
-            my_zeta = Function(full_space_v)
-            v_ref = Function(full_space_v_ref)
-            zeta_ref = Function(full_space_v_ref)
+        my_v = Function(full_space_v)
+        my_zeta = Function(full_space_v)
+        v_ref = Function(full_space_v_ref)
+        zeta_ref = Function(full_space_v_ref)
 
-            my_v.assign(my_control_instationary._v)
-            my_zeta.assign(my_control_instationary._zeta)
+        my_v.assign(my_control_instationary._v)
+        my_zeta.assign(my_control_instationary._zeta)
 
-            del my_control_instationary
-            PETSc.garbage_cleanup(space_0.mesh().comm)
+        del my_control_instationary
+        PETSc.garbage_cleanup(space_0.mesh().comm)
 
-            tau = t_f / (n_t - 1.0)
+        tau = t_f / (n_t - 1.0)
 
-            for i in range(n_t):
-                t = i * tau
+        for i in range(n_t):
+            t = i * tau
 
-                v_ref.sub(i).interpolate(ref_sol_v(*X, Constant(t)))
-                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
+            v_ref.sub(i).interpolate(ref_sol_v(*X, Constant(t)))
+            zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
 
-            v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
-                inner(my_v - v_ref, my_v - v_ref) * dx)))
-            print(f"{degree=} {p=} {n_t=} {v_error_norm=}")
-            v_error_norms.append(v_error_norm)
+        v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
+            inner(my_v - v_ref, my_v - v_ref) * dx)))
+        print(f"{degree=} {p=} {n_t=} {v_error_norm=}")
+        v_error_norms.append(v_error_norm)
 
-            zeta_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
-                inner(my_zeta - zeta_ref, my_zeta - zeta_ref) * dx)))
-            print(f"{degree=} {p=} {n_t=} {zeta_error_norm=}")
-            zeta_error_norms.append(zeta_error_norm)
+        zeta_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
+            inner(my_zeta - zeta_ref, my_zeta - zeta_ref) * dx)))
+        print(f"{degree=} {p=} {n_t=} {zeta_error_norm=}")
+        zeta_error_norms.append(zeta_error_norm)
 
-        v_error_norms = np.array(v_error_norms)
-        v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {v_orders=}")
+    v_error_norms = np.array(v_error_norms)
+    v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {v_orders=}")
 
-        zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {zeta_orders=}")
+    zeta_error_norms = np.array(zeta_error_norms)
+    zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {zeta_orders=}")
 
 
 def test_instationary_Stokes_control_BE_with_exact_sol():
@@ -3493,8 +3482,8 @@ def test_instationary_Stokes_control_CN_with_exact_sol():
     PETSc.garbage_cleanup(space_v.mesh().comm)
 
 
-def test_MMS_instationary_Stokes_control_BE_convergence_FE():
-    degree_range = (2, 3)
+@pytest.mark.parametrize("degree", tuple(range(2, 3)))
+def test_MMS_instationary_Stokes_control_BE_convergence_FE(degree):
     p_range = (1, 3)
     beta = 1.0e-3
     t_f = 2.0
@@ -3641,125 +3630,124 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE():
 
         return inner(f, test) * dx
 
-    for degree in range(*degree_range):
-        v_error_norms = []
-        zeta_error_norms = []
-        for p in range(*p_range):
-            N = 2 ** p
-            n_t = 10
+    v_error_norms = []
+    zeta_error_norms = []
+    for p in range(*p_range):
+        N = 2 ** p
+        n_t = 10
 
-            mesh = RectangleMesh(N, N, 2.0, 2.0)
-            X = SpatialCoordinate(mesh)
+        mesh = RectangleMesh(N, N, 2.0, 2.0)
+        X = SpatialCoordinate(mesh)
 
-            space_v = VectorFunctionSpace(mesh, "Lagrange", degree)
-            space_p = FunctionSpace(mesh, "Lagrange", degree - 1)
+        space_v = VectorFunctionSpace(mesh, "Lagrange", degree)
+        space_p = FunctionSpace(mesh, "Lagrange", degree - 1)
 
-            space_v_ref = VectorFunctionSpace(mesh, "Lagrange", degree + 2)
+        space_v_ref = VectorFunctionSpace(mesh, "Lagrange", degree + 2)
 
-            my_control_instationary = Instationary(
-                space_v, forw_diff_operator_v, desired_state=desired_state_v,
-                force_function=force_f_v, beta=beta,
-                initial_condition=initial_condition_v,
-                time_interval=time_interval, CN=False, n_t=n_t,
-                bcs_v=my_DirichletBC_t_v)
+        my_control_instationary = Instationary(
+            space_v, forw_diff_operator_v, desired_state=desired_state_v,
+            force_function=force_f_v, beta=beta,
+            initial_condition=initial_condition_v,
+            time_interval=time_interval, CN=False, n_t=n_t,
+            bcs_v=my_DirichletBC_t_v)
 
-            # employing Chebyshev for the (1,1)-block
-            e_min_v = 0.3924
-            e_max_v = 2.0598
+        # employing Chebyshev for the (1,1)-block
+        e_min_v = 0.3924
+        e_max_v = 2.0598
 
-            sp_11block = {
-                "ksp_type": "chebyshev",
-                "pc_type": "jacobi",
-                "ksp_chebyshev_eigenvalues": f"{e_min_v:.16e}, {e_max_v:.16e}",
-                "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
-                "ksp_chebyshev_esteig_steps": 0,
-                "ksp_chebyshev_esteig_noisy": False,
-                "ksp_max_it": 20,
-                "ksp_atol": 0.0,
-                "ksp_rtol": 0.0}
+        sp_11block = {
+            "ksp_type": "chebyshev",
+            "pc_type": "jacobi",
+            "ksp_chebyshev_eigenvalues": f"{e_min_v:.16e}, {e_max_v:.16e}",
+            "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
+            "ksp_chebyshev_esteig_steps": 0,
+            "ksp_chebyshev_esteig_noisy": False,
+            "ksp_max_it": 20,
+            "ksp_atol": 0.0,
+            "ksp_rtol": 0.0}
 
-            # employing Chebyshev for the pressure-mass matrix
-            e_min_p = 0.5
-            e_max_p = 2.0
-            sp_M_p = {
-                "ksp_type": "chebyshev",
-                "pc_type": "jacobi",
-                "ksp_chebyshev_eigenvalues": f"{e_min_p:.16e}, {e_max_p:.16e}",
-                "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
-                "ksp_chebyshev_esteig_steps": 0,
-                "ksp_chebyshev_esteig_noisy": False,
-                "ksp_max_it": 20,
-                "ksp_atol": 0.0,
-                "ksp_rtol": 0.0}
+        # employing Chebyshev for the pressure-mass matrix
+        e_min_p = 0.5
+        e_max_p = 2.0
+        sp_M_p = {
+            "ksp_type": "chebyshev",
+            "pc_type": "jacobi",
+            "ksp_chebyshev_eigenvalues": f"{e_min_p:.16e}, {e_max_p:.16e}",
+            "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
+            "ksp_chebyshev_esteig_steps": 0,
+            "ksp_chebyshev_esteig_noisy": False,
+            "ksp_max_it": 20,
+            "ksp_atol": 0.0,
+            "ksp_rtol": 0.0}
 
-            auxiliary_sp = {"sp_11block": sp_11block,
-                            "sp_M_p": sp_M_p}
+        auxiliary_sp = {"sp_11block": sp_11block,
+                        "sp_M_p": sp_M_p}
 
-            solver_parameters = {"linear_solver": "fgmres",
-                                 "fgmres_restart": 10,
-                                 "maximum_iterations": 200,
-                                 "relative_tolerance": 1.0e-05,
-                                 "absolute_tolerance": 1.0e-05,
-                                 "monitor_convergence": False}
+        solver_parameters = {"linear_solver": "fgmres",
+                             "fgmres_restart": 10,
+                             "maximum_iterations": 200,
+                             "relative_tolerance": 1.0e-05,
+                             "absolute_tolerance": 1.0e-05,
+                             "monitor_convergence": False}
 
-            my_control_instationary.incompressible_linear_solve(
-                ConstantNullspace(), space_p=space_p,
-                solver_parameters=solver_parameters,
-                auxiliary_sp=auxiliary_sp,
-                print_error=False, outputs=False)
+        my_control_instationary.incompressible_linear_solve(
+            ConstantNullspace(), space_p=space_p,
+            solver_parameters=solver_parameters,
+            auxiliary_sp=auxiliary_sp,
+            print_error=False, outputs=False)
 
-            flattened_space_v = tuple(space_v for i in range(n_t))
-            full_space_v = MixedFunctionSpace(flattened_space_v)
+        flattened_space_v = tuple(space_v for i in range(n_t))
+        full_space_v = MixedFunctionSpace(flattened_space_v)
 
-            flattened_space_v_ref = tuple(space_v_ref for i in range(n_t))
-            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
+        flattened_space_v_ref = tuple(space_v_ref for i in range(n_t))
+        full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
-            my_v = Function(full_space_v)
-            my_zeta = Function(full_space_v)
+        my_v = Function(full_space_v)
+        my_zeta = Function(full_space_v)
 
-            my_v.assign(my_control_instationary._v)
-            my_zeta.assign(my_control_instationary._zeta)
+        my_v.assign(my_control_instationary._v)
+        my_zeta.assign(my_control_instationary._zeta)
 
-            del my_control_instationary
-            PETSc.garbage_cleanup(space_v.mesh().comm)
+        del my_control_instationary
+        PETSc.garbage_cleanup(space_v.mesh().comm)
 
-            v_ref = Function(full_space_v_ref, name="v_ref")
-            zeta_ref = Function(full_space_v_ref, name="zeta_ref")
+        v_ref = Function(full_space_v_ref, name="v_ref")
+        zeta_ref = Function(full_space_v_ref, name="zeta_ref")
 
-            tau = t_f / (n_t - 1.0)
+        tau = t_f / (n_t - 1.0)
 
-            for i in range(n_t - 1):
-                t = i * tau
+        for i in range(n_t - 1):
+            t = i * tau
 
-                v_ref.sub(i).interpolate(v_sol(*X, Constant(t)))
+            v_ref.sub(i).interpolate(v_sol(*X, Constant(t)))
 
-                zeta_ref.sub(i).interpolate(zeta_sol(*X, Constant(t)))
+            zeta_ref.sub(i).interpolate(zeta_sol(*X, Constant(t)))
 
-            v_ref.sub(n_t - 1).interpolate(v_sol(*X, Constant(t_f)))
+        v_ref.sub(n_t - 1).interpolate(v_sol(*X, Constant(t_f)))
 
-            zeta_ref.sub(n_t - 1).interpolate(zeta_sol(*X, Constant(t_f)))
+        zeta_ref.sub(n_t - 1).interpolate(zeta_sol(*X, Constant(t_f)))
 
-            v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
-                inner(my_v - v_ref, my_v - v_ref) * dx)))
-            print(f"{degree=} {p=} {N=} {v_error_norm=}")
-            v_error_norms.append(v_error_norm)
+        v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
+            inner(my_v - v_ref, my_v - v_ref) * dx)))
+        print(f"{degree=} {p=} {N=} {v_error_norm=}")
+        v_error_norms.append(v_error_norm)
 
-            zeta_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
-                inner(my_zeta - zeta_ref, my_zeta - zeta_ref) * dx)))
-            print(f"{degree=} {p=} {N=} {zeta_error_norm=}")
-            zeta_error_norms.append(zeta_error_norm)
+        zeta_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
+            inner(my_zeta - zeta_ref, my_zeta - zeta_ref) * dx)))
+        print(f"{degree=} {p=} {N=} {zeta_error_norm=}")
+        zeta_error_norms.append(zeta_error_norm)
 
-        v_error_norms = np.array(v_error_norms)
-        v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {v_orders=}")
+    v_error_norms = np.array(v_error_norms)
+    v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {v_orders=}")
 
-        zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {zeta_orders=}")
+    zeta_error_norms = np.array(zeta_error_norms)
+    zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {zeta_orders=}")
 
 
-def test_MMS_instationary_Stokes_control_BE_convergence_time():
-    degree = 2
+@pytest.mark.parametrize("degree", tuple(range(2, 3)))
+def test_MMS_instationary_Stokes_control_BE_convergence_time(degree):
     p_range = (1, 3)
     beta = 1.0e-3
     t_f = 2.0
@@ -3994,8 +3982,8 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time():
     print(f"{degree=} {zeta_orders=}")
 
 
-def test_MMS_instationary_Stokes_control_CN_convergence_FE():
-    degree_range = (2, 3)
+@pytest.mark.parametrize("degree", tuple(range(2, 3)))
+def test_MMS_instationary_Stokes_control_CN_convergence_FE(degree):
     p_range = (0, 2)
     beta = 1.0e-1
     t_f = 2.0
@@ -4112,125 +4100,124 @@ def test_MMS_instationary_Stokes_control_CN_convergence_FE():
 
         return inner(f, test) * dx
 
-    for degree in range(*degree_range):
-        v_error_norms = []
-        zeta_error_norms = []
-        for p in range(*p_range):
-            N = 2 ** p
-            n_t = 5
+    v_error_norms = []
+    zeta_error_norms = []
+    for p in range(*p_range):
+        N = 2 ** p
+        n_t = 5
 
-            mesh = RectangleMesh(N, N, 2.0, 2.0)
-            X = SpatialCoordinate(mesh)
+        mesh = RectangleMesh(N, N, 2.0, 2.0)
+        X = SpatialCoordinate(mesh)
 
-            space_v = VectorFunctionSpace(mesh, "Lagrange", degree)
-            space_p = FunctionSpace(mesh, "Lagrange", degree - 1)
+        space_v = VectorFunctionSpace(mesh, "Lagrange", degree)
+        space_p = FunctionSpace(mesh, "Lagrange", degree - 1)
 
-            space_v_ref = VectorFunctionSpace(mesh, "Lagrange", degree + 2)
+        space_v_ref = VectorFunctionSpace(mesh, "Lagrange", degree + 2)
 
-            my_control_instationary = Instationary(
-                space_v, forw_diff_operator_v, desired_state=desired_state_v,
-                force_function=force_f_v, beta=beta,
-                initial_condition=initial_condition_v,
-                time_interval=time_interval, n_t=n_t,
-                bcs_v=my_DirichletBC_t_v)
+        my_control_instationary = Instationary(
+            space_v, forw_diff_operator_v, desired_state=desired_state_v,
+            force_function=force_f_v, beta=beta,
+            initial_condition=initial_condition_v,
+            time_interval=time_interval, n_t=n_t,
+            bcs_v=my_DirichletBC_t_v)
 
-            # employing Chebyshev for the (1,1)-block
-            e_min_v = 0.3924
-            e_max_v = 2.0598
+        # employing Chebyshev for the (1,1)-block
+        e_min_v = 0.3924
+        e_max_v = 2.0598
 
-            sp_11block = {
-                "ksp_type": "chebyshev",
-                "pc_type": "jacobi",
-                "ksp_chebyshev_eigenvalues": f"{e_min_v:.16e}, {e_max_v:.16e}",
-                "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
-                "ksp_chebyshev_esteig_steps": 0,
-                "ksp_chebyshev_esteig_noisy": False,
-                "ksp_max_it": 20,
-                "ksp_atol": 0.0,
-                "ksp_rtol": 0.0}
+        sp_11block = {
+            "ksp_type": "chebyshev",
+            "pc_type": "jacobi",
+            "ksp_chebyshev_eigenvalues": f"{e_min_v:.16e}, {e_max_v:.16e}",
+            "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
+            "ksp_chebyshev_esteig_steps": 0,
+            "ksp_chebyshev_esteig_noisy": False,
+            "ksp_max_it": 20,
+            "ksp_atol": 0.0,
+            "ksp_rtol": 0.0}
 
-            # employing Chebyshev for the pressure-mass matrix
-            e_min_p = 0.5
-            e_max_p = 2.0
-            sp_M_p = {
-                "ksp_type": "chebyshev",
-                "pc_type": "jacobi",
-                "ksp_chebyshev_eigenvalues": f"{e_min_p:.16e}, {e_max_p:.16e}",
-                "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
-                "ksp_chebyshev_esteig_steps": 0,
-                "ksp_chebyshev_esteig_noisy": False,
-                "ksp_max_it": 20,
-                "ksp_atol": 0.0,
-                "ksp_rtol": 0.0}
+        # employing Chebyshev for the pressure-mass matrix
+        e_min_p = 0.5
+        e_max_p = 2.0
+        sp_M_p = {
+            "ksp_type": "chebyshev",
+            "pc_type": "jacobi",
+            "ksp_chebyshev_eigenvalues": f"{e_min_p:.16e}, {e_max_p:.16e}",
+            "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
+            "ksp_chebyshev_esteig_steps": 0,
+            "ksp_chebyshev_esteig_noisy": False,
+            "ksp_max_it": 20,
+            "ksp_atol": 0.0,
+            "ksp_rtol": 0.0}
 
-            auxiliary_sp = {"sp_11block": sp_11block,
-                            "sp_M_p": sp_M_p}
+        auxiliary_sp = {"sp_11block": sp_11block,
+                        "sp_M_p": sp_M_p}
 
-            solver_parameters = {"linear_solver": "fgmres",
-                                 "fgmres_restart": 10,
-                                 "maximum_iterations": 200,
-                                 "relative_tolerance": 1.0e-5,
-                                 "absolute_tolerance": 1.0e-5,
-                                 "monitor_convergence": False}
+        solver_parameters = {"linear_solver": "fgmres",
+                             "fgmres_restart": 10,
+                             "maximum_iterations": 200,
+                             "relative_tolerance": 1.0e-5,
+                             "absolute_tolerance": 1.0e-5,
+                             "monitor_convergence": False}
 
-            my_control_instationary.incompressible_linear_solve(
-                ConstantNullspace(), space_p=space_p,
-                solver_parameters=solver_parameters,
-                auxiliary_sp=auxiliary_sp,
-                print_error=False, outputs=False)
+        my_control_instationary.incompressible_linear_solve(
+            ConstantNullspace(), space_p=space_p,
+            solver_parameters=solver_parameters,
+            auxiliary_sp=auxiliary_sp,
+            print_error=False, outputs=False)
 
-            flattened_space_v = tuple(space_v for i in range(n_t))
-            full_space_v = MixedFunctionSpace(flattened_space_v)
+        flattened_space_v = tuple(space_v for i in range(n_t))
+        full_space_v = MixedFunctionSpace(flattened_space_v)
 
-            flattened_space_v_ref = tuple(space_v_ref for i in range(n_t))
-            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
+        flattened_space_v_ref = tuple(space_v_ref for i in range(n_t))
+        full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
-            my_v = Function(full_space_v)
-            my_zeta = Function(full_space_v)
+        my_v = Function(full_space_v)
+        my_zeta = Function(full_space_v)
 
-            my_v.assign(my_control_instationary._v)
-            my_zeta.assign(my_control_instationary._zeta)
+        my_v.assign(my_control_instationary._v)
+        my_zeta.assign(my_control_instationary._zeta)
 
-            v_ref = Function(full_space_v_ref, name="v_ref")
-            zeta_ref = Function(full_space_v_ref, name="zeta_ref")
+        v_ref = Function(full_space_v_ref, name="v_ref")
+        zeta_ref = Function(full_space_v_ref, name="zeta_ref")
 
-            tau = t_f / (n_t - 1.0)
+        tau = t_f / (n_t - 1.0)
 
-            for i in range(n_t - 1):
-                t = i * tau
+        for i in range(n_t - 1):
+            t = i * tau
 
-                v_ref.sub(i).interpolate(v_sol(*X, t))
+            v_ref.sub(i).interpolate(v_sol(*X, t))
 
-                zeta_ref.sub(i).interpolate(zeta_sol(*X, t))
+            zeta_ref.sub(i).interpolate(zeta_sol(*X, t))
 
-            v_ref.sub(n_t - 1).interpolate(v_sol(*X, t_f))
+        v_ref.sub(n_t - 1).interpolate(v_sol(*X, t_f))
 
-            zeta_ref.sub(n_t - 1).interpolate(zeta_sol(*X, t_f))
+        zeta_ref.sub(n_t - 1).interpolate(zeta_sol(*X, t_f))
 
-            del my_control_instationary
-            PETSc.garbage_cleanup(space_v.mesh().comm)
+        del my_control_instationary
+        PETSc.garbage_cleanup(space_v.mesh().comm)
 
-            v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
-                inner(my_v - v_ref, my_v - v_ref) * dx)))
-            print(f"{degree=} {p=} {N=} {v_error_norm=}")
-            v_error_norms.append(v_error_norm)
+        v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
+            inner(my_v - v_ref, my_v - v_ref) * dx)))
+        print(f"{degree=} {p=} {N=} {v_error_norm=}")
+        v_error_norms.append(v_error_norm)
 
-            zeta_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
-                inner(my_zeta - zeta_ref, my_zeta - zeta_ref) * dx)))
-            print(f"{degree=} {p=} {N=} {zeta_error_norm=}")
-            zeta_error_norms.append(zeta_error_norm)
+        zeta_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
+            inner(my_zeta - zeta_ref, my_zeta - zeta_ref) * dx)))
+        print(f"{degree=} {p=} {N=} {zeta_error_norm=}")
+        zeta_error_norms.append(zeta_error_norm)
 
-        v_error_norms = np.array(v_error_norms)
-        v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {v_orders=}")
+    v_error_norms = np.array(v_error_norms)
+    v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {v_orders=}")
 
-        zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {zeta_orders=}")
+    zeta_error_norms = np.array(zeta_error_norms)
+    zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {zeta_orders=}")
 
 
-def test_MMS_instationary_Stokes_control_CN_convergence_time():
-    degree = 2
+@pytest.mark.parametrize("degree", tuple(range(2, 3)))
+def test_MMS_instationary_Stokes_control_CN_convergence_time(degree):
     p_range = (2, 4)
     beta = 1.0e-3
     t_f = 2.0
@@ -4728,9 +4715,9 @@ def test_instationary_Navier_Stokes_CN():
     PETSc.garbage_cleanup(space_v.mesh().comm)
 
 
+@pytest.mark.parametrize("degree", tuple(range(2, 3)))
 @pytest.mark.large
-def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
-    degree = 2
+def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE(degree):
     p_range = (1, 3)
     beta = 1.0e-3
     t_f = 2.0
@@ -4944,9 +4931,9 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE():
     print(f"{degree=} {zeta_orders=}")
 
 
+@pytest.mark.parametrize("degree", tuple(range(2, 3)))
 @pytest.mark.large
-def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
-    degree = 2
+def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time(degree):
     p_range = (0, 2)
     beta = 1.0e-3
     t_f = 1.0
@@ -5159,8 +5146,8 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time():
     print(f"{degree=} {zeta_orders=}")
 
 
-def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE():
-    degree_range = (2, 3)
+@pytest.mark.parametrize("degree", tuple(range(2, 3)))
+def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE(degree):
     p_range = (1, 3)
     beta = 1.0e-3
     t_f = 2.0
@@ -5253,129 +5240,128 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE():
 
         return inner(f, test) * dx
 
-    for degree in range(*degree_range):
-        v_error_norms = []
-        zeta_error_norms = []
-        for p in range(*p_range):
-            N = 2 ** p
-            n_t = 5
+    v_error_norms = []
+    zeta_error_norms = []
+    for p in range(*p_range):
+        N = 2 ** p
+        n_t = 5
 
-            mesh = RectangleMesh(N, N, 2.0, 2.0)
-            X = SpatialCoordinate(mesh)
+        mesh = RectangleMesh(N, N, 2.0, 2.0)
+        X = SpatialCoordinate(mesh)
 
-            space_v = VectorFunctionSpace(mesh, "Lagrange", degree)
-            space_p = FunctionSpace(mesh, "Lagrange", degree - 1)
+        space_v = VectorFunctionSpace(mesh, "Lagrange", degree)
+        space_p = FunctionSpace(mesh, "Lagrange", degree - 1)
 
-            space_v_ref = VectorFunctionSpace(mesh, "Lagrange", degree + 2)
+        space_v_ref = VectorFunctionSpace(mesh, "Lagrange", degree + 2)
 
-            my_control_instationary = Instationary(
-                space_v, forw_diff_operator_v, desired_state=desired_state_v,
-                force_function=force_f_v, beta=beta,
-                initial_condition=initial_condition_v,
-                time_interval=time_interval, n_t=n_t,
-                bcs_v=my_DirichletBC_t_v)
+        my_control_instationary = Instationary(
+            space_v, forw_diff_operator_v, desired_state=desired_state_v,
+            force_function=force_f_v, beta=beta,
+            initial_condition=initial_condition_v,
+            time_interval=time_interval, n_t=n_t,
+            bcs_v=my_DirichletBC_t_v)
 
-            # employing Chebyshev for the (1,1)-block
-            e_min_v = 0.3924
-            e_max_v = 2.0598
+        # employing Chebyshev for the (1,1)-block
+        e_min_v = 0.3924
+        e_max_v = 2.0598
 
-            sp_11block = {
-                "ksp_type": "chebyshev",
-                "pc_type": "jacobi",
-                "ksp_chebyshev_eigenvalues": f"{e_min_v:.16e}, {e_max_v:.16e}",
-                "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
-                "ksp_chebyshev_esteig_steps": 0,
-                "ksp_chebyshev_esteig_noisy": False,
-                "ksp_max_it": 20,
-                "ksp_atol": 0.0,
-                "ksp_rtol": 0.0}
+        sp_11block = {
+            "ksp_type": "chebyshev",
+            "pc_type": "jacobi",
+            "ksp_chebyshev_eigenvalues": f"{e_min_v:.16e}, {e_max_v:.16e}",
+            "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
+            "ksp_chebyshev_esteig_steps": 0,
+            "ksp_chebyshev_esteig_noisy": False,
+            "ksp_max_it": 20,
+            "ksp_atol": 0.0,
+            "ksp_rtol": 0.0}
 
-            # employing Chebyshev for the pressure-mass matrix
-            e_min_p = 0.5
-            e_max_p = 2.0
-            sp_M_p = {
-                "ksp_type": "chebyshev",
-                "pc_type": "jacobi",
-                "ksp_chebyshev_eigenvalues": f"{e_min_p:.16e}, {e_max_p:.16e}",
-                "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
-                "ksp_chebyshev_esteig_steps": 0,
-                "ksp_chebyshev_esteig_noisy": False,
-                "ksp_max_it": 20,
-                "ksp_atol": 0.0,
-                "ksp_rtol": 0.0}
+        # employing Chebyshev for the pressure-mass matrix
+        e_min_p = 0.5
+        e_max_p = 2.0
+        sp_M_p = {
+            "ksp_type": "chebyshev",
+            "pc_type": "jacobi",
+            "ksp_chebyshev_eigenvalues": f"{e_min_p:.16e}, {e_max_p:.16e}",
+            "ksp_chebyshev_esteig": "0.0,0.0,0.0,0.0",
+            "ksp_chebyshev_esteig_steps": 0,
+            "ksp_chebyshev_esteig_noisy": False,
+            "ksp_max_it": 20,
+            "ksp_atol": 0.0,
+            "ksp_rtol": 0.0}
 
-            auxiliary_sp = {"sp_11block": sp_11block,
-                            "sp_M_p": sp_M_p}
+        auxiliary_sp = {"sp_11block": sp_11block,
+                        "sp_M_p": sp_M_p}
 
-            solver_parameters = {"linear_solver": "fgmres",
-                                 "fgmres_restart": 10,
-                                 "maximum_iterations": 200,
-                                 "relative_tolerance": 1.0e-6,
-                                 "absolute_tolerance": 1.0e-6,
-                                 "monitor_convergence": False}
+        solver_parameters = {"linear_solver": "fgmres",
+                             "fgmres_restart": 10,
+                             "maximum_iterations": 200,
+                             "relative_tolerance": 1.0e-6,
+                             "absolute_tolerance": 1.0e-6,
+                             "monitor_convergence": False}
 
-            nl_sp = {"nl_max_it": 10,
-                     "nl_atol": 1.0e-4,
-                     "nl_rtol": 1.0e-4}
+        nl_sp = {"nl_max_it": 10,
+                 "nl_atol": 1.0e-4,
+                 "nl_rtol": 1.0e-4}
 
-            my_control_instationary.incompressible_non_linear_solve(
-                ConstantNullspace(), space_p=space_p,
-                solver_parameters=solver_parameters,
-                auxiliary_sp=auxiliary_sp,
-                nl_sp=nl_sp, print_error=False,
-                outputs=False, plots=False)
+        my_control_instationary.incompressible_non_linear_solve(
+            ConstantNullspace(), space_p=space_p,
+            solver_parameters=solver_parameters,
+            auxiliary_sp=auxiliary_sp,
+            nl_sp=nl_sp, print_error=False,
+            outputs=False, plots=False)
 
-            flattened_space_v = tuple(space_v for i in range(n_t))
-            full_space_v = MixedFunctionSpace(flattened_space_v)
+        flattened_space_v = tuple(space_v for i in range(n_t))
+        full_space_v = MixedFunctionSpace(flattened_space_v)
 
-            flattened_space_v_ref = tuple(space_v_ref for i in range(n_t))
-            full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
+        flattened_space_v_ref = tuple(space_v_ref for i in range(n_t))
+        full_space_v_ref = MixedFunctionSpace(flattened_space_v_ref)
 
-            my_v = Function(full_space_v)
-            my_zeta = Function(full_space_v)
+        my_v = Function(full_space_v)
+        my_zeta = Function(full_space_v)
 
-            my_v.assign(my_control_instationary._v)
-            my_zeta.assign(my_control_instationary._zeta)
+        my_v.assign(my_control_instationary._v)
+        my_zeta.assign(my_control_instationary._zeta)
 
-            v_ref = Function(full_space_v_ref, name="v_ref")
-            zeta_ref = Function(full_space_v_ref, name="zeta_ref")
+        v_ref = Function(full_space_v_ref, name="v_ref")
+        zeta_ref = Function(full_space_v_ref, name="zeta_ref")
 
-            tau = t_f / (n_t - 1.0)
+        tau = t_f / (n_t - 1.0)
 
-            for i in range(n_t):
-                t = i * tau
+        for i in range(n_t):
+            t = i * tau
 
-                v, v_xy = ref_sol_v(*X, Constant(t))
+            v, v_xy = ref_sol_v(*X, Constant(t))
 
-                v_ref.sub(i).interpolate(v)
+            v_ref.sub(i).interpolate(v)
 
-                zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
+            zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
 
-            del my_control_instationary
-            PETSc.garbage_cleanup(space_v.mesh().comm)
+        del my_control_instationary
+        PETSc.garbage_cleanup(space_v.mesh().comm)
 
-            v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
-                inner(my_v - v_ref, my_v - v_ref) * dx)))
-            print(f"{degree=} {p=} {N=} {v_error_norm=}")
-            v_error_norms.append(v_error_norm)
+        v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
+            inner(my_v - v_ref, my_v - v_ref) * dx)))
+        print(f"{degree=} {p=} {N=} {v_error_norm=}")
+        v_error_norms.append(v_error_norm)
 
-            zeta_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
-                inner(my_zeta - zeta_ref, my_zeta - zeta_ref) * dx)))
-            print(f"{degree=} {p=} {N=} {zeta_error_norm=}")
-            zeta_error_norms.append(zeta_error_norm)
+        zeta_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
+            inner(my_zeta - zeta_ref, my_zeta - zeta_ref) * dx)))
+        print(f"{degree=} {p=} {N=} {zeta_error_norm=}")
+        zeta_error_norms.append(zeta_error_norm)
 
-        v_error_norms = np.array(v_error_norms)
-        v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {v_orders=}")
+    v_error_norms = np.array(v_error_norms)
+    v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {v_orders=}")
 
-        zeta_error_norms = np.array(zeta_error_norms)
-        zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
-        print(f"{degree=} {zeta_orders=}")
+    zeta_error_norms = np.array(zeta_error_norms)
+    zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
+    print(f"{degree=} {zeta_orders=}")
 
 
+@pytest.mark.parametrize("degree", tuple(range(2, 3)))
 @pytest.mark.large
-def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time():
-    degree = 2
+def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time(degree):
     p_range = (0, 2)
     beta = 1.0e-3
     t_f = 1.0
