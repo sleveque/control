@@ -768,160 +768,8 @@ def test_stationary_linear_control_with_reference_sol(degree):
 
 
 @pytest.mark.parametrize("degree", tuple(range(1, 4)))
-def test_Picard_stationary_non_linear_control_with_reference_sol(degree):
-    mesh_size = 3
-    mesh = UnitSquareMesh(2 ** mesh_size, 2 ** mesh_size)
-    X = SpatialCoordinate(mesh)
-
-    def forw_diff_operator(trial, test, v_old):
-        # spatial differential for the forward problem
-        return (
-            inner(grad(trial), grad(test)) * dx
-            + (Constant(2.0) + 0.5 * v_old**2.0) * inner(trial, test) * dx)
-
-    def desired_state(test):
-        space = test.function_space()
-        mesh = space.mesh()
-        X = SpatialCoordinate(mesh)
-
-        # desired state
-        v_d = Function(space, name="v_d")
-        v_d.interpolate(sin(pi * X[0]) * sin(pi * X[1]) * exp(X[0] + X[1]))
-
-        # true v
-        true_v = Function(space, name="true_v")
-        true_v.assign(v_d)
-
-        return inner(v_d, test) * dx, true_v
-
-    def force_f(test):
-        space = test.function_space()
-
-        # force function
-        f = Function(space)
-
-        f.interpolate(0.0)
-
-        return inner(f, test) * dx
-
-    def alpha_non_linear(v_old):
-        return Constant(2.0) + 0.5 * v_old**2.0
-
-    def reference(X):
-        return sin(pi * X[0]) * sin(pi * X[1]) * exp(X[0] + X[1])
-
-    space_0 = FunctionSpace(mesh, "Lagrange", degree)
-    test_0, trial_0 = TestFunction(space_0), TrialFunction(space_0)
-    bc = DirichletBC(space_0, 0.0, "on_boundary")
-
-    my_beta = 1.0
-
-    my_control_stationary = Stationary(
-        space_0, forw_diff_operator, desired_state=desired_state,
-        force_function=force_f, beta=my_beta, bcs_v=bc)
-
-    solver_parameters = {"linear_solver": "fgmres",
-                         "fgmres_restart": 10,
-                         "maximum_iterations": 500,
-                         "relative_tolerance": 1.0e-14,
-                         "absolute_tolerance": 1.0e-14,
-                         "monitor_convergence": False}
-
-    nl_sp = {"nl_max_it": 100,
-             "nl_rtol": 1.0e-10}
-
-    my_control_stationary.non_linear_solve(
-        solver_parameters=solver_parameters,
-        nl_sp=nl_sp, outputs=False, plots=False)
-
-    my_v = Function(space_0)
-    my_zeta = Function(space_0)
-    my_control = Function(space_0)
-
-    my_v.assign(my_control_stationary._v)
-    my_zeta.assign(my_control_stationary._zeta)
-    my_control.assign((1.0 / my_beta) * my_zeta)
-
-    del my_control_stationary
-    PETSc.garbage_cleanup(space_0.mesh().comm)
-
-    beta = 1.0
-
-    def forward(u_ref, m):
-        m_1 = Function(space_0, name="m_1")
-        DirichletBC(space_0, m, "on_boundary").apply(m_1)
-        m_0 = Function(space_0, name="m_0")
-        m_0.assign(m - m_1)
-
-        u = Function(space_0, name="u")
-        solve(alpha_non_linear(u) * inner(u, test_0) * dx
-              + inner(grad(u), grad(test_0)) * dx
-              - inner(m_0, test_0) * dx == 0,
-              u, bc,
-              solver_parameters={"snes_type": "newtonls",
-                                 "snes_rtol": 1.0e-12,
-                                 "snes_atol": 1.0e-15,
-                                 "snes_stol": 0.0,
-                                 "ksp_type": "preonly",
-                                 "pc_type": "cholesky"})
-
-        return assemble(inner(u - u_ref, u - u_ref) * dx
-                        + beta * beta * inner(m_0, m_0) * dx
-                        + inner(m_1, m_1) * ds)
-
-    u_ref = Function(space_0, name="u_ref")
-    u_ref.interpolate(reference(X))
-    m0 = Function(space_0, name="m0")
-
-    forward_J = partial(forward, u_ref)
-
-    continue_annotation()
-    J = forward_J(m0)
-    pause_annotation()
-
-    m = minimize(
-        ReducedFunctional(J, Control_ad(m0, riesz_map="l2")),
-        method="L-BFGS-B",
-        options={"ftol": 0.0,
-                 "gtol": 1.0e-8})
-
-    dJ = compute_derivative(
-        J, Control_ad(m0), apply_riesz=False)
-    get_working_tape().clear_tape()
-
-    dJ_dual = Function(space_0, name="dJ_dual")
-    M_solver = LinearSolver(assemble(inner(trial_0, test_0) * dx),
-                            solver_parameters={"ksp_type": "preonly",
-                                               "pc_type": "cholesky"})
-    M_solver.solve(dJ_dual, dJ.copy(deepcopy=True))
-    dJ_norm = np.sqrt(abs(assemble(inner(dJ_dual, dJ_dual) * dx)))
-    print(f"Gradient M^{-1} norm = {dJ_norm}")
-
-    v_sol = Function(space_0, name="v_sol")
-    solve(alpha_non_linear(v_sol) * inner(v_sol, test_0) * dx
-          + inner(grad(v_sol), grad(test_0)) * dx
-          - inner(m, test_0) * dx == 0,
-          v_sol, bc,
-          solver_parameters={"snes_type": "newtonls",
-                             "snes_rtol": 1.0e-12,
-                             "snes_atol": 1.0e-15,
-                             "snes_stol": 0.0,
-                             "ksp_type": "preonly",
-                             "pc_type": "cholesky"})
-
-    v_error_norm = np.sqrt(abs(assemble(inner(my_v - v_sol,
-                                              my_v - v_sol) * dx)))
-    print(f"Error on the state: {v_error_norm}")
-    assert v_error_norm < 1.0e-7
-
-    control_error_norm = np.sqrt(abs(assemble(inner(my_control - m,
-                                                    my_control - m) * dx)))
-    print(f"Error on the control: {control_error_norm}")
-    assert control_error_norm < 1.0e-6
-
-
-@pytest.mark.parametrize("degree", tuple(range(1, 4)))
-def test_GN_stationary_non_linear_control_with_reference_sol(degree):
+@pytest.mark.parametrize("Gauss_Newton", [False, True])
+def test_stationary_non_linear_control_with_reference_sol(degree, Gauss_Newton):
     mesh_size = 3
     mesh = UnitSquareMesh(2 ** mesh_size, 2 ** mesh_size)
     X = SpatialCoordinate(mesh)
@@ -972,7 +820,7 @@ def test_GN_stationary_non_linear_control_with_reference_sol(degree):
     my_control_stationary = Stationary(
         space_0, forw_diff_operator, desired_state=desired_state,
         force_function=force_f, beta=my_beta, bcs_v=bc,
-        Gauss_Newton=True)
+        Gauss_Newton=Gauss_Newton)
 
     solver_parameters = {"linear_solver": "fgmres",
                          "fgmres_restart": 10,
@@ -982,7 +830,7 @@ def test_GN_stationary_non_linear_control_with_reference_sol(degree):
                          "monitor_convergence": False}
 
     nl_sp = {"nl_max_it": 100,
-             "nl_rtol": 1.0e-9}
+             "nl_rtol": 1.0e-10}
 
     my_control_stationary.non_linear_solve(
         solver_parameters=solver_parameters,
