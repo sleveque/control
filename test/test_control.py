@@ -239,10 +239,14 @@ def test_MMS_stationary_linear_Poisson_control(degree):
     v_error_norms = np.array(v_error_norms)
     v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {v_orders=}")
+    min_v_ord = min(v_orders)
+    assert min_v_ord > 1.5
 
     zeta_error_norms = np.array(zeta_error_norms)
     zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {zeta_orders=}")
+    min_z_ord = min(z_orders)
+    assert min_z_ord > 1.5
 
 
 def test_stationary_incompressible_linear_control():
