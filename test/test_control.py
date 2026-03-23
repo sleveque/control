@@ -245,7 +245,7 @@ def test_MMS_stationary_linear_Poisson_control(degree):
     zeta_error_norms = np.array(zeta_error_norms)
     zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {zeta_orders=}")
-    min_z_ord = min(z_orders)
+    min_z_ord = min(zeta_orders)
     assert min_z_ord > 1.5
 
 
