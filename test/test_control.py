@@ -606,18 +606,26 @@ def test_MMS_stationary_Stokes_control(degree):
     v_error_norms = np.array(v_error_norms)
     v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {v_orders=}")
+    min_v_ord = min(v_orders)
+    assert min_v_ord > 1.5
 
     zeta_error_norms = np.array(zeta_error_norms)
     zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {zeta_orders=}")
+    min_z_ord = min(zeta_orders)
+    assert min_z_ord > 1.5
 
     p_error_norms = np.array(p_error_norms)
     p_orders = np.log(p_error_norms[:-1] / p_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {p_orders=}")
+    min_p_ord = min(p_orders)
+    assert min_p_ord > 1.5
 
     mu_error_norms = np.array(mu_error_norms)
     mu_orders = np.log(mu_error_norms[:-1] / mu_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {mu_orders=}")
+    min_mu_ord = min(mu_orders)
+    assert min_mu_ord > 1.5
 
 
 @pytest.mark.parametrize("degree", tuple(range(1, 4)))
@@ -1048,10 +1056,14 @@ def test_MMS_stationary_Navier_Stokes_control(degree):
     v_error_norms = np.array(v_error_norms)
     v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {v_orders=}")
+    min_v_ord = min(v_orders)
+    assert min_v_ord > 1.5
 
     zeta_error_norms = np.array(zeta_error_norms)
     zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {zeta_orders=}")
+    min_z_ord = min(zeta_orders)
+    assert min_z_ord > 1.5
 
 
 def test_instationary_linear_control_BE():
@@ -1659,10 +1671,14 @@ def test_MMS_instationary_heat_control_BE_convergence_FE(degree):
     v_error_norms = np.array(v_error_norms)
     v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {v_orders=}")
+    min_v_ord = min(v_orders)
+    assert min_v_ord > 1.5
 
     zeta_error_norms = np.array(zeta_error_norms)
     zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {zeta_orders=}")
+    min_z_ord = min(zeta_orders)
+    assert min_z_ord > 1.5
 
 
 @pytest.mark.parametrize("degree", tuple(range(1, 2)))
@@ -1815,10 +1831,14 @@ def test_MMS_instationary_heat_control_CN_convergence_FE(degree):
     v_error_norms = np.array(v_error_norms)
     v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {v_orders=}")
+    min_v_ord = min(v_orders)
+    assert min_v_ord > 1.5
 
     zeta_error_norms = np.array(zeta_error_norms)
     zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {zeta_orders=}")
+    min_z_ord = min(zeta_orders)
+    assert min_z_ord > 1.5
 
 
 @pytest.mark.parametrize("degree", tuple(range(1, 2)))
@@ -1968,10 +1988,20 @@ def test_MMS_instationary_heat_control_convergence_time(degree, CN):
     v_error_norms = np.array(v_error_norms)
     v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {v_orders=}")
+    min_v_ord = min(v_orders)
+    if CN:
+        assert min_v_ord > 1.5
+    else:
+        assert min_v_ord > 0.5
 
     zeta_error_norms = np.array(zeta_error_norms)
     zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {zeta_orders=}")
+    min_z_ord = min(zeta_orders)
+    if CN:
+        assert min_z_ord > 1.5
+    else:
+        assert min_z_ord > 0.5
 
 
 @pytest.mark.parametrize("degree", tuple(range(1, 2)))
@@ -2164,10 +2194,14 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_FE(degree)
     v_error_norms = np.array(v_error_norms)
     v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {v_orders=}")
+    min_v_ord = min(v_orders)
+    assert min_v_ord > 1.5
 
     zeta_error_norms = np.array(zeta_error_norms)
     zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {zeta_orders=}")
+    min_z_ord = min(zeta_orders)
+    assert min_z_ord > 1.5
 
 
 @pytest.mark.parametrize("degree", tuple(range(1, 2)))
@@ -2344,10 +2378,14 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_time(degre
     v_error_norms = np.array(v_error_norms)
     v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {v_orders=}")
+    min_v_ord = min(v_orders)
+    assert min_v_ord > 0.5
 
     zeta_error_norms = np.array(zeta_error_norms)
     zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {zeta_orders=}")
+    min_z_ord = min(zeta_orders)
+    assert min_z_ord > 0.5
 
 
 @pytest.mark.parametrize("degree", tuple(range(1, 2)))
@@ -2528,10 +2566,14 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_FE(degree)
     v_error_norms = np.array(v_error_norms)
     v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {v_orders=}")
+    min_v_ord = min(v_orders)
+    assert min_v_ord > 1.5
 
     zeta_error_norms = np.array(zeta_error_norms)
     zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {zeta_orders=}")
+    min_z_ord = min(zeta_orders)
+    assert min_z_ord > 1.5
 
 
 @pytest.mark.parametrize("degree", tuple(range(1, 2)))
@@ -2712,10 +2754,14 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_time(degre
     v_error_norms = np.array(v_error_norms)
     v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {v_orders=}")
+    min_v_ord = min(v_orders)
+    assert min_v_ord > 1.5
 
     zeta_error_norms = np.array(zeta_error_norms)
     zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {zeta_orders=}")
+    min_z_ord = min(zeta_orders)
+    assert min_z_ord > 1.5
 
 
 def test_instationary_Stokes_control_BE_with_exact_sol():
@@ -3294,10 +3340,14 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE(degree):
     v_error_norms = np.array(v_error_norms)
     v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {v_orders=}")
+    min_v_ord = min(v_orders)
+    assert min_v_ord > 1.5
 
     zeta_error_norms = np.array(zeta_error_norms)
     zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {zeta_orders=}")
+    min_z_ord = min(zeta_orders)
+    assert min_z_ord > 1.5
 
 
 @pytest.mark.parametrize("degree", tuple(range(2, 3)))
@@ -3530,10 +3580,14 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time(degree):
     v_error_norms = np.array(v_error_norms)
     v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {v_orders=}")
+    min_v_ord = min(v_orders)
+    assert min_v_ord > 0.5
 
     zeta_error_norms = np.array(zeta_error_norms)
     zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {zeta_orders=}")
+    min_z_ord = min(zeta_orders)
+    assert min_z_ord > 0.5
 
 
 @pytest.mark.parametrize("degree", tuple(range(2, 3)))
@@ -3764,10 +3818,14 @@ def test_MMS_instationary_Stokes_control_CN_convergence_FE(degree):
     v_error_norms = np.array(v_error_norms)
     v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {v_orders=}")
+    min_v_ord = min(v_orders)
+    assert min_v_ord > 1.5
 
     zeta_error_norms = np.array(zeta_error_norms)
     zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {zeta_orders=}")
+    min_z_ord = min(zeta_orders)
+    assert min_z_ord > 1.5
 
 
 @pytest.mark.parametrize("degree", tuple(range(2, 3)))
@@ -3998,10 +4056,14 @@ def test_MMS_instationary_Stokes_control_CN_convergence_time(degree):
     v_error_norms = np.array(v_error_norms)
     v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {v_orders=}")
+    min_v_ord = min(v_orders)
+    assert min_v_ord > 1.5
 
     zeta_error_norms = np.array(zeta_error_norms)
     zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {zeta_orders=}")
+    min_z_ord = min(zeta_orders)
+    assert min_z_ord > 1.5
 
 
 @pytest.mark.large
@@ -4479,10 +4541,14 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE(degree):
     v_error_norms = np.array(v_error_norms)
     v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {v_orders=}")
+    min_v_ord = min(v_orders)
+    assert min_v_ord > 1.5
 
     zeta_error_norms = np.array(zeta_error_norms)
     zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {zeta_orders=}")
+    min_z_ord = min(zeta_orders)
+    assert min_z_ord > 1.5
 
 
 @pytest.mark.parametrize("degree", tuple(range(2, 3)))
@@ -4694,10 +4760,14 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time(degree):
     v_error_norms = np.array(v_error_norms)
     v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {v_orders=}")
+    min_v_ord = min(v_orders)
+    assert min_v_ord > 0.5
 
     zeta_error_norms = np.array(zeta_error_norms)
     zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {zeta_orders=}")
+    min_z_ord = min(zeta_orders)
+    assert min_z_ord > 0.5
 
 
 @pytest.mark.parametrize("degree", tuple(range(2, 3)))
@@ -4907,10 +4977,14 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE(degree):
     v_error_norms = np.array(v_error_norms)
     v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {v_orders=}")
+    min_v_ord = min(v_orders)
+    assert min_v_ord > 1.5
 
     zeta_error_norms = np.array(zeta_error_norms)
     zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {zeta_orders=}")
+    min_z_ord = min(zeta_orders)
+    assert min_z_ord > 1.5
 
 
 @pytest.mark.parametrize("degree", tuple(range(2, 3)))
@@ -5121,7 +5195,11 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time(degree):
     v_error_norms = np.array(v_error_norms)
     v_orders = np.log(v_error_norms[:-1] / v_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {v_orders=}")
+    min_v_ord = min(v_orders)
+    assert min_v_ord > 1.5
 
     zeta_error_norms = np.array(zeta_error_norms)
     zeta_orders = np.log(zeta_error_norms[:-1] / zeta_error_norms[1:]) / np.log(2.0)
     print(f"{degree=} {zeta_orders=}")
+    min_z_ord = min(zeta_orders)
+    assert min_z_ord > 1.5
