@@ -387,7 +387,7 @@ class MultiBlockSystem:
     def solve(self, u_0, u_1, b_0, b_1, *,
               solver_parameters=None,
               pc_fn=None):
-        """"
+        """
         Definition of the linear solver.
 
         Input:
@@ -403,7 +403,7 @@ class MultiBlockSystem:
                                      for the linear solver
 
             - pc_fn                  function defining the preconditioner
-        """"
+        """
         if solver_parameters is None:
             solver_parameters = {}
         if pc_fn is None:
@@ -720,7 +720,7 @@ class MultiBlockSystem:
                     - x         vector of the solution
 
                     - y         rhs
-                """"
+                """
                 with self._x_fn.dat.vec_wo as x_v:
                     x.copy(result=x_v)
 
