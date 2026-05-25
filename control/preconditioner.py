@@ -1,3 +1,8 @@
+"""A library for the construction of generalized saddle-point systems
+arising from the finite element discretization of the KKT conditions of
+a PDE constrained optimization problem. Uses the Python interface to PETSc
+for the construction of the linear solver.
+"""
 from firedrake import (
     Cofunction, DirichletBC, Function, MixedFunctionSpace, assemble)
 from firedrake.functionspaceimpl import WithGeometry as FunctionSpaceBase
@@ -48,6 +53,10 @@ def apply_bcs(bcs, u):
 
 
 class Nullspace(abc.ABC):
+    """
+    Definition of the nullspace of an operator.
+
+    """
     @abc.abstractmethod
     def apply_nullspace_transformation_lhs_right(self, x):
         raise NotImplementedError
@@ -92,6 +101,9 @@ class Nullspace(abc.ABC):
 
 
 class NoneNullspace(Nullspace):
+    """
+    No nullspace
+    """
     def apply_nullspace_transformation_lhs_right(self, x):
         pass
 
@@ -106,6 +118,9 @@ class NoneNullspace(Nullspace):
 
 
 class ConstantNullspace(Nullspace):
+    """
+    Constant nullspace
+    """
     def __init__(self, *, alpha=1.0):
         self._alpha = alpha
 
@@ -131,6 +146,9 @@ class ConstantNullspace(Nullspace):
 
 
 class DirichletBCNullspace(Nullspace):
+    """
+    Nulspace for Dirichlet boundary conditions
+    """
     def __init__(self, bcs, *, alpha=1.0):
         if isinstance(bcs, Sequence):
             bcs = tuple(bcs)
@@ -172,6 +190,9 @@ class DirichletBCNullspace(Nullspace):
 
 
 class FullNullspace(Nullspace):
+    """
+    Full nullspace
+    """
     def apply_nullspace_transformation_lhs_right(self, x):
         with x.dat.vec_wo as x_v:
             x_v.zeroEntries()
@@ -194,6 +215,61 @@ class MultiBlockSystem:
                  sub_n_blocks_00_0=None, sub_n_blocks_11_0=None,
                  nullspace_0=None, nullspace_1=None,
                  form_compiler_parameters=None, CN=False):
+        """
+        Class for the solution of generalized saddle-point system.
+
+        Input:
+            - space_0                     space to which the state solution
+                                          belongs to
+
+            - space_1                     space to which the adjoint solution
+                                          belongs to
+
+            - block_00                    dictionary representing the (1,1)-block
+                                          of the genralized saddle-point system
+
+            - block_01                    dictionary representing the (1,2)-block
+                                          of the genralized saddle-point system
+
+            - block_10                    dictionary representing the (2,1)-block
+                                          of the genralized saddle-point system
+
+            - block_11                    dictionary representing the (2,2)-block
+                                          of the genralized saddle-point system
+
+            - n_blocks_00                 number of sub-blocks composing the
+                                          (1,1)-block
+
+            - n_blocks_11                 number of sub-blocks composing the
+                                          (2,2)-block
+
+            - sub_n_blocks_00_0           for time dependent problems when
+                                          applying a trapezoidal rule in time,
+                                          defines the number of sub-blocks of
+                                          the (1,1)-block for applying the
+                                          linear transformation employed in
+                                          the derivation of the preconditioner
+
+            - sub_n_blocks_11_0           for time dependent problems when
+                                          applying a trapezoidal rule in time,
+                                          defines the number of sub-blocks of
+                                          the (2,2)-block for applying the
+                                          linear transformation employed in
+                                          the derivation of the preconditioner
+
+            - nullspace_0                 nullspace of the first component of
+                                          the solution
+
+            - nullspace_1                 nullspace of the second component of
+                                          the solution
+
+            - form_compiler_parameters    dictionary to be passed to the form
+                                          compiler
+
+            - CN                          for instationary problems, set True
+                                          if employing a trapezoidal
+                                          discretization in time
+        """
 
         if nullspace_0 is None:
             nullspace_0 = ()
@@ -311,6 +387,23 @@ class MultiBlockSystem:
     def solve(self, u_0, u_1, b_0, b_1, *,
               solver_parameters=None,
               pc_fn=None):
+        """"
+        Definition of the linear solver.
+
+        Input:
+            - u_0                    first component of the solution
+
+            - u_1                    second component of the solution
+
+            - b_0                    first component of the rhs
+
+            - b_1                    second component of the rhs
+
+            - solver_parameters      dictionary, contains the parameters
+                                     for the linear solver
+
+            - pc_fn                  function defining the preconditioner
+        """"
         if solver_parameters is None:
             solver_parameters = {}
         if pc_fn is None:
@@ -325,6 +418,79 @@ class MultiBlockSystem:
                          space_0, space_1, spaces,
                          matrices_00, matrices_01, matrices_10,
                          matrices_11, nullspaces, CN):
+                """
+                Definition of the generalized saddle-point system.
+
+                Input:
+                    - n_blocks_00            number of sub-blocks of the
+                                             (1,1)-block
+
+                    - n_blocks_11            number of sub-blocks of the
+                                             (2,2)-block
+
+                    - sub_n_blocks_00_0      for time dependent problems when
+                                             applying a trapezoidal rule in
+                                             time, defines the number of
+                                             sub-blocks of the (1,1)-block for
+                                             applying the linear transformation
+                                             employed in the derivation of
+                                             the preconditioner
+
+                    - sub_n_blocks_00_1      for time dependent problems when
+                                             applying a trapezoidal rule in
+                                             time, defines the number of
+                                             sub-blocks of the (1,1)-block for
+                                             applying the linear transformation
+                                             employed in the derivation of
+                                             the preconditioner
+
+                    - sub_n_blocks_11_0      for time dependent problems when
+                                             applying a trapezoidal rule in
+                                             time, defines the number of
+                                             sub-blocks of the (2,2)-block for
+                                             applying the linear transformation
+                                             employed in the derivation of
+                                             the preconditioner
+
+                    - sub_n_blocks_11_1      for time dependent problems when
+                                             applying a trapezoidal rule in
+                                             time, defines the number of
+                                             sub-blocks of the (2,2)-block for
+                                             applying the linear transformation
+                                             employed in the derivation of
+                                             the preconditioner
+
+                    - space_0                space to which the first component
+                                             of the solution belongs to
+
+                    - space_1                space to which the second component
+                                             of the solution belongs to
+
+                    - spaces                 space to which the full solution
+                                             belongs to
+
+                    - matrices_00            dictionary representing the
+                                             (1,1)-block of the genralized
+                                             saddle-point system
+
+                    - matrices_01            dictionary representing the
+                                             (1,2)-block of the genralized
+                                             saddle-point system
+
+                    - matrices_10            dictionary representing the
+                                             (2,1)-block of the genralized
+                                             saddle-point system
+
+                    - matrices_11            dictionary representing the
+                                             (2,2)-block of the genralized
+                                             saddle-point system
+
+                    - nullspaces             nullspace of the full solution
+
+                    - CN                     for instationary problems, set
+                                             True if employing a trapezoidal
+                                             discretization in time
+                """
                 self._space_0 = space_0
                 self._space_1 = space_1
                 self._spaces = spaces
@@ -347,6 +513,16 @@ class MultiBlockSystem:
                 self._y_fn = Function(spaces)
 
             def mult(self, A, x, y):
+                """
+                Definition of the mat-vec multiplication
+
+                Input:
+                    - A        matrix representing the system
+
+                    - x        vector of the solution
+
+                    - y        rhs
+                """
                 with self._x_fn.dat.vec_wo as x_v:
                     x.copy(result=x_v)
 
@@ -500,6 +676,29 @@ class MultiBlockSystem:
             def __init__(self, n_blocks_00, n_blocks_11,
                          space_0, space_1, spaces,
                          pc_fn, nullspaces):
+                """
+                Definition of the preconditioner.
+
+                Input:
+                    - n_blocks_00        number of sub-blocks of the
+                                         (1,1)-block
+
+                    - n_blocks_11        number of sub-blocks of the
+                                         (2,2)-block
+
+                    - space_0            space to which the first component
+                                         of the solution belongs to
+
+                    - space_1            space to which the second component
+                                         of the solution belongs to
+
+                    - spaces             space to which the full solution
+                                         belongs to
+
+                    - pc_fn              function defining the preconditioner
+
+                    - nullspaces         nullspace of the full solution
+                """
                 self._pc_fn = pc_fn
                 self._n_blocks_00 = n_blocks_00
                 self._n_blocks_11 = n_blocks_11
@@ -512,6 +711,16 @@ class MultiBlockSystem:
                 self._space_1 = space_1
 
             def apply(self, pc, x, y):
+                """
+                Definition of the application of the preconditioner.
+
+                Input:
+                    - pc        preconditioner
+
+                    - x         vector of the solution
+
+                    - y         rhs
+                """"
                 with self._x_fn.dat.vec_wo as x_v:
                     x.copy(result=x_v)
 
