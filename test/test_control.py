@@ -15,7 +15,6 @@ from control.preconditioner import ConstantNullspace
 
 from functools import partial
 
-import petsc4py.PETSc as PETSc
 import numpy as np
 import ufl
 import pytest
