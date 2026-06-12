@@ -15,7 +15,6 @@ from control.preconditioner import ConstantNullspace
 
 from functools import partial
 
-import petsc4py.PETSc as PETSc
 import numpy as np
 import ufl
 import pytest
@@ -125,9 +124,6 @@ def test_stationary_linear_control():
     v_0.assign(my_control_stationary._v)
     zeta_0.assign(my_control_stationary._zeta)
 
-    del my_control_stationary
-    PETSc.garbage_cleanup(space_0.mesh().comm)
-
     v_error_norm = np.sqrt(abs(assemble(inner(v_0 - v_ref,
                                               v_0 - v_ref) * dx)))
     assert v_error_norm < 1.0e-13
@@ -213,9 +209,6 @@ def test_MMS_stationary_linear_Poisson_control(degree):
 
         my_v.assign(my_control_stationary._v)
         my_zeta.assign(my_control_stationary._zeta)
-
-        del my_control_stationary
-        PETSc.garbage_cleanup(space_0.mesh().comm)
 
         v_ref = Function(FunctionSpace(mesh, "Lagrange", degree + 2),
                          name="v_ref")
@@ -372,9 +365,6 @@ def test_stationary_incompressible_linear_control():
     zeta_0.assign(my_control_stationary._zeta)
     p_0.assign(my_control_stationary._p)
     mu_0.assign(my_control_stationary._mu)
-
-    del my_control_stationary
-    PETSc.garbage_cleanup(space_0.mesh().comm)
 
     mean = assemble(mu_0 * dx)
     with mu_0.dat.vec as b_p:
@@ -561,9 +551,6 @@ def test_MMS_stationary_Stokes_control(degree):
         my_p.assign(my_control_stationary._p)
         my_mu.assign(my_control_stationary._mu)
 
-        del my_control_stationary
-        PETSc.garbage_cleanup(space_0.mesh().comm)
-
         v_ref = Function(
             VectorFunctionSpace(mesh, "Lagrange", degree + 2),
             name="v_ref")
@@ -713,9 +700,6 @@ def test_stationary_control_with_reference_sol(degree, nonlinear, Gauss_Newton):
     my_v.assign(my_control_stationary._v)
     my_zeta.assign(my_control_stationary._zeta)
     my_control.assign((1.0 / my_beta) * my_zeta)
-
-    del my_control_stationary
-    PETSc.garbage_cleanup(space_0.mesh().comm)
 
     beta = 1.0
 
@@ -886,9 +870,6 @@ def test_stationary_incompressible_non_linear_control():
     my_v.assign(my_control_stationary._v)
     my_zeta.assign(my_control_stationary._zeta)
 
-    del my_control_stationary
-    PETSc.garbage_cleanup(space_v.mesh().comm)
-
 
 @pytest.mark.parametrize("degree", tuple(range(2, 3)))
 def test_MMS_stationary_Navier_Stokes_control(degree):
@@ -1029,9 +1010,6 @@ def test_MMS_stationary_Navier_Stokes_control(degree):
 
         my_p.assign(my_control_stationary._p)
         my_mu.assign(my_control_stationary._mu)
-
-        del my_control_stationary
-        PETSc.garbage_cleanup(space_0.mesh().comm)
 
         v_ref = Function(VectorFunctionSpace(mesh, "Lagrange", degree + 2),
                          name="v_ref")
@@ -1271,9 +1249,6 @@ def test_instationary_linear_control_BE():
     v_0.assign(my_control_instationary._v)
     zeta_0.assign(my_control_instationary._zeta)
 
-    del my_control_instationary
-    PETSc.garbage_cleanup(space_0.mesh().comm)
-
     v_error_norm = np.sqrt(abs(assemble(inner(v_0 - v_ref,
                                               v_0 - v_ref) * dx)))
     assert v_error_norm < 1.0e-13
@@ -1495,9 +1470,6 @@ def test_instationary_linear_control_CN():
     v_0.assign(my_control_instationary._v)
     zeta_0.assign(my_control_instationary._zeta)
 
-    del my_control_instationary
-    PETSc.garbage_cleanup(space_0.mesh().comm)
-
     v_error_norm = np.sqrt(abs(assemble(inner(v_0 - v_ref,
                                               v_0 - v_ref) * dx)))
     assert v_error_norm < 1.0e-13
@@ -1646,9 +1618,6 @@ def test_MMS_instationary_heat_control_BE_convergence_FE(degree):
 
         my_v.assign(my_control_instationary._v)
         my_zeta.assign(my_control_instationary._zeta)
-
-        del my_control_instationary
-        PETSc.garbage_cleanup(space_0.mesh().comm)
 
         tau = t_f / (n_t - 1.0)
 
@@ -1807,9 +1776,6 @@ def test_MMS_instationary_heat_control_CN_convergence_FE(degree):
         my_v.assign(my_control_instationary._v)
         my_zeta.assign(my_control_instationary._zeta)
 
-        del my_control_instationary
-        PETSc.garbage_cleanup(space_0.mesh().comm)
-
         tau = t_f / (n_t - 1.0)
 
         for i in range(n_t):
@@ -1963,9 +1929,6 @@ def test_MMS_instationary_heat_control_convergence_time(degree, CN):
 
         my_v.assign(my_control_instationary._v)
         my_zeta.assign(my_control_instationary._zeta)
-
-        del my_control_instationary
-        PETSc.garbage_cleanup(space_0.mesh().comm)
 
         tau = t_f / (n_t - 1.0)
 
@@ -2170,9 +2133,6 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_FE(degree)
         my_v.assign(my_control_instationary._v)
         my_zeta.assign(my_control_instationary._zeta)
 
-        del my_control_instationary
-        PETSc.garbage_cleanup(space_0.mesh().comm)
-
         tau = t_f / (n_t - 1.0)
 
         for i in range(n_t):
@@ -2353,9 +2313,6 @@ def test_MMS_instationary_convection_diffusion_control_BE_convergence_time(degre
 
         my_v.assign(my_control_instationary._v)
         my_zeta.assign(my_control_instationary._zeta)
-
-        del my_control_instationary
-        PETSc.garbage_cleanup(space_0.mesh().comm)
 
         tau = t_f / (n_t - 1.0)
 
@@ -2542,9 +2499,6 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_FE(degree)
         my_v.assign(my_control_instationary._v)
         my_zeta.assign(my_control_instationary._zeta)
 
-        del my_control_instationary
-        PETSc.garbage_cleanup(space_0.mesh().comm)
-
         tau = t_f / (n_t - 1.0)
 
         for i in range(n_t):
@@ -2729,9 +2683,6 @@ def test_MMS_instationary_convection_diffusion_control_CN_convergence_time(degre
 
         my_v.assign(my_control_instationary._v)
         my_zeta.assign(my_control_instationary._zeta)
-
-        del my_control_instationary
-        PETSc.garbage_cleanup(space_0.mesh().comm)
 
         tau = t_f / (n_t - 1.0)
 
@@ -2919,9 +2870,6 @@ def test_instationary_Stokes_control_BE_with_exact_sol():
         ConstantNullspace(), space_p=space_p, auxiliary_sp=auxiliary_sp,
         print_error=False, outputs=False)
 
-    del my_control_instationary
-    PETSc.garbage_cleanup(space_v.mesh().comm)
-
 
 def test_instationary_Stokes_control_CN_with_exact_sol():
     mesh_size = 3
@@ -3077,9 +3025,6 @@ def test_instationary_Stokes_control_CN_with_exact_sol():
     my_control_instationary.incompressible_linear_solve(
         ConstantNullspace(), space_p=space_p, auxiliary_sp=auxiliary_sp,
         print_error=False, outputs=False)
-
-    del my_control_instationary
-    PETSc.garbage_cleanup(space_v.mesh().comm)
 
 
 @pytest.mark.parametrize("degree", tuple(range(2, 3)))
@@ -3307,9 +3252,6 @@ def test_MMS_instationary_Stokes_control_BE_convergence_FE(degree):
 
         my_v.assign(my_control_instationary._v)
         my_zeta.assign(my_control_instationary._zeta)
-
-        del my_control_instationary
-        PETSc.garbage_cleanup(space_v.mesh().comm)
 
         v_ref = Function(full_space_v_ref, name="v_ref")
         zeta_ref = Function(full_space_v_ref, name="zeta_ref")
@@ -3564,9 +3506,6 @@ def test_MMS_instationary_Stokes_control_BE_convergence_time(degree):
 
         zeta_ref.sub(n_t - 1).interpolate(zeta_sol(*X, Constant(t_f)))
 
-        del my_control_instationary
-        PETSc.garbage_cleanup(space_v.mesh().comm)
-
         v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
             inner(my_v - v_ref, my_v - v_ref) * dx)))
         print(f"{degree=} {p=} {n_t=} {v_error_norm=}")
@@ -3801,9 +3740,6 @@ def test_MMS_instationary_Stokes_control_CN_convergence_FE(degree):
         v_ref.sub(n_t - 1).interpolate(v_sol(*X, t_f))
 
         zeta_ref.sub(n_t - 1).interpolate(zeta_sol(*X, t_f))
-
-        del my_control_instationary
-        PETSc.garbage_cleanup(space_v.mesh().comm)
 
         v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
             inner(my_v - v_ref, my_v - v_ref) * dx)))
@@ -4040,9 +3976,6 @@ def test_MMS_instationary_Stokes_control_CN_convergence_time(degree):
 
         zeta_ref.sub(n_t - 1).interpolate(zeta_sol(*X, Constant(t_f)))
 
-        del my_control_instationary
-        PETSc.garbage_cleanup(space_v.mesh().comm)
-
         v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
             inner(my_v - v_ref, my_v - v_ref) * dx)))
         print(f"{degree=} {p=} {n_t=} {v_error_norm=}")
@@ -4195,9 +4128,6 @@ def test_instationary_Navier_Stokes_BE():
         auxiliary_sp=auxiliary_sp,
         nl_sp=nl_sp, outputs=False)
 
-    del my_control_instationary
-    PETSc.garbage_cleanup(space_v.mesh().comm)
-
 
 def test_instationary_Navier_Stokes_CN():
     # defining the mesh
@@ -4326,9 +4256,6 @@ def test_instationary_Navier_Stokes_CN():
         solver_parameters=solver_parameters,
         auxiliary_sp=auxiliary_sp,
         nl_sp=nl_sp, outputs=False)
-
-    del my_control_instationary
-    PETSc.garbage_cleanup(space_v.mesh().comm)
 
 
 @pytest.mark.parametrize("degree", tuple(range(2, 3)))
@@ -4524,9 +4451,6 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_FE(degree):
             v_ref.sub(i).interpolate(v)
 
             zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
-
-        del my_control_instationary
-        PETSc.garbage_cleanup(space_v.mesh().comm)
 
         v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
             inner(my_v - v_ref, my_v - v_ref) * dx)))
@@ -4744,9 +4668,6 @@ def test_MMS_instationary_Navier_Stokes_control_BE_convergence_time(degree):
 
             zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
 
-        del my_control_instationary
-        PETSc.garbage_cleanup(space_v.mesh().comm)
-
         v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
             inner(my_v - v_ref, my_v - v_ref) * dx)))
         print(f"{degree=} {p=} {n_t=} {v_error_norm=}")
@@ -4960,9 +4881,6 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_FE(degree):
             v_ref.sub(i).interpolate(v)
 
             zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
-
-        del my_control_instationary
-        PETSc.garbage_cleanup(space_v.mesh().comm)
 
         v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
             inner(my_v - v_ref, my_v - v_ref) * dx)))
@@ -5178,9 +5096,6 @@ def test_MMS_instationary_Navier_Stokes_control_CN_convergence_time(degree):
             v_ref.sub(i).interpolate(v)
 
             zeta_ref.sub(i).interpolate(ref_sol_zeta(*X, Constant(t)))
-
-        del my_control_instationary
-        PETSc.garbage_cleanup(space_v.mesh().comm)
 
         v_error_norm = np.sqrt(tau) * np.sqrt(abs(assemble(
             inner(my_v - v_ref, my_v - v_ref) * dx)))
