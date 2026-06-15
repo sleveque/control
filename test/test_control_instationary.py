@@ -1,14 +1,12 @@
 from firedrake import (
-    Cofunction, Constant, DirichletBC, Function, FunctionSpace, LinearSolver,
+    Cofunction, Constant, DirichletBC, Function, FunctionSpace,
     MixedFunctionSpace, RectangleMesh, SpatialCoordinate, TestFunction,
-    TrialFunction, UnitSquareMesh, VectorFunctionSpace, as_vector, assemble,
+    UnitSquareMesh, VectorFunctionSpace, as_vector, assemble,
     cos, div, dot, dx, exp, grad, inner, pi, sin, sqrt
 )
 
 from control.control import Instationary
 from control.preconditioner import ConstantNullspace
-
-from functools import partial
 
 import numpy as np
 import ufl
