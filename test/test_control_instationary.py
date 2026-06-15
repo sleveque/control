@@ -15,12 +15,6 @@ import ufl
 import pytest
 
 
-@pytest.fixture(autouse=True, scope="module")
-def cleanup():
-    with set_working_tape():
-        yield
-
-
 def test_instationary_linear_control_BE():
     mesh_size = 3
     mesh = UnitSquareMesh(2 ** mesh_size, 2 ** mesh_size, quadrilateral=True)
