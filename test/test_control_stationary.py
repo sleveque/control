@@ -1042,4 +1042,3 @@ def test_MMS_stationary_Navier_Stokes_control(degree):
     print(f"{degree=} {zeta_orders=}")
     min_z_ord = min(zeta_orders)
     assert min_z_ord > 1.5
-
