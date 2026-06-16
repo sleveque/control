@@ -3,8 +3,10 @@ from control.control import Stationary
 
 from time import perf_counter
 
+
 def forw_diff_operator(trial, test, v):
     return inner(grad(trial), grad(test)) * dx
+
 
 def desired_state(test):
     space = test.function_space()
@@ -17,6 +19,7 @@ def desired_state(test):
     v_d.interpolate(cos(0.5 * pi * x) * cos(0.5 * pi * y) + 1.0)
 
     return inner(v_d, test) * dx, v_d
+
 
 for beta_exp in range(0, 7):
     for mesh_size in range(4, 10):

@@ -5,8 +5,10 @@ import time
 beta_range = [1.0, 1.0e-3, 1.0e-6, 1.0e-9, 1.0e-12]
 l_range = [1, 2, 3, 4, 5, 6]
 
+
 def forw_diff_operator(trial, test, v):
     return inner(grad(trial), grad(test)) * dx
+
 
 def desired_state(test):
     space = test.function_space()
@@ -21,6 +23,7 @@ def desired_state(test):
         cos(0.5 * pi * x) * cos(0.5 * pi * y) * cos(0.5 * pi * z) + 1.0)
 
     return inner(v_d, test) * dx, v_d
+
 
 for beta_i in beta_range:
     print(f"{beta_i=}")

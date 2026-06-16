@@ -4,6 +4,7 @@ from control.preconditioner import ConstantNullspace
 import ufl
 from time import perf_counter
 
+
 def my_DirichletBC_t_v(space_v, t):
     if float(t) < 1.0:
         my_bcs = [DirichletBC(space_v, Constant((t, 0.0)), (4,)),
@@ -13,9 +14,11 @@ def my_DirichletBC_t_v(space_v, t):
                   DirichletBC(space_v, 0.0, (1, 2, 3))]
     return my_bcs
 
+
 def forw_diff_operator_v(trial, test, u, t):
     return (nu * inner(grad(trial), grad(test)) * dx
         + inner(dot(u, grad(trial)), test) * dx)
+
 
 def desired_state_v(test, t):
     space_v = test.function_space()
