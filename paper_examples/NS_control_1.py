@@ -34,10 +34,12 @@ def desired_state_v(test, t):
     c_2 = 1.0 - sqrt(a * ((x + 0.5) ** 2) + b * (y ** 2))
     v_d = Function(space_v, name="v_d")
     v_d.interpolate(
-        ufl.conditional(c_1 >= 0.0,
+        ufl.conditional(
+            c_1 >= 0.0,
             c_1 * cos(pi * t / 2.0) * as_vector((b * y,
                                                  -a * (x - 0.5))),
-            ufl.conditional(c_2 >= 0.0,
+            ufl.conditional(
+                c_2 >= 0.0,
                 c_2 * cos(pi * t / 2.0) * as_vector((-b * y,
                                                      a * (x + 0.5))),
                 as_vector((0.0, 0.0)))),
@@ -75,7 +77,7 @@ auxiliary_sp = {
     "sp_11block": sp_11block,
     "sp_M_p": sp_M_p}
 
-nu_range = [1./100.]
+nu_range = [1. / 100.]
 beta_range = [1.0e-3, 1.0e-4, 1.0e-5]
 
 for nu in nu_range:
