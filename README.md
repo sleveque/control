@@ -24,8 +24,6 @@ forward differential operator accepts as inputs the trial function, the test fun
 of the state $v$. For instationary problems one has to include also the time $t$. Finally the problem is defined by
 instantiating an Instationary object. For the example considered, the code looks as follows:
 
-.. code-block:: python
-
 	from firedrake import *
 	from control.control import *
 
@@ -81,13 +79,13 @@ in our software.
 Installation
 ------------
 
-After installing Firedrake, the library can be used by adding the repository root directory to Python search path.
+After installing Firedrake, the library can be used by adding the control root directory to Python search path.
 
 Alternatively the library can be installed via pip
 
-.. code-block:: sh
+	python3 -m pip install .
 
-    python3 -m pip install .
+run in the control root directory.
 
 Reference
 ---------
