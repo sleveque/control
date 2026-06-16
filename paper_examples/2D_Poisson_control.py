@@ -21,7 +21,7 @@ def desired_state(test):
     return inner(v_d, test) * dx, v_d
 
 
-for beta_exp in range(0, 7):
+for beta_exp in range(7):
     for mesh_size in range(4, 10):
         mesh = RectangleMesh(2**mesh_size, 2**mesh_size, 2.0, 2.0)
         space_0 = FunctionSpace(mesh, "Lagrange", 1)
