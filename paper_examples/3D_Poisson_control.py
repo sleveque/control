@@ -27,9 +27,9 @@ def desired_state(test):
 
 for beta_i in beta_range:
     print(f"{beta_i=}")
-    for l in l_range:
-        print(f"{l=}")
-        mesh = BoxMesh(2**l, 2**l, 2**l, 2.0, 2.0, 2.0)
+    for l_exp in l_range:
+        print(f"{l_exp=}")
+        mesh = BoxMesh(2**l_exp, 2**l_exp, 2**l_exp, 2.0, 2.0, 2.0)
         space_0 = FunctionSpace(mesh, "Lagrange", 1)
 
         bc = DirichletBC(space_0, 1.0, "on_boundary")

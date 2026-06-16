@@ -17,7 +17,7 @@ def my_DirichletBC_t_v(space_v, t):
 
 def forw_diff_operator_v(trial, test, u, t):
     return (nu * inner(grad(trial), grad(test)) * dx
-        + inner(dot(u, grad(trial)), test) * dx)
+            + inner(dot(u, grad(trial)), test) * dx)
 
 
 def desired_state_v(test, t):
@@ -43,6 +43,7 @@ def desired_state_v(test, t):
                 as_vector((0.0, 0.0)))),
     )
     return inner(v_d, test) * dx, v_d
+
 
 e_min_v = 0.3924
 e_max_v = 2.0598
