@@ -82,4 +82,6 @@ while the tests in Section 4.1 and Section 4.2 can be obtained by running
 
   - `paper_examples/2D_Poisson_control.py`        (Figure 2)
   - `paper_examples/3D_Poisson_control.py`
-  - `paper_examples/NS_control.py`
+  - `paper_examples/NS_control_1.py`
+  - `paper_examples/NS_control_2.py`
+  - `paper_examples/NS_control_3.py`
