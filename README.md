@@ -2,6 +2,9 @@ The software control is a library for solving certain PDE-constrained optimizati
 system to derive the finite element discretization of the problems considered, using the Python interface to PETSc
 for the derivation of the KKT conditions and the definition of the linear solvers.
 
+Getting started
+---------------
+
 For simplicity, we consider the following heat control problem:
 
 $\min_{v, u} \frac{1}{2} \int_0^{t_f} \| v - v_d \|^2_{L^2(\Omega)} \mathrm{d} t + \frac{\beta}{2} \int_0^{t_f} \| u \|^2_{L^2(\Omega)} \mathrm{d} t$
@@ -72,6 +75,20 @@ the solver parameters through the extra argument solver_parameters. The non-line
 Picard iteration, but it can be set to a Gauss-Newton method by passing the argument Gauss_Newton = True
 to the definition of the object. In the following section, we give details of the in-built preconditioners employed
 in our software.
+
+Installation
+------------
+
+After installing Firedrake, the library can be used by adding the control root directory to Python search path.
+
+Alternatively the library can be installed via pip
+
+	python3 -m pip install .
+
+run in the control root directory.
+
+Reference
+---------
 
 The code is based on the work "Automatic Differentiation for All-at-once Systems Arising in Certain PDE-Constrained
 Optimization Problems" by Santolo Leveque, James R. Maddison, and John W. Pearson. The code in Figure 1 can be found in
