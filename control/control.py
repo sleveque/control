@@ -26,6 +26,7 @@ import ufl
 
 from collections.abc import Sequence
 from functools import cached_property, wraps
+import warnings
 
 
 __all__ = \
@@ -33,6 +34,9 @@ __all__ = \
         "Stationary",
         "Instationary"
     ]
+
+
+_deprecated_arg = object()
 
 
 # Used to avoid convergence errors when max_it is reached
@@ -3793,7 +3797,9 @@ class Instationary:
                                         nl_sp=None,
                                         print_error=True,
                                         outputs=True,
-                                        plots=False):
+                                        plots=False,
+                                        print_error_non_linear=_deprecated_arg,
+                                        create_output=_deprecated_arg):
         """Module for the solution of non-linear incompressible control problems.
 
         Input:
@@ -3825,6 +3831,17 @@ class Instationary:
             - plots                      if True, plots of the solutions
                                          are generated
         """
+
+        if nl_sp is None:
+            nl_sp = {}
+        if print_error_non_linear is not _deprecated_arg:
+            warnings.warn("print_error_non_linear argument is deprecated -- use print_error instead",
+                          FutureWarning, stacklevel=3)
+            print_error = print_error_non_linear
+        if create_output is not _deprecated_arg:
+            warnings.warn("create_output argument is deprecated -- use outputs instead",
+                          FutureWarning, stacklevel=3)
+            outputs = create_output
 
         v_test, v_trial = self._v_test, self._v_trial
         if space_p is None:
