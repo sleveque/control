@@ -220,22 +220,22 @@ class MultiBlockSystem:
 
         Input:
             - space_0                     space to which the state solution
-                                          belongs to
+                                          belongs
 
             - space_1                     space to which the adjoint solution
-                                          belongs to
+                                          belongs
 
             - block_00                    dictionary representing the (1,1)-block
-                                          of the genralized saddle-point system
+                                          of the generalized saddle-point system
 
             - block_01                    dictionary representing the (1,2)-block
-                                          of the genralized saddle-point system
+                                          of the generalized saddle-point system
 
             - block_10                    dictionary representing the (2,1)-block
-                                          of the genralized saddle-point system
+                                          of the generalized saddle-point system
 
             - block_11                    dictionary representing the (2,2)-block
-                                          of the genralized saddle-point system
+                                          of the generalized saddle-point system
 
             - n_blocks_00                 number of sub-blocks composing the
                                           (1,1)-block
@@ -243,14 +243,14 @@ class MultiBlockSystem:
             - n_blocks_11                 number of sub-blocks composing the
                                           (2,2)-block
 
-            - sub_n_blocks_00_0           for time dependent problems when
+            - sub_n_blocks_00_0           for time-dependent problems when
                                           applying a trapezoidal rule in time,
                                           defines the number of sub-blocks of
                                           the (1,1)-block for applying the
                                           linear transformation employed in
                                           the derivation of the preconditioner
 
-            - sub_n_blocks_11_0           for time dependent problems when
+            - sub_n_blocks_11_0           for time-dependent problems when
                                           applying a trapezoidal rule in time,
                                           defines the number of sub-blocks of
                                           the (2,2)-block for applying the
@@ -395,9 +395,9 @@ class MultiBlockSystem:
 
             - u_1                    second component of the solution
 
-            - b_0                    first component of the rhs
+            - b_0                    first component of the right-hand side
 
-            - b_1                    second component of the rhs
+            - b_1                    second component of the right-hand side
 
             - solver_parameters      dictionary, contains the parameters
                                      for the linear solver
@@ -428,61 +428,61 @@ class MultiBlockSystem:
                     - n_blocks_11            number of sub-blocks of the
                                              (2,2)-block
 
-                    - sub_n_blocks_00_0      for time dependent problems when
+                    - sub_n_blocks_00_0      for time-dependent problems when
                                              applying a trapezoidal rule in
                                              time, defines the number of
                                              sub-blocks of the (1,1)-block for
-                                             applying the linear transformation
-                                             employed in the derivation of
-                                             the preconditioner
+                                             applying the first linear
+                                             transformation employed in the
+                                             derivation of the preconditioner
 
-                    - sub_n_blocks_00_1      for time dependent problems when
+                    - sub_n_blocks_00_1      for time-dependent problems when
                                              applying a trapezoidal rule in
                                              time, defines the number of
                                              sub-blocks of the (1,1)-block for
-                                             applying the linear transformation
-                                             employed in the derivation of
-                                             the preconditioner
+                                             applying the second linear
+                                             transformation employed in the
+                                             derivation of the preconditioner
 
                     - sub_n_blocks_11_0      for time dependent problems when
                                              applying a trapezoidal rule in
                                              time, defines the number of
                                              sub-blocks of the (2,2)-block for
-                                             applying the linear transformation
-                                             employed in the derivation of
-                                             the preconditioner
+                                             applying the first linear
+                                             transformation employed in the
+                                             derivation of the preconditioner
 
                     - sub_n_blocks_11_1      for time dependent problems when
                                              applying a trapezoidal rule in
                                              time, defines the number of
                                              sub-blocks of the (2,2)-block for
-                                             applying the linear transformation
-                                             employed in the derivation of
-                                             the preconditioner
+                                             applying the second linear
+                                             transformation employed in the
+                                             derivation of the preconditioner
 
                     - space_0                space to which the first component
-                                             of the solution belongs to
+                                             of the solution belongs
 
                     - space_1                space to which the second component
-                                             of the solution belongs to
+                                             of the solution belongs
 
                     - spaces                 space to which the full solution
-                                             belongs to
+                                             belongs
 
                     - matrices_00            dictionary representing the
-                                             (1,1)-block of the genralized
+                                             (1,1)-block of the generalized
                                              saddle-point system
 
                     - matrices_01            dictionary representing the
-                                             (1,2)-block of the genralized
+                                             (1,2)-block of the generalized
                                              saddle-point system
 
                     - matrices_10            dictionary representing the
-                                             (2,1)-block of the genralized
+                                             (2,1)-block of the generalized
                                              saddle-point system
 
                     - matrices_11            dictionary representing the
-                                             (2,2)-block of the genralized
+                                             (2,2)-block of the generalized
                                              saddle-point system
 
                     - nullspaces             nullspace of the full solution
@@ -514,14 +514,14 @@ class MultiBlockSystem:
 
             def mult(self, A, x, y):
                 """
-                Definition of the mat-vec multiplication
+                Definition of the matrix-vector multiplication
 
                 Input:
                     - A        matrix representing the system
 
                     - x        vector of the solution
 
-                    - y        rhs
+                    - y        right-hand side
                 """
                 with self._x_fn.dat.vec_wo as x_v:
                     x.copy(result=x_v)
@@ -687,13 +687,13 @@ class MultiBlockSystem:
                                          (2,2)-block
 
                     - space_0            space to which the first component
-                                         of the solution belongs to
+                                         of the solution belongs
 
                     - space_1            space to which the second component
-                                         of the solution belongs to
+                                         of the solution belongs
 
                     - spaces             space to which the full solution
-                                         belongs to
+                                         belongs
 
                     - pc_fn              function defining the preconditioner
 
@@ -719,7 +719,7 @@ class MultiBlockSystem:
 
                     - x         vector of the solution
 
-                    - y         rhs
+                    - y         right-hand side
                 """
                 with self._x_fn.dat.vec_wo as x_v:
                     x.copy(result=x_v)

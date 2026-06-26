@@ -216,7 +216,7 @@ class Stationary:
     def set_p(self, p_new):
         """
         Input:
-            - p_new        new approximation of the pressure state solution
+            - p_new        new approximation of the (state) pressure solution
         """
 
         self._p.assign(p_new)
@@ -224,7 +224,7 @@ class Stationary:
     def set_mu(self, mu_new):
         """
         Input:
-            - mu_new        new approximation of the pressure adjoint
+            - mu_new        new approximation of the adjoint pressure
                             solution
         """
 
@@ -452,7 +452,7 @@ class Stationary:
                                        the Krylov method (if None, default
                                        option is employed)
 
-            - solver_parameters        parameter to pass at the Krylov
+            - solver_parameters        parameter to pass to the Krylov
                                        solver
 
             - auxiliary_sp             auxiliary parameters for setting
@@ -556,7 +556,7 @@ class Stationary:
                                           the Krylov method (if None,
                                           default option is employed)
 
-            - solver_parameters           parameter to pass at the Krylov
+            - solver_parameters           parameter to pass to the Krylov
                                           solver
 
             - auxiliary_sp                auxiliary parameters for setting
@@ -720,7 +720,7 @@ class Stationary:
                                        the Krylov method (if None, default
                                        option is employed)
 
-            - solver_parameters        parameter to pass at the Krylov
+            - solver_parameters        parameter to pass to the Krylov
                                        solver
 
             - auxiliary_sp             auxiliary parameters for setting
@@ -737,12 +737,12 @@ class Stationary:
             - div_v                    when solving non-linear problems,
                                        div_v is the non-linear residual
                                        (incompressibility constraint on
-                                       state variable)
+                                       the state variable)
 
             - div_zeta                 when solving non-linear problems,
                                        div_zeta is the non-linear residual
                                        (incompressibility constraint on
-                                       adjoint variable)
+                                       the adjoint variable)
 
             - print_error              if True, the L^2 discrepancy between
                                        the desired state and the numerical
@@ -1076,7 +1076,7 @@ class Stationary:
                                          the Krylov method (if None,
                                          default option is employed)
 
-            - solver_parameters          parameter to pass at the Krylov
+            - solver_parameters          parameter to pass to the Krylov
                                          solver
 
             - auxiliary_sp               auxiliary parameters for setting
@@ -1426,7 +1426,7 @@ class Instationary:
     def set_p(self, p_new):
         """
         Input:
-            - p_new        new approximation of the pressure state solution
+            - p_new        new approximation of the (state) pressure solution
         """
 
         self._p.assign(p_new)
@@ -1434,7 +1434,7 @@ class Instationary:
     def set_mu(self, mu_new):
         """
         Input:
-            - mu_new        new approximation of the pressure adjoint
+            - mu_new        new approximation of the adjoint pressure
                             solution
         """
 
@@ -1460,7 +1460,8 @@ class Instationary:
             - v_n_help              approximation of the state solution at
                                     time t
 
-            - t                     time point in which evaluating the form
+            - t                     time point at which we are evaluating
+                                    the form
 
             - non_linear_res        if True, the form is employed in the
                                     evaluation of the non-linear residual
@@ -1531,8 +1532,8 @@ class Instationary:
                                   containing discretized state forms
 
             - epsilon             parameters employed for the construction
-                                  of the preconditioner for the BE
-                                  discretization
+                                  of the preconditioner for the backward
+                                  Euler discretization
 
         Output:
             - pc_linear           preconditioner to employ within Krylov
@@ -1884,7 +1885,7 @@ class Instationary:
 
             - zeta_old          approximation of adjoint variable
 
-            - v_0               initial condition on state variable
+            - v_0               initial condition on the state variable
 
             - v_d               desired state
 
@@ -2092,7 +2093,7 @@ class Instationary:
                                        the Krylov method (if None, default
                                        option is employed)
 
-            - solver_parameters        parameter to pass at the Krylov
+            - solver_parameters        parameter to pass to the Krylov
                                        solver
 
             - auxiliary_sp             auxiliary parameters for setting
@@ -2569,7 +2570,7 @@ class Instationary:
                                           the Krylov method (if None,
                                           default option is employed)
 
-            - solver_parameters           parameter to pass at the Krylov
+            - solver_parameters           parameter to pass to the Krylov
                                           solver
 
             - auxiliary_sp                auxiliary parameters for setting
@@ -2772,7 +2773,7 @@ class Instationary:
                                        the Krylov method (if None, default
                                        option is employed)
 
-            - solver_parameters        parameter to pass at the Krylov
+            - solver_parameters        parameter to pass to the Krylov
                                        solver
 
             - auxiliary_sp             auxiliary parameters for setting
@@ -2789,12 +2790,12 @@ class Instationary:
             - div_v                    when solving non-linear problems,
                                        div_v is the non-linear residual
                                        (incompressibility constraint on
-                                       state variable)
+                                       the state variable)
 
             - div_zeta                 when solving non-linear problems,
                                        div_zeta is the non-linear residual
                                        (incompressibility constraint on
-                                       adjoint variable)
+                                       the adjoint variable)
 
             - print_error              if True, the L^2 discrepancy between
                                        the desired state and the numerical
@@ -3814,7 +3815,7 @@ class Instationary:
                                          the Krylov method (if None,
                                          default option is employed)
 
-            - solver_parameters          parameter to pass at the Krylov
+            - solver_parameters          parameter to pass to the Krylov
                                          solver
 
             - auxiliary_sp               auxiliary parameters for setting
