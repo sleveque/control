@@ -3,8 +3,6 @@ import os
 import pathlib
 import runpy
 
-import pytest
-
 
 def run_example_notebook(filename, tmp_path):
     tmp_filename = tmp_path / "tmp.py"
