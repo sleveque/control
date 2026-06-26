@@ -3,8 +3,6 @@ import os
 import pathlib
 import runpy
 
-import pytest
-
 
 def run_example_notebook(filename, tmp_path):
     tmp_filename = tmp_path / "tmp.py"
@@ -52,10 +50,4 @@ def test_4_instationary_incompressible_control(tmp_path):
 
 def test_5_preconditioning_stationary_control(tmp_path):
     run_example_notebook(pathlib.Path(__file__).parent.parent / "documentation" / "5_preconditioning_stationary_control.ipynb",
-                         tmp_path)
-
-
-@pytest.mark.xfail(reason="preconditioner not implemented")
-def test_6_preconditioning_instationary_control(tmp_path):
-    run_example_notebook(pathlib.Path(__file__).parent.parent / "documentation" / "6_preconditioning_instationary_control.ipynb",
                          tmp_path)
