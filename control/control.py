@@ -338,8 +338,8 @@ class Stationary:
             - D_zeta              discretized adjoint form
 
         Output:
-            - pc_linear           preconditioner to employ within Krylov
-                                  method
+            - pc_linear           preconditioner to employ within the
+                                  Krylov method
         """
 
         if "sp_11block" in auxiliary_sp:
@@ -408,9 +408,9 @@ class Stationary:
 
             - f            force function
 
-            - v_old        approximation of state variable
+            - v_old        approximation of the state variable
 
-            - zeta_old     approximation of adjoint variable
+            - zeta_old     approximation of the adjoint variable
 
             - D_v          discretized forward form
 
@@ -452,7 +452,7 @@ class Stationary:
                                        the Krylov method (if None, default
                                        option is employed)
 
-            - solver_parameters        parameter to pass to the Krylov
+            - solver_parameters        parameters to pass to the Krylov
                                        solver
 
             - auxiliary_sp             auxiliary parameters for setting
@@ -556,7 +556,7 @@ class Stationary:
                                           the Krylov method (if None,
                                           default option is employed)
 
-            - solver_parameters           parameter to pass to the Krylov
+            - solver_parameters           parameters to pass to the Krylov
                                           solver
 
             - auxiliary_sp                auxiliary parameters for setting
@@ -720,7 +720,7 @@ class Stationary:
                                        the Krylov method (if None, default
                                        option is employed)
 
-            - solver_parameters        parameter to pass to the Krylov
+            - solver_parameters        parameters to pass to the Krylov
                                        solver
 
             - auxiliary_sp             auxiliary parameters for setting
@@ -1076,7 +1076,7 @@ class Stationary:
                                          the Krylov method (if None,
                                          default option is employed)
 
-            - solver_parameters          parameter to pass to the Krylov
+            - solver_parameters          parameters to pass to the Krylov
                                          solver
 
             - auxiliary_sp               auxiliary parameters for setting
@@ -1302,7 +1302,7 @@ class Instationary:
 
             - initial_condition   initial condition
 
-            - time_interval       interval of time itegration
+            - time_interval       interval of time integration
 
             - bcs_v               boundary conditions on the state
         """
@@ -1536,8 +1536,8 @@ class Instationary:
                                   Euler discretization
 
         Output:
-            - pc_linear           preconditioner to employ within Krylov
-                                  method
+            - pc_linear           preconditioner to employ within the
+                                  Krylov method
         """
 
         n_t = self._n_t
@@ -1881,9 +1881,9 @@ class Instationary:
         Input:
             - full_space_v      full space for time integration
 
-            - v_old             approximation of state variable
+            - v_old             approximation of the state variable
 
-            - zeta_old          approximation of adjoint variable
+            - zeta_old          approximation of the adjoint variable
 
             - v_0               initial condition on the state variable
 
@@ -2093,7 +2093,7 @@ class Instationary:
                                        the Krylov method (if None, default
                                        option is employed)
 
-            - solver_parameters        parameter to pass to the Krylov
+            - solver_parameters        parameters to pass to the Krylov
                                        solver
 
             - auxiliary_sp             auxiliary parameters for setting
@@ -2570,7 +2570,7 @@ class Instationary:
                                           the Krylov method (if None,
                                           default option is employed)
 
-            - solver_parameters           parameter to pass to the Krylov
+            - solver_parameters           parameters to pass to the Krylov
                                           solver
 
             - auxiliary_sp                auxiliary parameters for setting
@@ -2773,7 +2773,7 @@ class Instationary:
                                        the Krylov method (if None, default
                                        option is employed)
 
-            - solver_parameters        parameter to pass to the Krylov
+            - solver_parameters        parameters to pass to the Krylov
                                        solver
 
             - auxiliary_sp             auxiliary parameters for setting
@@ -3815,7 +3815,7 @@ class Instationary:
                                          the Krylov method (if None,
                                          default option is employed)
 
-            - solver_parameters          parameter to pass to the Krylov
+            - solver_parameters          parameters to pass to the Krylov
                                          solver
 
             - auxiliary_sp               auxiliary parameters for setting
