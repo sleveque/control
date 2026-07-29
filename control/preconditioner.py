@@ -216,7 +216,7 @@ class MultiBlockSystem:
                  nullspace_0=None, nullspace_1=None,
                  form_compiler_parameters=None, CN=False):
         """
-        Class for the solution of generalized saddle-point system.
+        Class for the solution of a generalized saddle-point system.
 
         Input:
             - space_0                     space to which the state solution
@@ -267,7 +267,7 @@ class MultiBlockSystem:
                                           compiler
 
             - CN                          for instationary problems, set True
-                                          if employing a trapezoidal
+                                          if employing a trapezoidal rule
                                           discretization in time
         """
 
@@ -489,7 +489,7 @@ class MultiBlockSystem:
 
                     - CN                     for instationary problems, set
                                              True if employing a trapezoidal
-                                             discretization in time
+                                             rule discretization in time
                 """
                 self._space_0 = space_0
                 self._space_1 = space_1
