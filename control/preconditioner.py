@@ -541,7 +541,6 @@ class MultiBlockSystem:
                                 self._y_fn.sub(i).dat.vec as y_0_v:
                             block_ij.petscmat.multAdd(x_0_v, y_0_v, y_0_v)
 
-
                 # applying the (1,2)-block to the first component of the vector
                 # x and adding to the second component of y
                 for (i, j), block_ij in self._matrices_10.items():
