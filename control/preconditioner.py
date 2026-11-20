@@ -1,7 +1,7 @@
-"""A library for the construction of generalized saddle-point systems
-arising from the finite element discretization of the KKT conditions of
-a PDE constrained optimization problem. Uses the Python interface to PETSc
-for the construction of the linear solver.
+"""A library for the construction and the solution of generalized saddle-point
+systems arising from the finite element discretization of the KKT conditions
+of certain PDE constrained optimization problems. Uses the Python interface
+to PETSc for the construction of the linear solver.
 """
 from firedrake import (
     Cofunction, DirichletBC, Function, MixedFunctionSpace, assemble)
@@ -31,6 +31,9 @@ __all__ = \
 
 
 def l2_riesz(u):
+    """
+    Evaluates the Riesz map of u
+    """
     if isinstance(u, Function):
         cls = Cofunction
     elif isinstance(u, Cofunction):
@@ -41,6 +44,9 @@ def l2_riesz(u):
 
 
 def apply_bcs(bcs, u):
+    """
+    Applies boundary conditions bcs to u
+    """
     if not isinstance(bcs, Sequence):
         bcs = (bcs,)
     for bc in bcs:
@@ -209,68 +215,53 @@ class FullNullspace(Nullspace):
 
 
 class MultiBlockSystem:
+    """
+    Class for the solution of a generalized saddle-point system, arising
+    from the discretization of the KKT system of certain PDE-constrained
+    optimization problems.
+    The class sets up the method `solve` for the definition and the
+    solution of the saddle-point system.
+
+    :arg space_0: a :class: `FunctionSpace` to which the state solution
+        belongs
+    :arg space_1: a :class: `FunctionSpace` to which the adjoint solution
+        belongs
+    :arg block_00: dictionary representing the (1,1)-block of the
+        generalized saddle-point system
+    :arg block_01: dictionary representing the (1,2)-block of the
+        generalized saddle-point system
+    :arg block_10: dictionary representing the (2,1)-block of the
+        generalized saddle-point system
+    :arg block_11: dictionary representing the (2,2)-block of the
+        generalized saddle-point system
+    :arg n_blocks_00: number of sub-blocks composing the (1,1)-block
+    :arg n_blocks_11: number of sub-blocks composing the (2,2)-block
+    :arg sub_n_blocks_00_0: for time-dependent problems when applying
+        a trapezoidal rule in time, defines the number of sub-blocks of
+        the (1,1)-block for applying the linear transformation employed in
+        the derivation of the preconditioner
+    :arg sub_n_blocks_11_0: for time-dependent problems when applying
+        a trapezoidal rule in time, defines the number of sub-blocks of
+        the (2,2)-block for applying the linear transformation employed in
+        the derivation of the preconditioner
+    :arg nullspace_0: a tuple of :class: `Nullspace` representing the
+        nullspace of the first component of the solution
+    :arg nullspace_1: a tuple of :class: `Nullspace` representing the
+        nullspace of the second component of the solution
+    :arg form_compiler_parameters: dictionary to be passed to the form
+        compiler
+    :arg CN: Boolean, for instationary problems, set True if employing
+        a trapezoidal rule discretization in time
+    """
     def __init__(self, space_0, space_1,
                  block_00, block_01, block_10, block_11, *,
                  n_blocks_00=1, n_blocks_11=1,
                  sub_n_blocks_00_0=None, sub_n_blocks_11_0=None,
                  nullspace_0=None, nullspace_1=None,
                  form_compiler_parameters=None, CN=False):
-        """
-        Class for the solution of a generalized saddle-point system.
 
-        Input:
-            - space_0                     space to which the state solution
-                                          belongs
-
-            - space_1                     space to which the adjoint solution
-                                          belongs
-
-            - block_00                    dictionary representing the (1,1)-block
-                                          of the generalized saddle-point system
-
-            - block_01                    dictionary representing the (1,2)-block
-                                          of the generalized saddle-point system
-
-            - block_10                    dictionary representing the (2,1)-block
-                                          of the generalized saddle-point system
-
-            - block_11                    dictionary representing the (2,2)-block
-                                          of the generalized saddle-point system
-
-            - n_blocks_00                 number of sub-blocks composing the
-                                          (1,1)-block
-
-            - n_blocks_11                 number of sub-blocks composing the
-                                          (2,2)-block
-
-            - sub_n_blocks_00_0           for time-dependent problems when
-                                          applying a trapezoidal rule in time,
-                                          defines the number of sub-blocks of
-                                          the (1,1)-block for applying the
-                                          linear transformation employed in
-                                          the derivation of the preconditioner
-
-            - sub_n_blocks_11_0           for time-dependent problems when
-                                          applying a trapezoidal rule in time,
-                                          defines the number of sub-blocks of
-                                          the (2,2)-block for applying the
-                                          linear transformation employed in
-                                          the derivation of the preconditioner
-
-            - nullspace_0                 nullspace of the first component of
-                                          the solution
-
-            - nullspace_1                 nullspace of the second component of
-                                          the solution
-
-            - form_compiler_parameters    dictionary to be passed to the form
-                                          compiler
-
-            - CN                          for instationary problems, set True
-                                          if employing a trapezoidal rule
-                                          discretization in time
-        """
-
+        # if the operator has no nullspace, construct a tuple
+        # of :class: `NoneNullspace`
         if nullspace_0 is None:
             nullspace_0 = ()
             for i in range(n_blocks_00):
@@ -280,20 +271,30 @@ class MultiBlockSystem:
             for i in range(n_blocks_11):
                 nullspace_1 = nullspace_1 + (NoneNullspace(), )
 
+        # defining compiler parameters
         if form_compiler_parameters is None:
             form_compiler_parameters = {}
 
+        # checking that the two `FunctionSpace` space_0 and
+        # space_1 are built on the same mesh
         if space_0.mesh() != space_1.mesh():
             raise ValueError("Unexpected mesh")
+        # checking that the two `FunctionSpace` space_0 and
+        # space_1 are primal spaces
         if not isinstance(space_0, FunctionSpaceBase):
             raise TypeError("Space must be a primal space")
         if not isinstance(space_1, FunctionSpaceBase):
             raise TypeError("Space must be a primal space")
 
+        # function used for checking the number of sub-blocks
+        # in each block of the saddle-point system
         def check_blocks(block, n_row_blocks, n_col_blocks):
             if len(block) != n_row_blocks * n_col_blocks:
                 raise ValueError("Unexpected dimension of blocks")
 
+        # function used for checking that each sub-block of
+        # the saddle-point system is built over the correct
+        # test and trial space
         def check_spaces(block, test_space, trial_space):
             test, trial = block.arguments()
             assert (test.number(), trial.number()) == (0, 1)
@@ -302,11 +303,13 @@ class MultiBlockSystem:
             if trial.function_space() != trial_space:
                 raise ValueError("Unexpected trial space")
 
+        # checking the size of each block
         check_blocks(block_00, n_blocks_00, n_blocks_00)
         check_blocks(block_01, n_blocks_00, n_blocks_11)
         check_blocks(block_10, n_blocks_11, n_blocks_00)
         check_blocks(block_11, n_blocks_11, n_blocks_11)
 
+        # checking the spaces of each sub-block
         for (i, j), block_00_ij in block_00.items():
             if block_00_ij is not None:
                 check_spaces(block_00_ij, space_0, space_0)
@@ -323,6 +326,8 @@ class MultiBlockSystem:
         self._space_0 = space_0
         self._space_1 = space_1
 
+        # constructing tuples containing the spaces of each
+        # component of the solution
         if n_blocks_00 == 1:
             flattened_space_0 = (space_0, )
         else:
@@ -333,6 +338,7 @@ class MultiBlockSystem:
         else:
             flattened_space_1 = tuple(space_1 for i in range(n_blocks_11))
 
+        # full space of the solution
         full_flattened_space = flattened_space_0 + flattened_space_1
         self._spaces = MixedFunctionSpace(full_flattened_space)
 
@@ -353,6 +359,7 @@ class MultiBlockSystem:
         self._blocks = (block_00, block_01, block_10, block_11)
 
         self._matrices_00 = {}
+        # assembling sub-blocks
         for (i, j), block_ij in block_00.items():
             if block_ij is None:
                 self._matrices_00[(i, j)] = None
@@ -377,6 +384,7 @@ class MultiBlockSystem:
             else:
                 self._matrices_11[(i, j)] = assemble(block_ij, form_compiler_parameters=form_compiler_parameters)
 
+        # constructing the tuples containing nullspace of each component
         nullspaces = ()
         nullspaces = nullspaces + tuple(nullspace_0)
         nullspaces = nullspaces + tuple(nullspace_1)
@@ -388,22 +396,19 @@ class MultiBlockSystem:
               solver_parameters=None,
               pc_fn=None):
         """
-        Definition of the linear solver.
+        Constructs the linear solver and solve the system.
 
-        Input:
-            - u_0                    first component of the solution
+        :arg u_0: first component of the solution
+        :arg u_1: second component of the solution
+        :arg b_0: first component of the right-hand side
+        :arg b_1: second component of the right-hand side
+        :arg solver_parameters: dictionary, contains the parameters
+            for the linear solver
+        :arg pc_fn: function defining the preconditioner
 
-            - u_1                    second component of the solution
-
-            - b_0                    first component of the right-hand side
-
-            - b_1                    second component of the right-hand side
-
-            - solver_parameters      dictionary, contains the parameters
-                                     for the linear solver
-
-            - pc_fn                  function defining the preconditioner
+        Returns the KSP linear solver
         """
+        # defining solver parameters and preconditioner
         if solver_parameters is None:
             solver_parameters = {}
         if pc_fn is None:
@@ -412,85 +417,54 @@ class MultiBlockSystem:
                 u_1.assign(l2_riesz(b_1))
 
         class MultiBlockSystemMatrix:
+            """
+            Class that defines the generalized saddle-point system.
+            The class sets up the method `mult` that defines the multiplication
+            of the matrix representing the operator for a given vector.
+
+            :arg n_blocks_00: number of sub-blocks of the (1,1)-block
+            :arg n_blocks_11: number of sub-blocks of the (2,2)-block
+            :arg sub_n_blocks_00_0: for time-dependent problems when applying
+                a trapezoidal rule in time, defines the number of sub-blocks
+                of the (1,1)-block for applying the first linear transformation
+                employed in the derivation of the preconditioner
+            :arg sub_n_blocks_00_1: for time-dependent problems when applying
+                a trapezoidal rule in time, defines the number of sub-blocks
+                of the (1,1)-block for applying the second linear transformation
+                employed in the derivation of the preconditioner
+            :arg sub_n_blocks_11_0: for time dependent problems when applying
+                a trapezoidal rule in time, defines the number of sub-blocks
+                of the (2,2)-block for applying the first linear transformation
+                employed in the derivation of the preconditioner
+            :arg sub_n_blocks_11_1: for time dependent problems when applying
+                a trapezoidal rule in time, defines the number of sub-blocks
+                of the (2,2)-block for applying the second linear
+                transformation employed in the derivation of the preconditioner
+            :arg space_0: a :class: `FunctionSpace` to which each sub-component
+                of the first component of the solution belongs
+            :arg space_1: a :class: `FunctionSpace` to which each sub-component
+                of the second component of the solution belongs
+            :arg spaces: a :class: `MixedFunctionSpace` to which the full
+                solution belongs
+            :arg matrices_00: dictionary representing the (1,1)-block of the
+                generalized saddle-point system
+            :arg matrices_01: dictionary representing the (1,2)-block of the
+                generalized saddle-point system
+            :arg matrices_10: dictionary representing the (2,1)-block of the
+                generalized saddle-point system
+            :arg matrices_11: dictionary representing the (2,2)-block of the
+                generalized saddle-point system
+            :arg nullspaces: tuple of :class: `Nullspace` representing the
+                nullspace of the full solution
+            :arg CN: Boolean, for instationary problems, set True if employing
+                a trapezoidal rule discretization in time
+            """
             def __init__(self, n_blocks_00, n_blocks_11,
                          sub_n_blocks_00_0, sub_n_blocks_00_1,
                          sub_n_blocks_11_0, sub_n_blocks_11_1,
                          space_0, space_1, spaces,
                          matrices_00, matrices_01, matrices_10,
                          matrices_11, nullspaces, CN):
-                """
-                Definition of the generalized saddle-point system.
-
-                Input:
-                    - n_blocks_00            number of sub-blocks of the
-                                             (1,1)-block
-
-                    - n_blocks_11            number of sub-blocks of the
-                                             (2,2)-block
-
-                    - sub_n_blocks_00_0      for time-dependent problems when
-                                             applying a trapezoidal rule in
-                                             time, defines the number of
-                                             sub-blocks of the (1,1)-block for
-                                             applying the first linear
-                                             transformation employed in the
-                                             derivation of the preconditioner
-
-                    - sub_n_blocks_00_1      for time-dependent problems when
-                                             applying a trapezoidal rule in
-                                             time, defines the number of
-                                             sub-blocks of the (1,1)-block for
-                                             applying the second linear
-                                             transformation employed in the
-                                             derivation of the preconditioner
-
-                    - sub_n_blocks_11_0      for time dependent problems when
-                                             applying a trapezoidal rule in
-                                             time, defines the number of
-                                             sub-blocks of the (2,2)-block for
-                                             applying the first linear
-                                             transformation employed in the
-                                             derivation of the preconditioner
-
-                    - sub_n_blocks_11_1      for time dependent problems when
-                                             applying a trapezoidal rule in
-                                             time, defines the number of
-                                             sub-blocks of the (2,2)-block for
-                                             applying the second linear
-                                             transformation employed in the
-                                             derivation of the preconditioner
-
-                    - space_0                space to which the first component
-                                             of the solution belongs
-
-                    - space_1                space to which the second component
-                                             of the solution belongs
-
-                    - spaces                 space to which the full solution
-                                             belongs
-
-                    - matrices_00            dictionary representing the
-                                             (1,1)-block of the generalized
-                                             saddle-point system
-
-                    - matrices_01            dictionary representing the
-                                             (1,2)-block of the generalized
-                                             saddle-point system
-
-                    - matrices_10            dictionary representing the
-                                             (2,1)-block of the generalized
-                                             saddle-point system
-
-                    - matrices_11            dictionary representing the
-                                             (2,2)-block of the generalized
-                                             saddle-point system
-
-                    - nullspaces             nullspace of the full solution
-
-                    - CN                     for instationary problems, set
-                                             True if employing a trapezoidal
-                                             rule discretization in time
-                """
                 self._space_0 = space_0
                 self._space_1 = space_1
                 self._spaces = spaces
@@ -514,20 +488,20 @@ class MultiBlockSystem:
 
             def mult(self, A, x, y):
                 """
-                Definition of the matrix-vector multiplication
+                Defines the matrix-vector multiplication y = A * x
 
-                Input:
-                    - A        matrix representing the system
-
-                    - x        vector of the solution
-
-                    - y        right-hand side
+                :arg A: matrix representing the system
+                :arg x: vector to apply A to
+                :arg y: vector containing the result
                 """
+                # copying the values of the vector in x
                 with self._x_fn.dat.vec_wo as x_v:
                     x.copy(result=x_v)
 
+                # auxiliary vector
                 x_c_new = Function(self._spaces)
 
+                # applying nullspace correction before mat-vect multiplication
                 x_c_0_help = Function(self._space_0)
                 x_c_1_help = Function(self._space_1)
                 for i in range(self._n_blocks_00):
@@ -541,12 +515,16 @@ class MultiBlockSystem:
                     x_c_1_i = nullspace_help.pre_mult_corrected_lhs(x_c_1_help)
                     x_c_new.sub(self._n_blocks_00 + i).assign(x_c_1_i)
 
+                # setting the solution vector to 0
                 for i in range(self._n_blocks_00 + self._n_blocks_11):
                     with self._y_fn.sub(i).dat.vec_wo as y_0_v:
                         y_0_v.zeroEntries()
 
+                # apply matrix-vector multiplication
                 x_help_0 = Function(self._space_0)
                 x_help_1 = Function(self._space_1)
+                # applying the (1,1)-block to the first component of the vector
+                # x and adding to the first component of y
                 for (i, j), block_ij in self._matrices_00.items():
                     if block_ij is not None:
                         x_help_0.assign(x_c_new.sub(j))
@@ -554,6 +532,8 @@ class MultiBlockSystem:
                                 self._y_fn.sub(i).dat.vec as y_0_v:
                             block_ij.petscmat.multAdd(x_0_v, y_0_v, y_0_v)
 
+                # applying the (1,2)-block to the first component of the vector
+                # x and adding to the first component of y
                 for (i, j), block_ij in self._matrices_01.items():
                     if block_ij is not None:
                         x_help_1.assign(x_c_new.sub(self._n_blocks_00 + j))
@@ -561,6 +541,9 @@ class MultiBlockSystem:
                                 self._y_fn.sub(i).dat.vec as y_0_v:
                             block_ij.petscmat.multAdd(x_0_v, y_0_v, y_0_v)
 
+
+                # applying the (1,2)-block to the first component of the vector
+                # x and adding to the second component of y
                 for (i, j), block_ij in self._matrices_10.items():
                     if block_ij is not None:
                         x_help_0.assign(x_c_new.sub(j))
@@ -568,6 +551,8 @@ class MultiBlockSystem:
                                 self._y_fn.sub(self._n_blocks_00 + i).dat.vec as y_0_v:
                             block_ij.petscmat.multAdd(x_0_v, y_0_v, y_0_v)
 
+                # applying the (2,2)-block to the first component of the vector
+                # x and adding to the second component of y
                 for (i, j), block_ij in self._matrices_11.items():
                     if block_ij is not None:
                         x_help_1.assign(x_c_new.sub(self._n_blocks_00 + j))
@@ -575,8 +560,12 @@ class MultiBlockSystem:
                                 self._y_fn.sub(self._n_blocks_00 + i).dat.vec as y_0_v:
                             block_ij.petscmat.multAdd(x_0_v, y_0_v, y_0_v)
 
+                # for time-dependent problems, if a trapezoidal tule is
+                # applied, we have to apply the transformations T_1 and T_2
                 if self._CN:
                     if self._sub_n_blocks_00_0 is None and self._sub_n_blocks_11_0 is None:
+                        # compressible case
+                        # definition of auxiliary vectors
                         if self._n_blocks_00 == 1:
                             space_0_help = self._space_0
                         else:
@@ -592,21 +581,27 @@ class MultiBlockSystem:
                         y_help_0 = Function(space_0_help)
                         y_help_1 = Function(space_1_help)
 
+                        # copying the values of the vector y in the
+                        # two subvectors
                         for i in range(self._n_blocks_00):
                             y_help_0.sub(i).assign(self._y_fn.sub(i))
                         for i in range(self._n_blocks_11):
                             index = self._n_blocks_00 + i
                             y_help_1.sub(i).assign(self._y_fn.sub(index))
 
+                        # applying T_1 and T_2
                         y_help_0 = apply_T_1(y_help_0, self._space_0, self._n_blocks_00)
                         y_help_1 = apply_T_2(y_help_1, self._space_1, self._n_blocks_11)
 
+                        # storing the solution in y
                         for i in range(self._n_blocks_00):
                             self._y_fn.sub(i).assign(y_help_0.sub(i))
                         for i in range(self._n_blocks_11):
                             index = self._n_blocks_00 + i
                             self._y_fn.sub(index).assign(y_help_1.sub(i))
                     else:
+                        # incompressible case
+                        # definition of auxiliary vectors
                         flattened_space_0_0 = tuple(self._space_0 for i in range(self._sub_n_blocks_00_0))
                         space_0_0_help = MixedFunctionSpace(
                             flattened_space_0_0)
@@ -628,6 +623,8 @@ class MultiBlockSystem:
                         y_help_1_0 = Function(space_1_0_help)
                         y_help_1_1 = Function(space_1_1_help)
 
+                        # copying the values of the vector y in the
+                        # two subvectors
                         for i in range(self._sub_n_blocks_00_0):
                             y_help_0_0.sub(i).assign(self._y_fn.sub(i))
                         for i in range(self._sub_n_blocks_00_1):
@@ -640,11 +637,13 @@ class MultiBlockSystem:
                             index = self._n_blocks_00 + self._sub_n_blocks_11_0 + i
                             y_help_1_1.sub(i).assign(self._y_fn.sub(index))
 
+                        # applying T_1 and T_2
                         y_help_0_0 = apply_T_1(y_help_0_0, self._space_0, self._sub_n_blocks_00_0)
                         y_help_0_1 = apply_T_2(y_help_0_1, self._space_0, self._sub_n_blocks_00_1)
                         y_help_1_0 = apply_T_2(y_help_1_0, self._space_1, self._sub_n_blocks_11_0)
                         y_help_1_1 = apply_T_1(y_help_1_1, self._space_1, self._sub_n_blocks_11_1)
 
+                        # storing the solution in y
                         for i in range(self._sub_n_blocks_00_0):
                             self._y_fn.sub(i).assign(y_help_0_0.sub(i))
                         for i in range(self._sub_n_blocks_00_1):
@@ -657,9 +656,11 @@ class MultiBlockSystem:
                             index = self._n_blocks_00 + self._sub_n_blocks_11_0 + i
                             self._y_fn.sub(index).assign(y_help_1_1.sub(i))
 
+                # auxiliary vectors
                 x_c_0_help = Function(self._space_0)
                 x_c_1_help = Function(self._space_1)
 
+                # applying nullspace correction after mat-vect multiplication
                 for i in range(self._n_blocks_00):
                     x_c_0_help.assign(self._x_fn.sub(i))
                     nullspace_help = self._nullspaces[i]
@@ -669,36 +670,31 @@ class MultiBlockSystem:
                     nullspace_help = self._nullspaces[self._n_blocks_00 + i]
                     nullspace_help.post_mult_correct_lhs(x_c_1_help, self._y_fn.sub(self._n_blocks_00 + i))
 
+                # storing the result
                 with self._y_fn.dat.vec_ro as y_v:
                     y_v.copy(result=y)
 
         class Preconditioner:
+            """
+            Class that defines the preconditioner.
+            The class sets up the method `apply` that defines the application
+            of the inverse of the preconditioner to a vector
+
+            :arg n_blocks_00: number of sub-blocks of the (1,1)-block
+            :arg n_blocks_11: number of sub-blocks of the (2,2)-block
+            :arg space_0: a :class: `FunctionSpace` to which each sub-component
+                of the first component of the solution belongs
+            :arg space_1: a :class: `FunctionSpace` to which each sub-component
+                of the second component of the solution belongs
+            :arg spaces: a :class: `MixedFunctionSpace` to which the full
+                solution belongs
+            :arg pc_fn: function defining the preconditioner
+            :arg nullspaces: tuple of :class: `Nullspace` representing the
+                nullspace of the full solution
+            """
             def __init__(self, n_blocks_00, n_blocks_11,
                          space_0, space_1, spaces,
                          pc_fn, nullspaces):
-                """
-                Definition of the preconditioner.
-
-                Input:
-                    - n_blocks_00        number of sub-blocks of the
-                                         (1,1)-block
-
-                    - n_blocks_11        number of sub-blocks of the
-                                         (2,2)-block
-
-                    - space_0            space to which the first component
-                                         of the solution belongs
-
-                    - space_1            space to which the second component
-                                         of the solution belongs
-
-                    - spaces             space to which the full solution
-                                         belongs
-
-                    - pc_fn              function defining the preconditioner
-
-                    - nullspaces         nullspace of the full solution
-                """
                 self._pc_fn = pc_fn
                 self._n_blocks_00 = n_blocks_00
                 self._n_blocks_11 = n_blocks_11
@@ -712,18 +708,17 @@ class MultiBlockSystem:
 
             def apply(self, pc, x, y):
                 """
-                Definition of the application of the preconditioner.
+                Defines the application of the inverse of the preconditioner y = P^{-1} * x.
 
-                Input:
-                    - pc        preconditioner
-
-                    - x         vector of the solution
-
-                    - y         right-hand side
+                :arg pc: function defining the preconditioner
+                :arg x: vector to apply P^{-1} to
+                :arg y: vector containing the result
                 """
+                # copying the values of the vector in x
                 with self._x_fn.dat.vec_wo as x_v:
                     x.copy(result=x_v)
 
+                # constructing the spaces of each component of the vector
                 space_0 = self._space_0
                 space_1 = self._space_1
 
@@ -739,6 +734,7 @@ class MultiBlockSystem:
                     flattened_space_1 = tuple(space_1 for i in range(self._n_blocks_11))
                     space_help_1 = MixedFunctionSpace(flattened_space_1)
 
+                # auxiliary vectors
                 b_0 = Cofunction(space_help_0.dual(), name="b_0")
                 b_1 = Cofunction(space_help_1.dual(), name="b_1")
                 if self._n_blocks_00 == 1:
@@ -753,8 +749,10 @@ class MultiBlockSystem:
                     for i in range(self._n_blocks_11):
                         b_1.sub(i).assign(self._x_fn.sub(self._n_blocks_00 + i))
 
+                # applying nullspace correction before application of P^{-1}
                 b_0_c = Cofunction(space_help_0.dual(), name="b_0_c")
                 b_1_c = Cofunction(space_help_1.dual(), name="b_1_c")
+                # first component of the vector
                 if self._n_blocks_00 == 1:
                     nullspace_help = self._nullspaces[0]
                     b_0_c.assign(nullspace_help.pc_pre_mult_corrected(b_0))
@@ -765,6 +763,7 @@ class MultiBlockSystem:
                         nullspace_help = self._nullspaces[i]
                         b_0_c.sub(i).assign(nullspace_help.pc_pre_mult_corrected(b_0_c_help))
 
+                # second component of the vector
                 if self._n_blocks_11 == 1:
                     nullspace_help = self._nullspaces[self._n_blocks_00]
                     b_1_c.assign(nullspace_help.pc_pre_mult_corrected(b_1))
@@ -775,11 +774,15 @@ class MultiBlockSystem:
                         nullspace_help = self._nullspaces[self._n_blocks_00 + i]
                         b_1_c.sub(i).assign(nullspace_help.pc_pre_mult_corrected(b_1_c_help))
 
+                # construction of the vectors containing the solution
                 u_0 = Function(space_help_0, name="u_0")
                 u_1 = Function(space_help_1, name="u_1")
 
+                # applying P^{-1}
                 pc_fn(u_0, u_1, b_0_c, b_1_c)
 
+                # applying nullspace correction after application of P^{-1}
+                # first component of the vector
                 if self._n_blocks_00 == 1:
                     self._y_fn.sub(0).assign(u_0)
                     nullspace_help = self._nullspaces[0]
@@ -792,6 +795,7 @@ class MultiBlockSystem:
                         nullspace_help = self._nullspaces[i]
                         nullspace_help.pc_post_mult_correct(self._y_fn.sub(i), y_c_0_help)
 
+                # second component of the vector
                 if self._n_blocks_11 == 1:
                     self._y_fn.sub(self._n_blocks_00).assign(u_1)
                     nullspace_help = self._nullspaces[self._n_blocks_00]
@@ -804,11 +808,15 @@ class MultiBlockSystem:
                         nullspace_help = self._nullspaces[self._n_blocks_00 + i]
                         nullspace_help.pc_post_mult_correct(self._y_fn.sub(self._n_blocks_00 + i), y_c_1_help)
 
+                # storing the result
                 with self._y_fn.dat.vec_ro as y_v:
                     y_v.copy(result=y)
 
         u = Function(self._spaces, name="u")
 
+        # applying nullspace correction to the solution vector before solving
+        # the system
+        # first component of the vector
         if self._n_blocks_00 == 1:
             u.sub(0).assign(u_0)
             nullspace_help = self._nullspaces[0]
@@ -819,6 +827,7 @@ class MultiBlockSystem:
                 nullspace_help = self._nullspaces[i]
                 nullspace_help.correct_soln(u.sub(i))
 
+        # second component of the vector
         if self._n_blocks_11 == 1:
             u.sub(self._n_blocks_00).assign(u_1)
             nullspace_help = self._nullspaces[self._n_blocks_00]
@@ -829,8 +838,12 @@ class MultiBlockSystem:
                 nullspace_help = self._nullspaces[self._n_blocks_00 + i]
                 nullspace_help.correct_soln(u.sub(self._n_blocks_00 + i))
 
+        # constructing right-hand side
         b = Cofunction(self._spaces.dual())
 
+        # applying nullspace correction to the rhs before solving
+        # the system
+        # first component of the vector
         if self._n_blocks_00 == 1:
             if b_0 is not None:
                 b.sub(0).assign(b_0)
@@ -843,6 +856,7 @@ class MultiBlockSystem:
                     nullspace_help = self._nullspaces[i]
                     nullspace_help.correct_rhs(b.sub(i))
 
+        # second component of the vector
         if self._n_blocks_11 == 1:
             if b_1 is not None:
                 b.sub(self._n_blocks_00).assign(b_1)
@@ -855,6 +869,7 @@ class MultiBlockSystem:
                     nullspace_help = self._nullspaces[self._n_blocks_00 + i]
                     nullspace_help.correct_rhs(b.sub(self._n_blocks_00 + i))
 
+        # building the matrix
         comm = self._spaces.mesh().comm
         with b.dat.vec_ro as b_v:
             n = b_v.getLocalSize()
@@ -869,10 +884,13 @@ class MultiBlockSystem:
                                    self._matrices_10, self._matrices_11,
                                    self._nullspaces, self._CN)
 
+        # using PETSc interface to define the linear solver
+        # setting up the matrix
         mat = PETSc.Mat().createPython(
             ((n, N), (n, N)), A, comm=comm)
         mat.setUp()
 
+        # setting up the preconditioner
         pc = PETSc.PC().createPython(
             Preconditioner(self._n_blocks_00, self._n_blocks_11,
                            self._space_0, self._space_1, self._spaces,
@@ -881,6 +899,7 @@ class MultiBlockSystem:
         pc.setOperators(mat)
         pc.setUp()
 
+        # setting up the linear solver
         ksp_solver = PETSc.KSP().create(comm=comm)
         ksp_solver.setType(solver_parameters.get("linear_solver", "fgmres"))
         ksp_solver.setPC(pc)
@@ -907,16 +926,22 @@ class MultiBlockSystem:
         ksp_solver.setUp()
         precond = solver_parameters.get("preconditioner", False)
 
+        # solving the linear system
         with u.dat.vec as u_v, b.dat.vec as b_v:
             ksp_solver.solve(b_v, u_v)
 
+        # applying nullspace correction to the solution vector after solving
+        # the system
+        # first component of the vector
         for i in range(self._n_blocks_00):
             nullspace_help = self._nullspaces[i]
             nullspace_help.correct_soln(u.sub(i))
+        # second component of the vector
         for i in range(self._n_blocks_11):
             nullspace_help = self._nullspaces[self._n_blocks_00 + i]
             nullspace_help.correct_soln(u.sub(self._n_blocks_00 + i))
 
+        # checking convergence of linear solver
         reason = ksp_solver.getConvergedReason()
         if precond:
             if reason <= 0 and reason != PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT:
@@ -925,12 +950,15 @@ class MultiBlockSystem:
             if reason <= 0:
                 raise RuntimeError("Solver failed to converge")
 
+        # storing the solution
+        # first component of the vector
         if self._n_blocks_00 == 1:
             u_0.assign(u.sub(0))
         else:
             for i in range(self._n_blocks_00):
                 u_0.sub(i).assign(u.sub(i))
 
+        # second component of the vector
         if self._n_blocks_11 == 1:
             u_1.assign(u.sub(self._n_blocks_00))
         else:

@@ -91,14 +91,14 @@ Reference
 ---------
 
 The code is based on the work "Automatic Differentiation for All-at-once Systems Arising in Certain PDE-Constrained
-Optimization Problems" by Santolo Leveque, James R. Maddison, and John W. Pearson. The code in Figure 1 can be found in
+Optimization Problems" by Santolo Leveque, James R. Maddison, and John W. Pearson. The code in the README file can be found in
 
   - `paper_examples/heat_control.py`
 
 while the tests in Section 4.1 and Section 4.2 can be obtained by running
 
-  - `paper_examples/2D_Poisson_control.py`        (Figure 2)
-  - `paper_examples/3D_Poisson_control.py`
-  - `paper_examples/NS_control_1.py`
-  - `paper_examples/NS_control_2.py`
-  - `paper_examples/NS_control_3.py`
+  - `paper_examples/2D_Poisson_control.py`        (Table 2)
+  - `paper_examples/3D_Poisson_control.py`        (Table 3)
+  - `paper_examples/NS_control_1.py`              (Table 4, \nu = 1.0e-02)
+  - `paper_examples/NS_control_2.py`              (Table 4, \nu = 4.0e-03)
+  - `paper_examples/NS_control_3.py`              (Table 4, \nu = 2.0e-03)

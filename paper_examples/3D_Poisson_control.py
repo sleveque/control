@@ -3,7 +3,7 @@ from control.control import Stationary
 import time
 
 beta_range = [1.0, 1.0e-3, 1.0e-6, 1.0e-9, 1.0e-12]
-l_range = [1, 2, 3, 4, 5, 6]
+l_range = [2, 3, 4, 5, 6]
 
 
 def forw_diff_operator(trial, test, v):

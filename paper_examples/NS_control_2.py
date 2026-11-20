@@ -82,7 +82,7 @@ beta_range = [1.0e-3, 1.0e-4, 1.0e-5]
 
 for nu in nu_range:
     for beta in beta_range:
-        for mesh_size in range(2, 7):
+        for mesh_size in range(3, 7):
             mesh = RectangleMesh(2**mesh_size, 2**mesh_size, 2.0, 2.0)
 
             space_v = VectorFunctionSpace(mesh, "Lagrange", 2)

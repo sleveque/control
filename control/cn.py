@@ -11,6 +11,16 @@ __all__ = \
 
 # definition of application of T_1 and T_2 for CN discretization
 def apply_T_1(x_old, space_v, n_blocks):
+    """
+    Applies the n_blocks x n_blocks block matrix T_1 to the vector x_old
+
+    arg: x_old: the vector to apply T_1 to
+    arg: space_v: a :class: `FunctionSpace` to which each component of
+        x_old belongs to
+    arg: n_blocks: the number of blocks of the matrix T_1
+
+    Returns T_1 * x_old
+    """
     flattened_space = tuple(space_v for i in range(n_blocks))
     full_space_v = MixedFunctionSpace(flattened_space)
 
@@ -29,6 +39,16 @@ def apply_T_1(x_old, space_v, n_blocks):
 
 
 def apply_T_2(x_old, space_v, n_blocks):
+    """
+    Applies the n_blocks x n_blocks block matrix T_2 to the vector x_old
+
+    arg: x_old: the vector to apply T_2 to
+    arg: space_v: a :class: `FunctionSpace` to which each component of
+        x_old belongs to
+    arg: n_blocks: the number of blocks of the matrix T_2
+
+    Returns T_2 * x_old
+    """
     flattened_space = tuple(space_v for i in range(n_blocks))
     full_space_v = MixedFunctionSpace(flattened_space)
 
@@ -48,6 +68,17 @@ def apply_T_2(x_old, space_v, n_blocks):
 
 # definition of application of T_1^-1 and T_2^-1 for CN discretization
 def apply_T_1_inv(x_old, space_v, n_blocks):
+    """
+    Applies the inverse of the n_blocks x n_blocks block matrix T_1 to the
+    vector x_old
+
+    arg: x_old: the vector to apply T_1^{-1} to
+    arg: space_v: a :class: `FunctionSpace` to which each component of
+        x_old belongs to
+    arg: n_blocks: the number of blocks of the matrix T_1
+
+    Returns T_1^{-1} * x_old
+    """
     flattened_space = tuple(space_v for i in range(n_blocks))
     full_space_v = MixedFunctionSpace(flattened_space)
 
@@ -66,6 +97,17 @@ def apply_T_1_inv(x_old, space_v, n_blocks):
 
 
 def apply_T_2_inv(x_old, space_v, n_blocks):
+    """
+    Applies the inverse of the n_blocks x n_blocks block matrix T_2 to the
+    vector x_old
+
+    arg: x_old: the vector to apply T_2^{-1} to
+    arg: space_v: a :class: `FunctionSpace` to which each component of
+        x_old belongs to
+    arg: n_blocks: the number of blocks of the matrix T_2
+
+    Returns T_2^{-1} * x_old
+    """
     flattened_space = tuple(space_v for i in range(n_blocks))
     full_space_v = MixedFunctionSpace(flattened_space)
 

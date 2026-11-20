@@ -22,7 +22,7 @@ def desired_state(test):
 
 
 for beta_exp in range(7):
-    for mesh_size in range(4, 10):
+    for mesh_size in range(5, 10):
         mesh = RectangleMesh(2**mesh_size, 2**mesh_size, 2.0, 2.0)
         space_0 = FunctionSpace(mesh, "Lagrange", 1)
 
