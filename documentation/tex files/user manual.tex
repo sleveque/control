@@ -1851,21 +1851,30 @@ In this chapter, we present the code required to solve the two problems defined
 	equation and the control of the time-dependent Navier--Stokes equation with a
 	trapezoidal rule discretization in time.
 
-The code is based on the work "Automatic Differentiation for All-at-once Systems
-	Arising in Certain PDE-Constrained Optimization Problems" by Santolo Leveque,
+The code is based on the work "Algorithm \texttt{control}: AD for All-at-Once Systems
+	Arising in PDE-Constrained Optimization Problems" by Santolo Leveque,
 	James R. Maddison, and John W. Pearson. The code in Fig. \ref{heat_control_code} can
 	be found in
 	\begin{itemize}
-		\item `paper{\_}examples/heat{\_}control.py`
+		\item `paper{\_}examples/heat{\_}control.py` (Figure 1 of the user manual)
 	\end{itemize}
 	while the tests in Section 4.1 and Section 4.2 of the paper can be obtained by running
 	\begin{itemize}
-		\item `paper{\_}examples/2D{\_}Poisson{\_}control.py` (Table 2 of the work)
-		\item `paper{\_}examples/3D{\_}Poisson{\_}control.py` (Table 3 of the work)
-		\item `paper{\_}examples/NS{\_}control{\_}1.py` (Table 4 of the work)
-		\item `paper{\_}examples/NS{\_}control{\_}2.py` (Table 4 of the work)
-		\item `paper{\_}examples/NS{\_}control{\_}3.py` (Table 4 of the work)
+		\item `paper{\_}examples/2D{\_}Poisson{\_}control.py` (Table 2)
+		\item `paper{\_}examples/3D{\_}Poisson{\_}control.py` (Table 3)
+		\item `paper{\_}examples/NS{\_}control{\_}1.py` (Table 4, $\nu = \frac{1}{100}$)
+		\item `paper{\_}examples/NS{\_}control{\_}2.py` (Table 4, $\nu = \frac{1}{250}$)
+		\item `paper{\_}examples/NS{\_}control{\_}3.py` (Table 4, $\nu = \frac{1}{500}$)
 	\end{itemize}
+	{\color{blue}The numerical tests are performed with the following versions:
+	\begin{itemize}
+		\item ``firedrake'': \{``commit{\_}id'': ``497b0e0819a6ad6f6f95a38ba717fa1e64ee39af''\}
+		\item ``ufl'': \{``commit{\_}id'': ``c0af0f3661f85ab601dfa852301a690de08095d3''\}
+		\item ``fiat'': \{``commit{\_}id'': ``9968afb4be6445bb061eb8cee0f576f0aba2c8fe''\}
+		\item ``petsc'': \{``commit{\_}id'': ``b31b2f82859ff8548562364efb89146f661bbcd9''\}
+		\item ``loopy'': \{``version'': ``2025.2''\}
+	\end{itemize}
+	}
 
 \section{Poisson Control}
 Given the domain $\Omega \subset \mathbb{R}^d$, for $d=2,3$, and $\beta > 0$, we
