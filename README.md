@@ -93,7 +93,7 @@ Reference
 The code is based on the work "Automatic Differentiation for All-at-once Systems Arising in Certain PDE-Constrained
 Optimization Problems" by Santolo Leveque, James R. Maddison, and John W. Pearson. The code in the README file can be found in
 
-  - `paper_examples/heat_control.py`
+  - `paper_examples/heat_control.py`              (Figure 1 of the user manual)
 
 while the tests in Section 4.1 and Section 4.2 can be obtained by running
 
