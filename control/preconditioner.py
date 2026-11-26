@@ -153,7 +153,7 @@ class ConstantNullspace(Nullspace):
 
 class DirichletBCNullspace(Nullspace):
     """
-    Nulspace for Dirichlet boundary conditions
+    Nullspace for Dirichlet boundary conditions
     """
     def __init__(self, bcs, *, alpha=1.0):
         if isinstance(bcs, Sequence):

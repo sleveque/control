@@ -115,7 +115,7 @@ class Stationary:
     handle compressible and incompressible problems, in either a linear or
     non-linear setting.
 
-    :arg space_v: a :class: `FunctionSpace' to which the solution belongs
+    :arg space_v: a :class: `FunctionSpace` to which the solution belongs
     :arg forward_form: a function returning a :class: `ufl.Form` representing
         the differential operator in space
     :arg desired_state: a function returning a :class: `ufl.Form` representing
@@ -335,7 +335,7 @@ class Stationary:
 
         :arg auxiliary_sp: dictionary, containing auxiliary solver parameters
             for the inner blocks
-        :arg bcs_v a :class: `DirichletBC`, representing the homogenization
+        :arg bcs_v: a :class: `DirichletBC`, representing the homogenization
             of the bcs on the state variable
         :arg bcs_zeta: a :class: `DirichletBC`, representing the homogenization
             of the bcs on the adjoint variable
@@ -1284,7 +1284,7 @@ class Instationary:
     handle compressible and incompressible problems, in either a linear or
     non-linear setting.
 
-    :arg space_v: a :class: `FunctionSpace' to which the solution belongs
+    :arg space_v: a :class: `FunctionSpace` to which the solution belongs
     :arg forward_form: a function returning a :class: `ufl.Form` representing
         the differential operator in space
     :arg desired_state: a function returning a :class: `ufl.Form` representing
@@ -1532,9 +1532,9 @@ class Instationary:
 
         :arg auxiliary_sp: dictionary, containing auxiliary solver parameters
             for the inner blocks
-        :arg full_space_v: a :class: `MixedFunctionSpace, representing the
+        :arg full_space_v: a :class: `MixedFunctionSpace`, representing the
             full space to which the solution belongs to
-        :arg bcs_v a :class: `DirichletBC`, representing the homogenization
+        :arg bcs_v: a :class: `DirichletBC`, representing the homogenization
             of the bcs on the state variable
         :arg bcs_zeta: a :class: `DirichletBC`, representing the homogenization
             of the bcs on the adjoint variable
@@ -2984,7 +2984,7 @@ class Instationary:
         :arg div_v: a :class: `Function`, default option is None; when solving
             non-linear problems, div_v is the non-linear residual
             (incompressibility constraint on the state variable)
-        :arg div_zeta:  a :class: `Function`, default option is None; when
+        :arg div_zeta: a :class: `Function`, default option is None; when
             solving non-linear problems, div_zeta is the non-linear residual
             (incompressibility constraint on the adjoint variable)
         :arg print_error: Boolean, if True, the L^2 discrepancy between the

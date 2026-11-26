@@ -1866,7 +1866,7 @@ The code is based on the work "Algorithm \texttt{control}: AD for All-at-Once Sy
 		\item `paper{\_}examples/NS{\_}control{\_}2.py` (Table 4, $\nu = \frac{1}{250}$)
 		\item `paper{\_}examples/NS{\_}control{\_}3.py` (Table 4, $\nu = \frac{1}{500}$)
 	\end{itemize}
-	{\color{blue}The numerical tests are performed with the following versions:
+	The numerical tests are performed using the following packages:
 	\begin{itemize}
 		\item ``firedrake'': \{``commit{\_}id'': ``497b0e0819a6ad6f6f95a38ba717fa1e64ee39af''\}
 		\item ``ufl'': \{``commit{\_}id'': ``c0af0f3661f85ab601dfa852301a690de08095d3''\}
@@ -1874,7 +1874,6 @@ The code is based on the work "Algorithm \texttt{control}: AD for All-at-Once Sy
 		\item ``petsc'': \{``commit{\_}id'': ``b31b2f82859ff8548562364efb89146f661bbcd9''\}
 		\item ``loopy'': \{``version'': ``2025.2''\}
 	\end{itemize}
-	}
 
 \section{Poisson Control}
 Given the domain $\Omega \subset \mathbb{R}^d$, for $d=2,3$, and $\beta > 0$, we
@@ -2154,81 +2153,87 @@ This class solves a stationary control problem.
 \subsubsection{Submodules}
 \texttt{control.Stationary(space{\_}v, forward{\_}form, desired{\_}state=None, force{\_}function=None, *, beta=1.0e-3, space{\_}p=None, Gauss{\_}Newton=False, bcs{\_}v=None)}
 
-Create \texttt{Stationary}.
+Class for the solution of a stationary control problem. This class can
+handle compressible and incompressible problems, in either a linear or
+non-linear setting.
 
 Input:
 \begin{itemize}
-
-\item \texttt{space{\_}v} -- space to which the solution belongs
-
-\item \texttt{forward{\_}form} -- form that represents the differential operator in space
-
-\item \texttt{desired{\_}state} -- desired state, defaults to zero
-
-\item \texttt{force{\_}function} -- force function acting on the system, defaults to zero
-
-\item \texttt{beta} -- regularization parameter
-
-\item \texttt{space{\_}p} -- pressure space (only for incompressible problems)
-
-\item \texttt{Gauss{\_}Newton} -- if \texttt{True}, a Gauss--Newton linearization is employed, otherwise a Picard linearization is applied
-
-\item \texttt{bcs{\_}v} -- boundary conditions on the state
+\item \texttt{space\_v}: a :class: `FunctionSpace' to which the solution belongs
+\item \texttt{forward\_form}: a function returning a :class: `ufl.Form' representing
+        the differential operator in space
+\item \texttt{desired\_state}: a function returning a :class: `ufl.Form' representing
+        the desired state, defaults to zero
+\item \texttt{force\_function}: a function returning a :class: `ufl.Form' representing
+        the force function acting on the system, defaults to zero
+\item \texttt{beta}: float, the regularization parameter
+\item \texttt{space\_p}: a :class: `FunctionSpace' representing the pressure space
+        (only for incompressible problems)
+\item \texttt{Gauss\_Newton}: Boolean, if \texttt{True}, a Gauss--Newton linearization is
+        employed, otherwise a Picard linearization is applied
+\item \texttt{bcs\_v}: a :class: `DirichletBC` or \texttt{None}, representing the boundary
+        conditions on the state
 \end{itemize}
+
 
 \vspace{3ex}
 
 \texttt{control.Stationary.set{\_}space{\_}p(space{\_}p)}
 
-Set \texttt{space{\_}p} as the pressure space.
+Change the current \texttt{space\_p}.
 
 Input:
 \begin{itemize}
-\item \texttt{space{\_}p} -- the new pressure space
+\item \texttt{space{\_}p}: a :class: `FunctionSpace' representing the new
+            pressure space
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{control.Stationary.set{\_}v(v{\_}new)}
 
-Set \texttt{v{\_}new} as the state variable.
+Change the current value of the state solution.
 
 Input:
 \begin{itemize}
-\item \texttt{v{\_}new} -- the new approximation of the state solution
+\item \texttt{v{\_}new}: a :class: `Function' containing the new approximation
+            of the state solution
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{control.Stationary.set{\_}zeta(zeta{\_}new)}
 
-Set \texttt{zeta{\_}new} as the adjoint variable.
+Change the current value of the adjoint solution.
 
 Input:
 \begin{itemize}
-\item \texttt{zeta{\_}new} -- the new approximation of the adjoint solution
+\item \texttt{zeta{\_}new}: a :class: `Function' containing the new approximation
+            of the adjoint solution
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{control.Stationary.set{\_}p(p{\_}new)}
 
-Set \texttt{p{\_}new} as the (state) pressure variable.
+Change the current value of the (state) pressure solution.
 
 Input:
 \begin{itemize}
-\item \texttt{p{\_}new} -- the new approximation of the (state) pressure solution
+\item \texttt{p{\_}new}: a :class: `Function' containing the new approximation
+            of the (state) pressure solution
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{control.Stationary.set{\_}mu(mu{\_}new)}
 
-Set \texttt{mu{\_}new} as the adjoint pressure variable.
+Change the current value of the (adjoint) pressure solution.
 
 Input:
 \begin{itemize}
-\item \texttt{mu{\_}new} -- the new approximation of the adjoint pressure solution
+\item \texttt{mu{\_}new}: a :class: `Function' containing the new approximation
+            of the adjoint pressure solution
 \end{itemize}
 
 \vspace{3ex}
@@ -2241,170 +2246,207 @@ Print the $L^2$ norm of the difference between the numerical solution and the de
 
 \texttt{control.Stationary.construct{\_}D{\_}v(v{\_}trial, v{\_}test, v{\_}old, *, non{\_}linear{\_}res=False)}
 
-Construct the discretized forward form.
+Construction of the discretized forward form..
 
 Input:
 \begin{itemize}
-\item \texttt{v{\_}trial} -- trial function
+\item \texttt{v{\_}trial}: a :class: `TrialFunction', representing the trial
+            function on the FunctionSpace self.\_space\_v
 
-\item \texttt{v{\_}test} -- test function
+\item \texttt{v{\_}test}: a :class: `TestFunction', representing the test
+            function on the FunctionSpace self.\_space\_v
 
-\item \texttt{v{\_}old} -- approximation of the state solution
+\item \texttt{v{\_}old}: a :class: `Function', representing the approximation
+            of the state solution
 
-\item \texttt{non{\_}linear{\_}res} -- if \texttt{True}, the form is employed in the evaluation of the non-linear residual
+\item \texttt{non{\_}linear{\_}res}: Boolean, if \texttt{True}, the form is employed in the
+            evaluation of the non-linear residual
 \end{itemize}
 
 Output:
 \begin{itemize}
-\item \texttt{D{\_}v} -- the discretized forward form
+\item \texttt{D{\_}v}: a :class: `ufl.Form' representing the forward form or the
+            ufl.derivative of the forward form in the direction of v\_old
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{control.Stationary.construct{\_}f(v{\_}test, D{\_}v, bcs{\_}v, *, v{\_}inhom=None)}
 
-Construct the vector containing the force function.
+Constructs the vector containing the force function.
 
 Input:
 \begin{itemize}
-\item \texttt{v{\_}test} -- test function
+\item \texttt{v{\_}test}: a :class: `TestFunction', representing the test
+            function on the FunctionSpace self.\_space\_v
 
-\item \texttt{D{\_}v} -- discretized forward form
+\item \texttt{D{\_}v}: a :class: `ufl.Form' representing the forward form
 
-\item \texttt{bcs{\_}v} -- homogenization of the boundary conditions on the state variable
+\item \texttt{bcs{\_}v}: a :class: `DirichletBC', representing the homogenization
+            of the bcs on the state variable
 
-\item \texttt{v{\_}inhom} -- function that is zero in the interior of the domain and interpolates the state variable on the boundary
+\item \texttt{v{\_}inhom}: a :class: `Function', representing the trace of the
+            state solution
 
 \end{itemize}
 
 Output:
 \begin{itemize}
-\item \texttt{f} -- the discretized force function
+\item \texttt{f}: a :class: `Function', containing the force function
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{control.Stationary.construct{\_}v{\_}d(bcs{\_}v, *, v{\_}inhom=None)}
 
-Construct the vector containing the desired state.
+Constructs the vector containing the desired state.
 
 Input:
 \begin{itemize}
-\item \texttt{bcs{\_}v} -- homogenization of the boundary conditions on the state variable
+\item \texttt{bcs{\_}v}: a :class: `DirichletBC', representing the homogenization
+            of the bcs on the state variable
 
-\item \texttt{v{\_}inhom} -- function that is zero in the interior of the domain and interpolates the state variable on the boundary
+\item \texttt{v\_inhom}: a :class: `Function', representing the trace of the
+            state solution
 \end{itemize}
 
 Output:
 \begin{itemize}
-\item \texttt{v{\_}d} -- the discretized desired state
+\item \texttt{v{\_}d}: a :class: `Function', containing the desired state
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{control.Stationary.construct{\_}pc(auxiliary{\_}sp, bcs{\_}v, bcs{\_}zeta, D{\_}v, D{\_}zeta)}
 
-Construct the preconditioner, based on the matching strategy.
+Constructs the block-triangular preconditioner based on the matching
+        strategy.
 
 Input:
 \begin{itemize}
-\item \texttt{auxiliary{\_}sp} -- auxiliary solver parameters for inner blocks
+\item \texttt{auxiliary{\_}sp}: dictionary, containing auxiliary solver parameters
+            for the inner blocks
 
-\item \texttt{bcs{\_}v} -- homogenized boundary conditions for the state variable
+\item \texttt{bcs{\_}v}: a :class: `DirichletBC', representing the homogenization
+            of the bcs on the state variable
 
-\item \texttt{bcs{\_}zeta} -- homogenized boundary conditions for the adjoint variable
+\item \texttt{bcs{\_}zeta}: a :class: `DirichletBC', representing the homogenization
+            of the bcs on the adjoint variable
 
-\item \texttt{D{\_}v} -- discretized forward form
+\item \texttt{D{\_}v}: a :class: `ufl.Form' representing the forward form
 
-\item \texttt{D{\_}zeta} -- discretized adjoint form
+\item \texttt{D{\_}zeta}: a :class: `ufl.Form' representing the adjoint form
 
 \end{itemize}
 
 Output:
 \begin{itemize}
-\item \texttt{pc{\_}linear} -- preconditioner to employ within the Krylov method
+\item \texttt{pc{\_}linear}: a function, representing the application of the
+            preconditioner on a generic vector to employ within the Krylov
+            method
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{control.Stationary.non{\_}linear{\_}res{\_}eval(v{\_}d, f, v{\_}old, zeta{\_}old, D{\_}v, D{\_}zeta, M{\_}zeta, bcs{\_}v, bcs{\_}zeta)}
 
-Construct the non-linear residual.
+Constructs the non-linear residual.
 
 Input:
 \begin{itemize}
-\item \texttt{v{\_}d} -- desired state
+\item \texttt{v{\_}d}: a :class: `Function' representing the desired state
 
-\item \texttt{f} -- force function
+\item \texttt{f}: a :class: `Function' representing the force function
 
-\item \texttt{v{\_}old} -- approximation of the state variable
+\item \texttt{v{\_}old}: a :class: `Function' containing the approximation of the
+            state variable
 
-\item \texttt{zeta{\_}old} -- approximation of the adjoint variable
+\item \texttt{zeta{\_}old}: a :class: `Function' containing the approximation of
+            the adjoint variable
 
-\item \texttt{D{\_}v} -- discretized forward form
+\item \texttt{D{\_}v}: a :class: `ufl.Form' representing the forward form
 
-\item \texttt{D{\_}zeta} -- discretized adjoint form
+\item \texttt{D{\_}zeta}: a :class: `ufl.Form' representing the adjoint form
 
-\item \texttt{M{\_}zeta} -- (2,2)-block
+\item \texttt{M{\_}zeta}: a :class: `ufl.Form' representing the (2,2)-block
 
-\item \texttt{bcs{\_}v} -- homogenized boundary conditions for the state variable
+\item \texttt{bcs{\_}v}: a :class: `DirichletBC', representing the homogenization
+            of the bcs on the state variable
 
-\item \texttt{bcs{\_}zeta} -- homogenized boundary conditions for the adjoint variable
+\item \texttt{bcs{\_}zeta}: a :class: `DirichletBC', representing the homogenization
+            of the bcs on the adjoint variable
 \end{itemize}
 
 Output:
 \begin{itemize}
-\item \texttt{rhs{\_}0} -- non-linear residual (adjoint equation)
+\item \texttt{rhs{\_}0}: a :class: `Function' containing the non-linear residual
+                for the adjoint equation
 
-\item \texttt{rhs{\_}1} -- non-linear residual (state equation)
+\item \texttt{rhs{\_}1}: a :class: `Function' containing the non-linear residual
+                for the state equation
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{control.Stationary.linear{\_}solve(*, P=None, solver{\_}parameters=None, auxiliary{\_}sp=\{\}, v{\_}d=None, f=None, print{\_}error=True, outputs=True, plots=False)}
 
-Module for the solution of linear control problems.
+Module for the solution of linear compressible control problems..
 
 Input:
 \begin{itemize}
-\item \texttt{P} -- preconditioner to apply within the Krylov method (if \texttt{None}, default option is employed)
+\item \texttt{P}: a function that represents the application of the
+            preconditioner on a given vector to employ within the Krylov
+            method (if \texttt{None}, default option is employed)
 
-\item \texttt{solver{\_}parameters} -- parameters to pass to the Krylov solver
+\item \texttt{solver{\_}parameters}: a dictionary containing the parameters to pass
+            to the Krylov solver
 
-\item \texttt{auxiliary{\_}sp} -- auxiliary parameters for setting solvers of inner blocks
+\item \texttt{auxiliary{\_}sp}: a dictionary containing auxiliary parameters to
+            pass to the solvers of inner blocks
 
-\item \texttt{v{\_}d} -- when solving non-linear problems, \texttt{v{\_}d} is the non-linear residual (adjoint equation)
+\item \texttt{v{\_}d}: a :class: `Function', default option is \texttt{None}; when solving
+            non-linear problems, v\_d is the non-linear residual on the adjoint
+            equation
 
-\item \texttt{f} -- when solving non-linear problems, \texttt{f} is the non-linear residual (state equation)
+\item \texttt{f}:  a :class: `Function', default option is \texttt{None}; when solving
+            non-linear problems, f is the non-linear residual on the state
+            equation
 
-\item \texttt{print{\_}error} -- if \texttt{True}, the $L^2$ discrepancy between the desired state and the numerical solution is printed
+\item \texttt{print{\_}error}: Boolean, if \texttt{True}, the $L^2$ discrepancy between the
+            desired state and the numerical solution is printed
 
-\item \texttt{outputs} -- if \texttt{True}, output is generated
+\item \texttt{outputs}: Boolean, if \texttt{True}, output is generated
 
-\item \texttt{plots} -- if \texttt{True}, plots of the solutions are generated
+\item \texttt{plots}: Boolean, if \texttt{True}, plots of the solutions are generated
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{control.Stationary.non{\_}linear{\_}solve(*, P=None, solver{\_}parameters=None, auxiliary{\_}sp=\{\}, nl{\_}sp=None, print{\_}error=True, outputs=True, plots=False)}
 
-Module for the solution of non-linear control problems.
+Module for the solution of non-linear compressible control problems.
 
 Input:
 \begin{itemize}
-\item \texttt{P} -- preconditioner to apply within the Krylov method (if \texttt{None}, default option is employed)
+\item \texttt{P}: a function that represents the application of the
+            preconditioner on a given vector to employ within the Krylov
+            method (if \texttt{None}, default option is employed)
 
-\item \texttt{solver{\_}parameters} -- parameters to pass to the Krylov solver
+\item \texttt{solver{\_}parameters}: a dictionary containing the parameters to pass
+            to the Krylov solver
 
-\item \texttt{auxiliary{\_}sp} -- auxiliary parameters for setting solvers of inner blocks
+\item \texttt{auxiliary{\_}sp}: a dictionary containing auxiliary parameters to
+            pass to the solvers of inner blocks
 
-\item \texttt{nl{\_}sp} -- parameters for the non-linear solver
+\item \texttt{nl{\_}sp}: a dictionary containing the parameters for the non-linear
+            solver
 
-\item \texttt{print{\_}error} -- if \texttt{True}, the $L^2$ discrepancy between the desired state and the numerical solution is printed
+\item \texttt{print{\_}error}: Boolean, if \texttt{True}, the $L^2$ discrepancy between the
+            desired state and the numerical solution is printed
 
-\item \texttt{outputs} -- if \texttt{True}, output is generated
+\item \texttt{outputs}: Boolean, if \texttt{True}, output is generated
 
-\item \texttt{plots} -- if \texttt{True}, plots of the solutions are generated
+\item \texttt{plots}: Boolean, if \texttt{True}, plots of the solutions are generated
 \end{itemize}
 
 \vspace{3ex}
@@ -2415,29 +2457,45 @@ Module for the solution of linear incompressible control problems.
 
 Input:
 \begin{itemize}
-\item \texttt{nullspace{\_}p} -- nullspace of the corresponding forward stationary incompressible problem
+\item \texttt{nullspace{\_}p}: a :class: `preconditioner.Nullspace', representing
+            the nullspace of the corresponding forward stationary
+            incompressible problem
 
-\item \texttt{space{\_}p} -- pressure space, if not passed to the constructor
+\item \texttt{space{\_}p}: a :class: `FunctionSpace' representing the pressure
+            space, if not passed to the constructor
 
-\item \texttt{P} -- preconditioner to apply within the Krylov method (if \texttt{None}, default option is employed)
+\item \texttt{P}: a function that represents the application of the
+            preconditioner on a given vector to employ within the Krylov
+            method (if \texttt{None}, default option is employed)
 
-\item \texttt{solver{\_}parameters} -- parameters to pass to the Krylov solver
+\item \texttt{solver{\_}parameters}: a dictionary containing the parameters to pass
+            to the Krylov solver
 
-\item \texttt{auxiliary{\_}sp} -- auxiliary parameters for setting solvers of inner blocks
+\item \texttt{auxiliary{\_}sp}: a dictionary containing auxiliary parameters to
+            pass to the solvers of inner blocks
 
-\item \texttt{v{\_}d} -- when solving non-linear problems, \texttt{v{\_}d} is the non-linear residual (adjoint equation)
+\item \texttt{v{\_}d}: a :class: `Function', default option is \texttt{None}; when solving
+            non-linear problems, v\_d is the non-linear residual on the adjoint
+            equation
 
-\item \texttt{f} -- when solving non-linear problems, \texttt{f} is the non-linear residual (state equation)
+\item \texttt{f}: a :class: `Function', default option is \texttt{None}; when solving
+            non-linear problems, f is the non-linear residual on the state
+            equation
 
-\item \texttt{div{\_}v} -- when solving non-linear problems, \texttt{div{\_}v} is the non-linear residual (incompressibility constraint on the state variable)
+\item \texttt{div{\_}v}: a :class: `Function', default option is \texttt{None}; when solving
+            non-linear problems, div\_v is the non-linear residual
+            (incompressibility constraint on the state variable)
 
-\item \texttt{div{\_}zeta} -- when solving non-linear problems, \texttt{div{\_}zeta} is the non-linear residual (incompressibility constraint on the adjoint variable)
+\item \texttt{div{\_}zeta}:  a :class: `Function', default option is \texttt{None}; when
+            solving non-linear problems, div\_zeta is the non-linear residual
+            (incompressibility constraint on the adjoint variable)
 
-\item \texttt{print{\_}error} -- if \texttt{True}, the $L^2$ discrepancy between the desired state and the numerical solution is printed
+\item \texttt{print{\_}error}: Boolean, if \texttt{True}, the $L^2$ discrepancy between the
+            desired state and the numerical solution is printed
 
-\item \texttt{outputs} -- if \texttt{True}, output is generated
+\item \texttt{outputs}: Boolean, if \texttt{True}, output is generated
 
-\item \texttt{plots} -- if \texttt{True}, plots of the solutions are generated
+\item \texttt{plots}: Boolean, if \texttt{True}, plots of the solutions are generated
 \end{itemize}
 
 \vspace{3ex}
@@ -2448,23 +2506,31 @@ Module for the solution of non-linear incompressible control problems.
 
 Input:
 \begin{itemize}
-\item \texttt{nullspace{\_}p} -- nullspace of the corresponding forward stationary incompressible problem
+\item \texttt{nullspace{\_}p}: a :class: `preconditioner.Nullspace', representing
+            the nullspace of the corresponding forward stationary
+            incompressible problem
 
-\item \texttt{space{\_}p} -- pressure space, if not passed to the constructor
+\item \texttt{space{\_}p}: a :class: `FunctionSpace' representing the pressure
+            space, if not passed to the constructor
 
-\item \texttt{P} -- preconditioner to apply within the Krylov method (if \texttt{None}, default option is employed)
+\item \texttt{P}: a function that represents the application of the
+            preconditioner on a given vector to employ within the Krylov
+            method (if \texttt{None}, default option is employed)
 
-\item \texttt{solver{\_}parameters} -- parameters to pass to the Krylov solver
+\item \texttt{solver{\_}parameters}: a dictionary containing the parameters to pass
+            to the Krylov solver
 
-\item \texttt{auxiliary{\_}sp} -- auxiliary parameters for setting solvers of inner blocks
+\item \texttt{auxiliary{\_}sp}: a dictionary containing auxiliary parameters to
+            pass to the solvers of inner blocks
 
-\item \texttt{nl{\_}sp} -- parameters for the non-linear solver
+\item \texttt{nl{\_}sp}: a dictionary containing the parameters for the non-linear
+            solver
 
-\item \texttt{print{\_}error} -- if \texttt{True}, the $L^2$ discrepancy between the desired state and the numerical solution is printed
+\item \texttt{print{\_}error}: Boolean, if \texttt{True}, the $L^2$ discrepancy between the desired state and the numerical solution is printed
 
-\item \texttt{outputs} -- if \texttt{True}, output is generated
+\item \texttt{outputs}: Boolean, if \texttt{True}, output is generated
 
-\item \texttt{plots} -- if \texttt{True}, plots of the solutions are generated
+\item \texttt{plots}: Boolean, if \texttt{True}, plots of the solutions are generated
 \end{itemize}
 
 
@@ -2475,88 +2541,103 @@ This class solves an instationary control problem.
 \subsubsection{Submodules}
 \texttt{control.Instationary(space{\_}v, forward{\_}form, desired{\_}state=None, force{\_}function=None, *, beta=1.0e-3, space{\_}p=None, Gauss{\_}Newton=False, CN=True, n{\_}t=20, initial{\_}condition=None, time{\_}interval=(0.0, 1.0), bcs{\_}v=None)}
 
-Create \texttt{Instationary}.
+Class for the solution of an instationary control problem. This class can
+    handle compressible and incompressible problems, in either a linear or
+    non-linear setting.
 
 Input:
 \begin{itemize}
-\item \texttt{space{\_}v} -- space to which the solution belongs
+\item \texttt{space{\_}v}: a :class: `FunctionSpace' to which the solution belongs
 
-\item \texttt{forward{\_}form} -- form that represents the differential operator in space
+\item \texttt{forward{\_}form}: a function returning a :class: `ufl.Form' representing
+        the differential operator in space
 
-\item \texttt{desired{\_}state} -- desired state, defaults to zero
+\item \texttt{desired{\_}state}: a function returning a :class: `ufl.Form' representing
+        the desired state, defaults to zero
 
-\item \texttt{force{\_}function} -- force function acting on the system, defaults to zero
+\item \texttt{force{\_}function}: a function returning a :class: `ufl.Form' representing
+        the force function acting on the system, defaults to zero
 
-\item \texttt{beta} -- regularization parameter
+\item \texttt{beta}: float, the regularization parameter
 
-\item \texttt{space{\_}p} -- pressure space (only for incompressible problems)
+\item \texttt{space{\_}p}: a :class: `FunctionSpace' representing the pressure space
+        (only for incompressible problems)
 
-\item \texttt{Gauss{\_}Newton} -- if \texttt{True}, a Gauss--Newton linearization is employed, otherwise a Picard linearization is applied
+\item \texttt{Gauss{\_}Newton}: Boolean, if \texttt{True}, a Gauss--Newton linearization is
+        employed, otherwise a Picard linearization is applied
 
-\item \texttt{CN} -- if \texttt{True}, the trapezoidal rule is employed as discretization in time
+\item \texttt{CN}: Boolean, if \texttt{True}, the trapezoidal rule is employed as
+        discretization in time
 
-\item \texttt{n{\_}t} -- number of points in time
+\item \texttt{n{\_}t}: integer, number of points in time
 
-\item \texttt{initial{\_}condition} -- initial condition
+\item \texttt{initial{\_}condition}: a :class: `Function' containing the initial
+        condition
 
-\item \texttt{time{\_}interval} -- interval of time integration
+\item \texttt{time{\_}interval}: tuple, representing the interval of time integration
 
-\item \texttt{bcs{\_}v} -- boundary conditions on the state
+\item \texttt{bcs{\_}v}: a function returning a :class: `DirichletBC' or None,
+        representing the boundary conditions on the state
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{control.Instationary.set{\_}space{\_}p(space{\_}p)}
 
-Set \texttt{space{\_}p} as the pressure space.
+Change the current \texttt{space\_p}.
 
 Input:
 \begin{itemize}
-\item \texttt{space{\_}p} -- the new pressure space
+\item \texttt{space{\_}p}: a :class: `FunctionSpace' representing the new
+            pressure space
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{control.Instationary.set{\_}v(v{\_}new)}
 
-Set \texttt{v{\_}new} as the state variable.
+Change the current value of the state solution.
 
 Input:
 \begin{itemize}
-\item \texttt{v{\_}new} -- the new approximation of the state solution
+\item \texttt{v{\_}new}: a :class: `Function' containing the new approximation
+            of the state solution
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{control.Instationary.set{\_}zeta(zeta{\_}new)}
 
-Set \texttt{zeta{\_}new} as the adjoint variable.
+Change the current value of the adjoint solution.
 
 Input:
 \begin{itemize}
-\item \texttt{zeta{\_}new} -- the new approximation of the adjoint solution
+\item \texttt{zeta{\_}new}: a :class: `Function' containing the new approximation
+            of the adjoint solution
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{control.Instationary.set{\_}p(p{\_}new)}
 
-Set \texttt{p{\_}new} as the (state) pressure variable.
+Change the current value of the (state) pressure solution.
 
 Input:
 \begin{itemize}
-\item \texttt{p{\_}new} -- the new approximation of the (state) pressure solution
+\item \texttt{p{\_}new}: a :class: `Function' containing the new approximation
+            of the (state) pressure solution
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{control.Instationary.set{\_}mu(mu{\_}new)}
 
-Set \texttt{mu{\_}new} as the adjoint pressure variable.
+Change the current value of the (adjoint) pressure solution.
 
 Input:
 \begin{itemize}
-\item \texttt{mu{\_}new} -- the new approximation of the adjoint pressure solution
+\item \texttt{mu{\_}new}: a :class: `Function' containing the new approximation
+            of the adjoint pressure solution
 \end{itemize}
 
 \vspace{3ex}
@@ -2569,161 +2650,203 @@ Print the $L^2$ norm of the difference between the numerical solution and the de
 
 \texttt{control.Instationary.construct{\_}D{\_}v(v{\_}trial, v{\_}test, v{\_}n{\_}help, t, *, non{\_}linear{\_}res=False)}
 
-Construct the discretized forward form.
+Construction of the discretized forward form.
 
 Input:
 \begin{itemize}
-\item \texttt{v{\_}trial} -- trial function
+\item \texttt{v{\_}trial}: a :class: `TrialFunction', representing the trial
+            function on the FunctionSpace self.\_space\_v
 
-\item \texttt{v{\_}test} -- test function
+\item \texttt{v{\_}test}: `TestFunction', representing the test
+            function on the FunctionSpace self.\_space\_v
 
-\item \texttt{v{\_}n{\_}help} -- approximation of the state solution at time \texttt{t}
+\item \texttt{v{\_}n{\_}help}: a :class: `Function', representing the approximation
+            of the state solution at time \texttt{t}
 
-\item \texttt{t} -- time point at which we are evaluating the form
+\item \texttt{t}: float, time point at which we are evaluating the form
 
-\item \texttt{non{\_}linear{\_}res} -- if \texttt{True}, the form is employed in the evaluation of the non-linear residual
+\item \texttt{non{\_}linear{\_}res}: Boolean, if \texttt{True}, the form is employed in the
+            evaluation of the non-linear residual
 \end{itemize}
 
 Output:
 \begin{itemize}
-\item \texttt{D{\_}v} -- discretized forward form
+\item \texttt{D{\_}v}: a :class: `ufl.Form' representing the forward form or the
+            ufl.derivative of the forward form in the direction of v\_n\_help
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{control.Instationary.construct{\_}f(v{\_}test)}
 
-Construct the vector containing the force function.
+Constructs the vector containing the force function.
 
 Input:
 \begin{itemize}
-\item \texttt{v{\_}test} -- test function
+\item \texttt{v{\_}test}: a :class: `TestFunction', representing the test
+            function on the FunctionSpace self.\_space\_v
 \end{itemize}
 
 Output:
 \begin{itemize}
-\item \texttt{f} -- the discretized force function
+\item \texttt{f}: a :class: `Function', containing the force function
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{control.Instationary.construct{\_}v{\_}d()}
 
-Construct the vector containing the desired state.
+Constructs the vector containing the desired state.
 
 Output:
 \begin{itemize}
-\item \texttt{v{\_}d} -- the discretized desired state
+\item \texttt{v{\_}d}: a :class: `Function', containing the desired state
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{control.Instationary.construct{\_}pc(auxiliary{\_}sp, full{\_}space{\_}v, bcs{\_}v, bcs{\_}zeta, block{\_}01, block{\_}10, epsilon=None)}
 
-Construct the preconditioner, based on the matching strategy.
+Constructs the block-triangular preconditioner based on the matching
+        strategy.
 
 Input:
 \begin{itemize}
-\item \texttt{auxiliary{\_}sp} -- auxiliary solver parameters for inner blocks
+\item \texttt{auxiliary{\_}sp}: dictionary, containing auxiliary solver parameters
+            for the inner blocks
 
-\item \texttt{full{\_}space{\_}v} -- full space for time integration
+\item \texttt{full{\_}space{\_}v}: a :class: `MixedFunctionSpace', representing the
+            full space to which the solution belongs to
 
-\item \texttt{bcs{\_}v} -- homogenized boundary conditions for the state variable
+\item \texttt{bcs{\_}v}: a :class: `DirichletBC', representing the homogenization
+            of the bcs on the state variable
 
-\item \texttt{bcs{\_}zeta} -- homogenized boundary conditions for the adjoint variable
+\item \texttt{bcs{\_}zeta}: a :class: `DirichletBC', representing the homogenization
+            of the bcs on the adjoint variable
 
-\item \texttt{block{\_}01} -- (1,2)-block of the linear system, containing discretized adjoint forms
+\item \texttt{block{\_}01}: dictionary, representing the (1,2)-block of the
+            generalized saddle-point system; for each key (i,j),
+            block\_01[(i,j)] is a :class: `ufl.Form' representing the time
+            discretization of the adjoint form
 
-\item \texttt{block{\_}10} -- (2,1)-block of the linear system, containing discretized state forms
+\item \texttt{block{\_}10}: dictionary, representing the (2,1)-block of the
+            generalized saddle-point system; for each key (i,j),
+            block\_10[(i,j)] is a :class: `ufl.Form' representing the time
+            discretization of the forward form
 
-\item \texttt{epsilon} -- parameters employed for the construction of the preconditioner for the backward Euler discretization
+\item \texttt{epsilon}: float, parameters employed in the construction of the
+            preconditioner for the backward Euler discretization
 \end{itemize}
 
 Output:
 \begin{itemize}
-\item \texttt{pc{\_}linear} -- preconditioner to employ within the Krylov method
+\item \texttt{pc{\_}linear}: a function, representing the application of the
+            preconditioner on a generic vector to employ within the Krylov
+            method
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{control.Instationary.non{\_}linear{\_}res{\_}eval(full{\_}space{\_}v, v{\_}old, zeta{\_}old, v{\_}0, v{\_}d, f, M{\_}v, bcs{\_}v, bcs{\_}zeta)}
 
-Construct the non-linear residual.
+Constructs the non-linear residual.
 
 Input:
 \begin{itemize}
-\item \texttt{full{\_}space{\_}v} -- full space for time integration
+\item \texttt{full{\_}space{\_}v}: a :class: `MixedFunctionSpace', representing the
+            full space to which the solution belongs to
 
-\item \texttt{v{\_}old} -- approximation of the state variable
+\item \texttt{v{\_}old}: a :class: `Function' containing the approximation of the
+            state variable
 
-\item \texttt{zeta{\_}old} -- approximation of the adjoint variable
+\item \texttt{zeta{\_}old}: a :class: `Function' containing the approximation of
+            the adjoint variable
 
-\item \texttt{v{\_}0} -- initial condition on the state variable
+\item \texttt{v{\_}0}: a :class: `Function' containing the initial condition on
+            the state variable
 
-\item \texttt{v{\_}d} -- desired state
+\item \texttt{v{\_}d}: a :class: `Function' representing the desired state
 
-\item \texttt{f} -- force function
+\item \texttt{f}: a :class: `Function' representing the force function
 
-\item \texttt{M{\_}v} -- mass matrix on the state space
+\item \texttt{M{\_}v}: a :class: `ufl.Form' representing the mass matrix
+            on self.\_space\_v
 
-\item \texttt{bcs{\_}v} -- homogenized boundary conditions for the state variable
+\item \texttt{bcs{\_}v}: a :class: `DirichletBC', representing the homogenization
+            of the bcs on the state variable
 
-\item \texttt{bcs{\_}zeta} -- homogenized boundary conditions for the adjoint variable
+\item \texttt{bcs{\_}zeta}: a :class: `DirichletBC', representing the homogenization
+            of the bcs on the adjoint variable
 \end{itemize}
 
 Output:
 \begin{itemize}
-\item \texttt{rhs{\_}0} -- non-linear residual (adjoint equation)
+\item \texttt{rhs{\_}0}: a :class: `Function' containing the non-linear residual
+                for the adjoint equation
 
-\item \texttt{rhs{\_}1} -- non-linear residual (state equation)
+\item \texttt{rhs{\_}1}: a :class: `Function' containing the non-linear residual
+                for the state equation
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{control.Instationary.linear{\_}solve(*, P=None, solver{\_}parameters=None, auxiliary{\_}sp=\{\}, v{\_}d=None, f=None, print{\_}error=True, outputs=True, plots=False)}
 
-Module for the solution of linear control problems.
+Module for the solution of linear compressible control problems.
 
 Input:
 \begin{itemize}
-\item \texttt{P} -- preconditioner to apply within the Krylov method (if \texttt{None}, default option is employed)
+\item \texttt{P}: a function that represents the application of the
+            preconditioner on a given vector to employ within the Krylov
+            method (if \texttt{None}, default option is employed)
 
-\item \texttt{solver{\_}parameters} -- parameters to pass to the Krylov solver
+\item \texttt{solver{\_}parameters}: a dictionary containing the parameters to pass
+            to the Krylov solver
 
-\item \texttt{auxiliary{\_}sp} -- auxiliary parameters for setting solvers of inner blocks
+\item \texttt{auxiliary{\_}sp}: a dictionary containing auxiliary parameters to
+            pass to the solvers of inner blocks
 
-\item \texttt{v{\_}d} -- when solving non-linear problems, \texttt{v{\_}d} is the non-linear residual (adjoint equation)
+\item \texttt{v{\_}d}: a :class: `Function', default option is \texttt{None}; when solving
+            non-linear problems, v\_d is the non-linear residual on the adjoint
+            equation
 
-\item \texttt{f} -- when solving non-linear problems, \texttt{f} is the non-linear residual (state equation)
+\item \texttt{f}:  a :class: `Function', default option is \texttt{None}; when solving
+            non-linear problems, \texttt{f} is the non-linear residual on the state
+            equation
 
-\item \texttt{print{\_}error} -- if \texttt{True}, the $L^2$ discrepancy between the desired state and the numerical solution is printed
+\item \texttt{print{\_}error}: Boolean, if \texttt{True}, the $L^2$ discrepancy between the desired state and the numerical solution is printed
 
-\item \texttt{outputs} -- if \texttt{True}, output is generated
+\item \texttt{outputs}: Boolean, if \texttt{True}, output is generated
 
-\item \texttt{plots} -- if \texttt{True}, plots of the solutions are generated
+\item \texttt{plots}: Boolean, if \texttt{True}, plots of the solutions are generated
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{control.Instationary.non{\_}linear{\_}solve(*, P=None, solver{\_}parameters=None, auxiliary{\_}sp=\{\}, nl{\_}sp=None, print{\_}error=True, outputs=True, plots=False)}
 
-Module for the solution of non-linear control problems.
+Module for the solution of non-linear compressible control problems.
 
 Input:
 \begin{itemize}
-\item \texttt{P} -- preconditioner to apply within the Krylov method (if \texttt{None}, default option is employed)
+\item \texttt{P}: a function that represents the application of the
+            preconditioner on a given vector to employ within the Krylov
+            method (if \texttt{None}, default option is employed)
 
-\item \texttt{solver{\_}parameters} -- parameters to pass to the Krylov solver
+\item \texttt{solver{\_}parameters}: a dictionary containing the parameters to pass
+            to the Krylov solver
 
-\item \texttt{auxiliary{\_}sp} -- auxiliary parameters for setting solvers of inner blocks
+\item \texttt{auxiliary{\_}sp}: a dictionary containing auxiliary parameters to
+            pass to the solvers of inner blocks
 
-\item \texttt{nl{\_}sp} -- parameters for the non-linear solver
+\item \texttt{nl{\_}sp}: a dictionary containing the parameters for the non-linear
+            solver
 
-\item \texttt{print{\_}error} -- if \texttt{True}, the $L^2$ discrepancy between the desired state and the numerical solution is printed
+\item \texttt{print{\_}error}: Boolean, if \texttt{True}, the $L^2$ discrepancy between the desired state and the numerical solution is printed
 
-\item \texttt{outputs} -- if \texttt{True}, output is generated
+\item \texttt{outputs}: Boolean, if \texttt{True}, output is generated
 
-\item \texttt{plots} -- if \texttt{True}, plots of the solutions are generated
+\item \texttt{plots}: Boolean, if \texttt{True}, plots of the solutions are generated
 \end{itemize}
 
 \vspace{3ex}
@@ -2734,29 +2857,44 @@ Module for the solution of linear incompressible control problems.
 
 Input:
 \begin{itemize}
-\item \texttt{nullspace{\_}p} -- nullspace of the corresponding forward stationary incompressible problem
+\item \texttt{nullspace{\_}p}: a :class: `preconditioner.Nullspace', representing
+            the nullspace of the corresponding forward stationary
+            incompressible problem
 
-\item \texttt{space{\_}p} -- pressure space, if not passed to the constructor
+\item \texttt{space{\_}p}: a :class: `FunctionSpace' representing the pressure
+            space, if not passed to the constructor
 
-\item \texttt{P} -- preconditioner to apply within the Krylov method (if \texttt{None}, default option is employed)
+\item \texttt{P}: a function that represents the application of the
+            preconditioner on a given vector to employ within the Krylov
+            method (if \texttt{None}, default option is employed)
 
-\item \texttt{solver{\_}parameters} -- parameters to pass to the Krylov solver
+\item \texttt{solver{\_}parameters}: a dictionary containing the parameters to pass
+            to the Krylov solver
 
-\item \texttt{auxiliary{\_}sp} -- auxiliary parameters for setting solvers of inner blocks
+\item \texttt{auxiliary{\_}sp}: a dictionary containing auxiliary parameters to
+            pass to the solvers of inner blocks
 
-\item \texttt{v{\_}d} -- when solving non-linear problems, \texttt{v{\_}d} is the non-linear residual (adjoint equation)
+\item \texttt{v{\_}d}: a :class: `Function', default option is \texttt{None}; when solving
+            non-linear problems, v\_d is the non-linear residual on the adjoint
+            equation
 
-\item \texttt{f} -- when solving non-linear problems, \texttt{f} is the non-linear residual (state equation)
+\item \texttt{f}: a :class: `Function', default option is \texttt{None}; when solving
+            non-linear problems, f is the non-linear residual on the state
+            equation
 
-\item \texttt{div{\_}v} -- when solving non-linear problems, \texttt{div{\_}v} is the non-linear residual (incompressibility constraint on the state variable)
+\item \texttt{div{\_}v}: a :class: `Function', default option is \texttt{None}; when solving
+            non-linear problems, div\_v is the non-linear residual
+            (incompressibility constraint on the state variable)
 
-\item \texttt{div{\_}zeta} -- when solving non-linear problems, \texttt{div{\_}zeta} is the non-linear residual (incompressibility constraint on the adjoint variable)
+\item \texttt{div{\_}zeta}: a :class: `Function', default option is \texttt{None}; when
+            solving non-linear problems, div\_zeta is the non-linear residual
+            (incompressibility constraint on the adjoint variable)
 
-\item \texttt{print{\_}error} -- if \texttt{True}, the $L^2$ discrepancy between the desired state and the numerical solution is printed
+\item \texttt{print{\_}error}: Boolean, if \texttt{True}, the $L^2$ discrepancy between the desired state and the numerical solution is printed
 
-\item \texttt{outputs} -- if \texttt{True}, output is generated
+\item \texttt{outputs}: Boolean, if \texttt{True}, output is generated
 
-\item \texttt{plots} -- if \texttt{True}, plots of the solutions are generated
+\item \texttt{plots}: Boolean, if \texttt{True}, plots of the solutions are generated
 \end{itemize}
 
 \vspace{3ex}
@@ -2767,23 +2905,31 @@ Module for the solution of non-linear incompressible control problems.
 
 Input:
 \begin{itemize}
-\item \texttt{nullspace{\_}p} -- nullspace of the corresponding forward stationary incompressible problem
+\item \texttt{nullspace{\_}p}: a :class: `preconditioner.Nullspace', representing
+            the nullspace of the corresponding forward stationary
+            incompressible problem
 
-\item \texttt{space{\_}p} -- pressure space, if not passed to the constructor
+\item \texttt{space{\_}p}: a :class: `FunctionSpace' representing the pressure
+            space, if not passed to the constructor
 
-\item \texttt{P} -- preconditioner to apply within the Krylov method (if \texttt{None}, default option is employed)
+\item \texttt{P}: a function that represents the application of the
+            preconditioner on a given vector to employ within the Krylov
+            method (if \texttt{None}, default option is employed)
 
-\item \texttt{solver{\_}parameters} -- parameters to pass to the Krylov solver
+\item \texttt{solver{\_}parameters}: a dictionary containing the parameters to pass
+            to the Krylov solver
 
-\item \texttt{auxiliary{\_}sp} -- auxiliary parameters for setting solvers of inner blocks
+\item \texttt{auxiliary{\_}sp}: a dictionary containing auxiliary parameters to
+            pass to the solvers of inner blocks
 
-\item \texttt{nl{\_}sp} -- parameters for the non-linear solver
+\item \texttt{nl{\_}sp}: a dictionary containing the parameters for the non-linear
+            solver
 
-\item \texttt{print{\_}error} -- if \texttt{True}, the $L^2$ discrepancy between the desired state and the numerical solution is printed
+\item \texttt{print{\_}error}: Boolean, if \texttt{True}, the $L^2$ discrepancy between the desired state and the numerical solution is printed
 
-\item \texttt{outputs} -- if \texttt{True}, output is generated
+\item \texttt{outputs}: Boolean, if \texttt{True}, output is generated
 
-\item \texttt{plots} -- if \texttt{True}, plots of the solutions are generated
+\item \texttt{plots}: Boolean, if \texttt{True}, plots of the solutions are generated
 \end{itemize}
 
 
@@ -2801,154 +2947,205 @@ Definition of the nullspace of an operator.
 
 
 \subsection{The \texttt{preconditioner.MultiBlockSystem} Class}
-This class constructs and solves a generalized saddle-point problem.
+This class constructs and solves a generalized saddle-point problem arising from the finite element discretization of the KKT conditions of certain PDE constrained optimization problems.
 
 \texttt{preconditioner.MultiBlockSystem(space{\_}0, space{\_}1, block{\_}00, block{\_}01, block{\_}10, block{\_}11, *, n{\_}blocks{\_}00=1, n{\_}blocks{\_}11=1, sub{\_}n{\_}blocks{\_}00{\_}0=None, sub{\_}n{\_}blocks{\_}11{\_}0=None, nullspace{\_}0=None, nullspace{\_}1=None, form{\_}compiler{\_}parameters=None, CN=False)}
 
-Class for the solution of a generalized saddle-point system.
+Class for the solution of a generalized saddle-point system, arising
+    from the discretization of the KKT system of certain PDE-constrained
+    optimization problems.\\
+    The class sets up the method `solve' for the definition and the
+    solution of the saddle-point system.
 
 Input:
 \begin{itemize}
-\item \texttt{space{\_}0} -- space to which the state solution belongs
+\item \texttt{space{\_}0}: a :class: `FunctionSpace' to which the state solution
+        belongs
 
-\item \texttt{space{\_}1} -- space to which the adjoint solution belongs
+\item \texttt{space{\_}1}: a :class: `FunctionSpace' to which the adjoint solution
+        belongs
 
-\item \texttt{block{\_}00} -- dictionary representing the (1,1)-block of the generalized saddle-point system
+\item \texttt{block{\_}00}: dictionary representing the (1,1)-block of the
+        generalized saddle-point system
 
-\item \texttt{block{\_}01} -- dictionary representing the (1,2)-block of the generalized saddle-point system
+\item \texttt{block{\_}01}: dictionary representing the (1,2)-block of the
+        generalized saddle-point system
 
-\item \texttt{block{\_}10} -- dictionary representing the (2,1)-block of the generalized saddle-point system
+\item \texttt{block{\_}10}: dictionary representing the (2,1)-block of the
+        generalized saddle-point system
 
-\item \texttt{block{\_}11} -- dictionary representing the (2,2)-block of the generalized saddle-point system
+\item \texttt{block{\_}11}: dictionary representing the (2,2)-block of the
+        generalized saddle-point system
 
-\item \texttt{n{\_}blocks{\_}00} -- number of sub-blocks composing the (1,1)-block
+\item \texttt{n{\_}blocks{\_}00}: number of sub-blocks composing the (1,1)-block
 
-\item \texttt{n{\_}blocks{\_}11} -- number of sub-blocks composing the (2,2)-block
+\item \texttt{n{\_}blocks{\_}11}: number of sub-blocks composing the (2,2)-block
 
-\item \texttt{sub{\_}n{\_}blocks{\_}00{\_}0} -- for time-dependent problems when applying a trapezoidal rule in time, defines the number of sub-blocks of the (1,1)-block for applying the linear transformation employed in the derivation of the preconditioner
+\item \texttt{sub{\_}n{\_}blocks{\_}00{\_}0}: for time-dependent problems when applying
+        a trapezoidal rule in time, defines the number of sub-blocks of
+        the (1,1)-block for applying the linear transformation employed in
+        the derivation of the preconditioner
 
-\item \texttt{sub{\_}n{\_}blocks{\_}11{\_}0} -- for time-dependent problems when applying a trapezoidal rule in time, defines the number of sub-blocks of the (2,2)-block for applying the linear transformation employed in the derivation of the preconditioner
+\item \texttt{sub{\_}n{\_}blocks{\_}11{\_}0}: for time-dependent problems when applying
+        a trapezoidal rule in time, defines the number of sub-blocks of
+        the (2,2)-block for applying the linear transformation employed in
+        the derivation of the preconditioner
 
-\item \texttt{nullspace{\_}0} -- nullspace of the first component of the solution
+\item \texttt{nullspace{\_}0}: a tuple of :class: `Nullspace' representing the
+        nullspace of the first component of the solution
 
-\item \texttt{nullspace{\_}1} -- nullspace of the second component of the solution
+\item \texttt{nullspace{\_}1}: a tuple of :class: `Nullspace' representing the
+        nullspace of the second component of the solution
 
-\item \texttt{form{\_}compiler{\_}parameters} -- dictionary to be passed to the form compiler
+\item \texttt{form{\_}compiler{\_}parameters}: dictionary to be passed to the form
+        compiler
 
-\item \texttt{CN} -- for instationary problems, set \texttt{True} if employing a trapezoidal rule discretization in time
+\item \texttt{CN}: Boolean, for instationary problems, set \texttt{True} if employing a trapezoidal rule discretization in time
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{preconditioner.MultiBlockSystem.solve(u{\_}0, u{\_}1, b{\_}0, b{\_}1, *, solver{\_}parameters=None, pc{\_}fn=None)}
 
-Definition of the linear solver.
+Constructs the linear solver and solve the system.
 
 Input:
 \begin{itemize}
-\item \texttt{u{\_}0} -- first component of the solution
+\item \texttt{u{\_}0}: first component of the solution
 
-\item \texttt{u{\_}1} -- second component of the solution
+\item \texttt{u{\_}1}: second component of the solution
 
-\item \texttt{b{\_}0} -- first component of the right-hand side
+\item \texttt{b{\_}0}: first component of the right-hand side
 
-\item \texttt{b{\_}1} -- second component of the right-hand side
+\item \texttt{b{\_}1}: second component of the right-hand side
 
-\item \texttt{solver{\_}parameters} -- dictionary, contains the parameters for the linear solver
+\item \texttt{solver{\_}parameters}: dictionary, contains the parameters
+            for the linear solver
 
-\item \texttt{pc{\_}fn} -- function defining the preconditioner
+\item \texttt{pc{\_}fn}: function defining the preconditioner
+\end{itemize}
+
+Output:
+\begin{itemize}
+\item \texttt{ksp\_solver}: the KSP linear solver
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{preconditioner.MultiBlockSystem.MultiBlockSystemMatrix(n{\_}blocks{\_}00, n{\_}blocks{\_}11, sub{\_}n{\_}blocks{\_}00{\_}0, sub{\_}n{\_}blocks{\_}00{\_}1, sub{\_}n{\_}blocks{\_}11{\_}0, sub{\_}n{\_}blocks{\_}11{\_}1, space{\_}0, space{\_}1, spaces, matrices{\_}00, matrices{\_}01, matrices{\_}10, matrices{\_}11, nullspaces, CN)}
 
-Definition of the generalized saddle-point system.
+Class that defines the generalized saddle-point system.\\
+The class sets up the method `mult' that defines the multiplication of the matrix representing the operator for a given vector.
 
 Input:
 \begin{itemize}
-\item \texttt{n{\_}blocks{\_}00} -- number of sub-blocks of the (1,1)-block
+\item \texttt{n{\_}blocks{\_}00}: number of sub-blocks of the (1,1)-block
 
-\item \texttt{n{\_}blocks{\_}11} -- number of sub-blocks of the (2,2)-block
+\item \texttt{n{\_}blocks{\_}11}: number of sub-blocks of the (2,2)-block
 
-\item \texttt{sub{\_}n{\_}blocks{\_}00{\_}0} -- for time-dependent problems when applying a trapezoidal rule in time, defines the number of sub-blocks of the (1,1)-block for applying the first linear transformation employed in the derivation of the preconditioner
+\item \texttt{sub{\_}n{\_}blocks{\_}00{\_}0}: for time-dependent problems when applying
+                a trapezoidal rule in time, defines the number of sub-blocks
+                of the (1,1)-block for applying the first linear transformation
+                employed in the derivation of the preconditioner
 
-\item \texttt{sub{\_}n{\_}blocks{\_}00{\_}1} -- for time-dependent problems when applying a trapezoidal rule in time, defines the number of sub-blocks of the (1,1)-block for applying the second linear transformation employed in the derivation of the preconditioner
+\item \texttt{sub{\_}n{\_}blocks{\_}00{\_}1}: for time-dependent problems when applying
+                a trapezoidal rule in time, defines the number of sub-blocks
+                of the (1,1)-block for applying the second linear transformation
+                employed in the derivation of the preconditioner
 
-\item \texttt{sub{\_}n{\_}blocks{\_}11{\_}0} -- for time-dependent problems when applying a trapezoidal rule in time, defines the number of sub-blocks of the (2,2)-block for applying the first linear transformation employed in the derivation of the preconditioner
+\item \texttt{sub{\_}n{\_}blocks{\_}11{\_}0}: for time dependent problems when applying
+                a trapezoidal rule in time, defines the number of sub-blocks
+                of the (2,2)-block for applying the first linear transformation
+                employed in the derivation of the preconditioner
 
-\item \texttt{sub{\_}n{\_}blocks{\_}11{\_}1} -- for time-dependent problems when applying a trapezoidal rule in time, defines the number of sub-blocks of the (2,2)-block for applying the second linear transformation employed in the derivation of the preconditioner
+\item \texttt{sub{\_}n{\_}blocks{\_}11{\_}1}: for time dependent problems when applying
+                a trapezoidal rule in time, defines the number of sub-blocks
+                of the (2,2)-block for applying the second linear
+                transformation employed in the derivation of the preconditioner
 
-\item \texttt{space{\_}0} -- space to which the first component of the solution belongs
+\item \texttt{space{\_}0}: a :class: `FunctionSpace' to which each sub-component
+                of the first component of the solution belongs
 
-\item \texttt{space{\_}1} -- space to which the second component of the solution belongs
+\item \texttt{space{\_}1}: a :class: `FunctionSpace' to which each sub-component
+                of the second component of the solution belongs
 
-\item \texttt{spaces} -- space to which the full solution belongs
+\item \texttt{spaces}: a :class: `MixedFunctionSpace' to which the full
+                solution belongs
 
-\item \texttt{matrices{\_}00} -- dictionary representing the (1,1)-block of the generalized saddle-point system
+\item \texttt{matrices{\_}00}: dictionary representing the (1,1)-block of the
+                generalized saddle-point system
 
-\item \texttt{matrices{\_}01} -- dictionary representing the (1,2)-block of the generalized saddle-point system
+\item \texttt{matrices{\_}01}: dictionary representing the (1,2)-block of the
+                generalized saddle-point system
 
-\item \texttt{matrices{\_}10} -- dictionary representing the (2,1)-block of the generalized saddle-point system
+\item \texttt{matrices{\_}10}: dictionary representing the (2,1)-block of the
+                generalized saddle-point system
 
-\item \texttt{matrices{\_}11} -- dictionary representing the (2,2)-block of the generalized saddle-point system
+\item \texttt{matrices{\_}11}: dictionary representing the (2,2)-block of the
+                generalized saddle-point system
 
-\item \texttt{nullspaces} -- nullspace of the full solution
+\item \texttt{nullspaces}: tuple of :class: `Nullspace' representing the
+                nullspace of the full solution
 
-\item \texttt{CN} -- for instationary problems, set \texttt{True} if employing a trapezoidal rule discretization in time
+\item \texttt{CN}: Boolean, for instationary problems, set \texttt{True} if employing a trapezoidal rule discretization in time
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{preconditioner.MultiBlockSystem.mult(A, x, y)}
 
-Definition of the matrix--vector multiplication.
+Defines the matrix-vector multiplication y = A * x
 
 Input:
 \begin{itemize}
-\item \texttt{A} -- matrix representing the system
+\item \texttt{A}: matrix representing the system
 
-\item \texttt{x} -- vector of the solution
+\item \texttt{x}: vector to apply A to
 
-\item \texttt{y} -- right-hand side
+\item \texttt{y}: vector containing the result
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{preconditioner.MultiBlockSystem.Preconditioner(n{\_}blocks{\_}00, n{\_}blocks{\_}11, space{\_}0, space{\_}1, spaces, pc{\_}fn, nullspaces)}
 
-Definition of the preconditioner.
+Class that defines the preconditioner.\\
+The class sets up the method `apply' that defines the application of the inverse of the preconditioner to a vector
 
 Input:
 \begin{itemize}
-\item \texttt{n{\_}blocks{\_}00} -- number of sub-blocks of the (1,1)-block
+\item \texttt{n{\_}blocks{\_}00}: number of sub-blocks of the (1,1)-block
 
-\item \texttt{n{\_}blocks{\_}11} -- number of sub-blocks of the (2,2)-block
+\item \texttt{n{\_}blocks{\_}11}: number of sub-blocks of the (2,2)-block
 
-\item \texttt{space{\_}0} -- space to which the first component of the solution belongs
+\item \texttt{space{\_}0}: a :class: `FunctionSpace' to which each sub-component
+                of the first component of the solution belongs
 
-\item \texttt{space{\_}1} -- space to which the second component of the solution belongs
+\item \texttt{space{\_}1}: a :class: `FunctionSpace' to which each sub-component
+                of the second component of the solution belongs
 
-\item \texttt{spaces} -- space to which the full solution belongs
+\item \texttt{spaces}: a :class: `MixedFunctionSpace' to which the full
+                solution belongs
 
-\item \texttt{pc{\_}fn} -- function defining the preconditioner
+\item \texttt{pc{\_}fn}: function defining the preconditioner
 
-\item \texttt{nullspaces} -- nullspace of the full solution
+\item \texttt{nullspaces}: tuple of :class: `Nullspace' representing the
+                nullspace of the full solution
 \end{itemize}
 
 \vspace{3ex}
 
 \texttt{preconditioner.MultiBlockSystem.Preconditioner.apply(pc, x, y)}
 
-Definition of the application of the preconditioner.
+Defines the application of the inverse of the preconditioner $y = P^{-1} * x$.
 
 Input:
 \begin{itemize}
-\item \texttt{pc} -- preconditioner
+\item \texttt{pc}: function defining the preconditioner
 
-\item \texttt{x} -- vector of the solution
+\item \texttt{x}: vector to apply $P^{-1}$ to
 
-\item \texttt{y} -- right-hand side
+\item \texttt{y}: vector containing the result
 \end{itemize}
 
 
